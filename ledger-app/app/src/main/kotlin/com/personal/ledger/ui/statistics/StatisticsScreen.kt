@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -20,6 +21,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,6 +39,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.repository.BudgetProgress
+import com.personal.ledger.ui.common.CategoryBadge
+import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.LedgerColors
+import com.personal.ledger.ui.common.budgetColor
 import com.personal.ledger.ui.common.charts.ChartSlice
 import com.personal.ledger.ui.common.charts.RingChartWithLegend
 import com.personal.ledger.ui.common.charts.TrendBarChart
@@ -84,27 +91,53 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
         ) {
             item {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("支出", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        Money.formatWithSymbol(state.expense),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text("收入", style = MaterialTheme.typography.bodyMedium)
+                    // 支出主卡片
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = LedgerColors.ExpenseContainer,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text("支出", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                Money.formatSignedMinor(state.income, explicitPlus = true),
-                                style = MaterialTheme.typography.titleMedium,
+                                Money.formatWithSymbol(state.expense),
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = LedgerColors.Expense,
                             )
                         }
-                        Column {
-                            Text("结余", style = MaterialTheme.typography.bodyMedium)
-                            Text(
-                                Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
-                                style = MaterialTheme.typography.titleMedium,
-                            )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = LedgerColors.IncomeContainer,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text("收入", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    Money.formatSignedMinor(state.income, explicitPlus = true),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = LedgerColors.Income,
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (state.income - state.expense >= 0) LedgerColors.TransferContainer else LedgerColors.ExpenseContainer,
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text("结余", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (state.income - state.expense >= 0) LedgerColors.Transfer else LedgerColors.Expense,
+                                )
+                            }
                         }
                     }
                 }
@@ -120,7 +153,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             }
             item {
                 if (state.expenseByCategory.isEmpty()) {
-                    Text("本月暂无支出", modifier = Modifier.padding(16.dp))
+                    EmptyState(emoji = "🍩", title = "本月暂无支出", subtitle = "记一笔后这里会出现分类占比")
                 } else {
                     val slices = state.expenseByCategory.mapIndexed { i, stat ->
                         ChartSlice(stat.category.name, stat.amount, paletteFor(i))
@@ -184,21 +217,30 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
 
 @Composable
 private fun CategoryStatRow(stat: CategoryStat) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stat.category.name, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "${Money.formatMinor(stat.amount)}  ${(stat.fraction * 100).toInt()}%",
-                style = MaterialTheme.typography.bodyMedium,
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CategoryBadge(name = stat.category.name, type = stat.category.type)
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(stat.category.name, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "${Money.formatMinor(stat.amount)}  ${(stat.fraction * 100).toInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            LinearProgressIndicator(
+                progress = { stat.fraction },
+                color = LedgerColors.Expense,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
             )
         }
-        Spacer(Modifier.height(4.dp))
-        LinearProgressIndicator(
-            progress = { stat.fraction },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp),
-        )
     }
 }
 
@@ -211,11 +253,13 @@ private fun BudgetRow(b: BudgetProgress) {
             Text(
                 "${Money.formatMinor(b.spent)} / ${Money.formatMinor(b.budget.amount)}  $pct%",
                 style = MaterialTheme.typography.bodyMedium,
+                color = budgetColor(b.permille, MaterialTheme.colorScheme.onSurface),
             )
         }
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
             progress = { ((b.permille ?: 0).coerceAtMost(1000)) / 1000f },
+            color = budgetColor(b.permille, MaterialTheme.colorScheme.primary),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(6.dp),

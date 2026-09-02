@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,6 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.TransactionType
+import com.personal.ledger.ui.common.CategoryVisuals
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.AddTransactionViewModel
@@ -71,6 +74,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     var pickTarget by remember { mutableStateOf(false) }
     var showMerchantPicker by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(txId) { vm.load(txId) }
 
@@ -139,7 +143,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                         FilterChip(
                             selected = state.categoryId == cat.id,
                             onClick = { vm.setCategoryId(cat.id) },
-                            label = { Text(cat.name) },
+                            label = { Text("${CategoryVisuals.emojiFor(cat.name, cat.type)} ${cat.name}") },
                         )
                     }
                 }
@@ -244,7 +248,11 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             }
 
             Button(
-                onClick = { vm.save() },
+                onClick = {
+                    // 保存成功后才返回；此处轻震提示，成功反馈由返回动作衔接
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    vm.save()
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("保存", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

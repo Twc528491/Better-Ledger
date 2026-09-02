@@ -1,5 +1,6 @@
 package com.personal.ledger.ui.transaction
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -37,6 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -45,6 +50,10 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
+import com.personal.ledger.ui.common.CategoryBadge
+import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.LedgerColors
+import com.personal.ledger.ui.common.amountColor
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.TransactionsViewModel
@@ -68,6 +77,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
     var accountMenu by remember { mutableStateOf(false) }
     var categoryMenu by remember { mutableStateOf(false) }
     var tagMenu by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     Scaffold(
         topBar = {
@@ -232,8 +242,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
             }
 
             if (state.transactions.isEmpty()) {
-                Text(
-                    if (state.hasActiveFilter) "没有符合条件的账单" else "本月暂无交易",
+                EmptyState(
+                    emoji = if (state.hasActiveFilter) "🔍" else "🧾",
+                    title = if (state.hasActiveFilter) "没有符合条件的账单" else "本月暂无交易",
+                    subtitle = if (state.hasActiveFilter) "试试调整或清除筛选条件" else "",
                     modifier = Modifier.padding(16.dp),
                 )
             } else {
@@ -275,7 +287,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 tagNames = tagMap,
                                 tagIdsOf = state.tagIdsOf,
                                 onClick = { navController.navigate(Routes.add(tx.id)) },
-                                onDelete = { pendingDelete = tx },
+                                onDelete = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    pendingDelete = tx
+                                },
                             )
                             HorizontalDivider()
                         }
@@ -321,34 +336,60 @@ private fun TransactionItem(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                titleOf(tx, categoryNames, merchantNameOf),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            // 副标题：分类 · 账户；转账显示 "账户A → 账户B"；商家、标签仅在有内容时展示
-            val tags = (tagIdsOf[tx.id].orEmpty()).mapNotNull { tagNames[it] }
-            val tagText = if (tags.isEmpty()) "" else " · ${tags.joinToString("|")}"
-            val subtitle = if (tx.type == TransactionType.TRANSFER) {
-                "${accountNames[tx.accountId] ?: ""} → ${tx.targetAccountId?.let { accountNames[it] } ?: ""}"
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            if (tx.type == TransactionType.TRANSFER) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(LedgerColors.TransferContainer, androidx.compose.foundation.shape.CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("🔁")
+                }
             } else {
-                "${categoryNames[tx.categoryId] ?: ""} · ${accountNames[tx.accountId] ?: ""}"
+                val categoryName = categoryNames[tx.categoryId] ?: "其他"
+                CategoryBadge(
+                    name = categoryName,
+                    type = if (tx.type == TransactionType.EXPENSE) {
+                        com.personal.ledger.domain.model.CategoryType.EXPENSE
+                    } else {
+                        com.personal.ledger.domain.model.CategoryType.INCOME
+                    },
+                )
             }
-            Text(
-                subtitle + tagText,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Column(modifier = Modifier.padding(start = 12.dp)) {
+                Text(
+                    titleOf(tx, categoryNames, merchantNameOf),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                // 副标题：分类 · 账户；转账显示 "账户A → 账户B"；商家、标签仅在有内容时展示
+                val tags = (tagIdsOf[tx.id].orEmpty()).mapNotNull { tagNames[it] }
+                val tagText = if (tags.isEmpty()) "" else " · ${tags.joinToString("|")}"
+                val subtitle = if (tx.type == TransactionType.TRANSFER) {
+                    "${accountNames[tx.accountId] ?: ""} → ${tx.targetAccountId?.let { accountNames[it] } ?: ""}"
+                } else {
+                    "${categoryNames[tx.categoryId] ?: ""} · ${accountNames[tx.accountId] ?: ""}"
+                }
+                Text(
+                    subtitle + tagText,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
         }
-        Text(
-            when (tx.type) {
-                TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-                TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
-            },
-            style = MaterialTheme.typography.titleMedium,
-        )
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Filled.Delete, contentDescription = "删除")
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                when (tx.type) {
+                    TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
+                    TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
+                    TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = amountColor(tx.type, MaterialTheme.colorScheme.onSurface),
+            )
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = "删除")
+            }
         }
     }
 }
