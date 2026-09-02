@@ -1,0 +1,23 @@
+# Toolchain / cache directories (kept inside the workspace for sandbox builds)
+.tools/
+.android-sdk/
+.android-home/
+.tmp/
+.gradle-home/
+.idea/
+.kotlin/
+
+# Gradle
+.gradle/
+build/
+ledger-app/build/
+ledger-app/app/build/
+
+# Android
+local.properties
+*.apk
+*.aab
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,122 @@
+package com.personal.ledger.data.repository
+
+import com.personal.ledger.data.local.dao.BudgetDao
+import com.personal.ledger.data.local.dao.TransactionDao
+import com.personal.ledger.data.local.entity.BudgetEntity
+import com.personal.ledger.domain.calc.BudgetCalculator
+import com.personal.ledger.domain.model.Budget
+import com.personal.ledger.util.TimeUtils
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.time.YearMonth
+import java.util.UUID
+
+/** 某预算的执行情况（供 UI 展示）。 */
+data class BudgetProgress(
+    val budget: Budget,
+    val spent: Long,
+    /** 千分比进度（0..1000+），预算未设置时为 null。 */
+    val permille: Int?,
+)
+
+class BudgetRepository(
+    private val budgetDao: BudgetDao,
+    private val transactionDao: TransactionDao,
+    private val categoryRepository: CategoryRepository,
+) {
+
+    fun observeByLedger(ledgerId: String): Flow<List<Budget>> =
+        budgetDao.observeByLedger(ledgerId).map { list -> list.map { it.toDomain() } }
+
+    fun observeByMonth(ledgerId: String, month: String): Flow<List<Budget>> =
+        budgetDao.observeByMonth(ledgerId, month).map { list -> list.map { it.toDomain() } }
+
+    suspend fun getByMonth(ledgerId: String, month: String): List<Budget> =
+        budgetDao.getByMonth(ledgerId, month).map { it.toDomain() }
+
+    /**
+     * 设置 / 修改预算。约束：
+     * - 同账本同月份最多一个总预算、每分类一个分类预算（事务内校验）；
+     * - 分类预算只能关联 EXPENSE 分类。
+     */
+    suspend fun setBudget(
+        ledgerId: String,
+        month: String,
+        categoryId: String?,
+        amount: Long,
+        currency: String,
+    ): Result<Budget> {
+        if (amount <= 0) return Result.failure(IllegalArgumentException("预算金额必须大于 0"))
+        if (!month.matches(Regex("""\d{4}-\d{2}"""))) return Result.failure(IllegalArgumentException("月份格式错误"))
+
+        if (categoryId != null) {
+            val category = categoryRepository.getById(categoryId)
+                ?: return Result.failure(IllegalArgumentException("分类不存在"))
+            if (category.ledgerId != ledgerId) return Result.failure(IllegalArgumentException("分类不属于当前账本"))
+            if (category.type != com.personal.ledger.domain.model.CategoryType.EXPENSE) {
+                return Result.failure(IllegalArgumentException("预算只能关联支出分类"))
+            }
+        }
+
+        val now = TimeUtils.now()
+        return try {
+            val existing = budgetDao.findByMonthAndCategory(ledgerId, month, categoryId)
+            val entity = if (existing != null) {
+                existing.copy(amount = amount, currency = currency, updatedAt = now)
+            } else {
+                BudgetEntity(
+                    id = UUID.randomUUID().toString(),
+                    ledgerId = ledgerId,
+                    month = month,
+                    categoryId = categoryId,
+                    amount = amount,
+                    currency = currency,
+                    createdAt = now,
+                    updatedAt = now,
+                )
+            }
+            if (existing != null) budgetDao.update(entity) else budgetDao.insert(entity)
+            Result.success(entity.toDomain())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteBudget(ledgerId: String, month: String, categoryId: String?): Result<Unit> = try {
+        budgetDao.delete(ledgerId, month, categoryId)
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+    /**
+     * 某月预算执行情况：
+     * - 总预算：当月全部支出；
+     * - 分类预算：该分类树支出（父分类含所有子分类）。
+     */
+    suspend fun progressForMonth(ledgerId: String, month: YearMonth): List<BudgetProgress> {
+        val startMs = TimeUtils.monthStartMs(month)
+        val endMs = TimeUtils.monthEndMs(month)
+        val budgets = budgetDao.getByMonth(ledgerId, month.toString())
+
+        val categoryExpense = transactionDao.expenseByCategoryBetween(ledgerId, startMs, endMs)
+            .associate { it.categoryId to it.total }
+        val parentMap = categoryRepository.parentMap(ledgerId)
+        val rolledUp = BudgetCalculator.rollUpToParents(parentMap, categoryExpense)
+
+        return budgets.map { b ->
+            val spent = if (b.categoryId == null) {
+                transactionDao.sumByTypeBetween(ledgerId, startMs, endMs)
+                    .firstOrNull { it.type == com.personal.ledger.domain.model.TransactionType.EXPENSE }
+                    ?.total ?: 0L
+            } else {
+                rolledUp[b.categoryId] ?: 0L
+            }
+            BudgetProgress(
+                budget = b.toDomain(),
+                spent = spent,
+                permille = BudgetCalculator.progressPermille(b.amount, spent),
+            )
+        }
+    }
+}
