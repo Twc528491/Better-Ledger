@@ -21,20 +21,13 @@ class AppContainer(context: Context) {
     val database: AppDatabase = AppDatabase.getInstance(context)
     val settings: SettingsRepository = SettingsRepository(context)
 
-    val categoryRepository = CategoryRepository(database.categoryDao())
+    val categoryRepository = CategoryRepository(database)
     val merchantRepository = MerchantRepository(database.merchantDao())
     val tagRepository = TagRepository(database.tagDao())
     val accountRepository = AccountRepository(database.accountDao(), database.transactionDao())
-    val transactionRepository = TransactionRepository(
-        transactionDao = database.transactionDao(),
-        accountDao = database.accountDao(),
-        categoryDao = database.categoryDao(),
-        ledgerDao = database.ledgerDao(),
-        transactionTagDao = database.transactionTagDao(),
-    )
+    val transactionRepository = TransactionRepository(database)
     val budgetRepository = BudgetRepository(
-        budgetDao = database.budgetDao(),
-        transactionDao = database.transactionDao(),
+        database = database,
         categoryRepository = categoryRepository,
     )
     val ledgerRepository = LedgerRepository(

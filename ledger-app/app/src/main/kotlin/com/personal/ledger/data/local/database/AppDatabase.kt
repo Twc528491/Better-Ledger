@@ -23,6 +23,8 @@ import com.personal.ledger.data.local.entity.TagEntity
 import com.personal.ledger.data.local.entity.TransactionEntity
 import com.personal.ledger.data.local.entity.TransactionTagEntity
 
+const val DATABASE_VERSION = 1
+
 @Database(
     entities = [
         LedgerEntity::class,
@@ -34,7 +36,7 @@ import com.personal.ledger.data.local.entity.TransactionTagEntity
         TransactionTagEntity::class,
         BudgetEntity::class,
     ],
-    version = 1,
+    version = DATABASE_VERSION,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

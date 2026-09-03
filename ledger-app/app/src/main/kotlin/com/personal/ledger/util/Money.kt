@@ -22,7 +22,8 @@ object Money {
         return when {
             minor > 0 && explicitPlus -> "+$text"
             minor > 0 -> text
-            else -> "-$text"
+            minor < 0 -> "-$text"
+            else -> text
         }
     }
 

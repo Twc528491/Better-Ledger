@@ -1,10 +1,7 @@
 package com.personal.ledger.data.repository
 
-import com.personal.ledger.data.local.dao.AccountDao
-import com.personal.ledger.data.local.dao.CategoryDao
-import com.personal.ledger.data.local.dao.LedgerDao
-import com.personal.ledger.data.local.dao.TransactionDao
-import com.personal.ledger.data.local.dao.TransactionTagDao
+import androidx.room.withTransaction
+import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.TransactionEntity
 import com.personal.ledger.data.local.entity.TransactionTagEntity
 import com.personal.ledger.domain.calc.TransactionRules
@@ -35,12 +32,14 @@ data class TransactionDraft(
 )
 
 class TransactionRepository(
-    private val transactionDao: TransactionDao,
-    private val accountDao: AccountDao,
-    private val categoryDao: CategoryDao,
-    private val ledgerDao: LedgerDao,
-    private val transactionTagDao: TransactionTagDao,
+    private val database: AppDatabase,
 ) {
+
+    private val transactionDao = database.transactionDao()
+    private val accountDao = database.accountDao()
+    private val categoryDao = database.categoryDao()
+    private val ledgerDao = database.ledgerDao()
+    private val transactionTagDao = database.transactionTagDao()
 
     fun observeRecent(ledgerId: String, limit: Int = 5): Flow<List<Transaction>> =
         transactionDao.observeRecent(ledgerId, limit).map { list -> list.map { it.toDomain() } }
@@ -72,34 +71,37 @@ class TransactionRepository(
      * - 币种必须等于账本 baseCurrency
      */
     suspend fun add(draft: TransactionDraft): Result<Transaction> {
-        val error = validate(draft)
-        if (error != null) return Result.failure(TransactionValidationException(error))
-
-        val now = TimeUtils.now()
-        val entity = TransactionEntity(
-            id = UUID.randomUUID().toString(),
-            ledgerId = draft.ledgerId,
-            type = draft.type,
-            amount = draft.amount,
-            currency = draft.currency,
-            accountId = draft.accountId,
-            targetAccountId = draft.targetAccountId,
-            categoryId = draft.categoryId,
-            merchantId = draft.merchantId,
-            note = draft.note?.trim()?.ifEmpty { null },
-            transactionTime = draft.transactionTime,
-            createdAt = now,
-            updatedAt = now,
-            isDeleted = false,
-        )
         return try {
-            transactionDao.insert(entity)
-            if (draft.tagIds.isNotEmpty()) {
-                transactionTagDao.insertAll(
-                    draft.tagIds.map { TransactionTagEntity(transactionId = entity.id, tagId = it) }
+            val saved = database.withTransaction {
+                validate(draft)?.let { throw TransactionValidationException(it) }
+                val now = TimeUtils.now()
+                val entity = TransactionEntity(
+                    id = UUID.randomUUID().toString(),
+                    ledgerId = draft.ledgerId,
+                    type = draft.type,
+                    amount = draft.amount,
+                    currency = draft.currency,
+                    accountId = draft.accountId,
+                    targetAccountId = draft.targetAccountId,
+                    categoryId = draft.categoryId,
+                    merchantId = draft.merchantId,
+                    note = draft.note?.trim()?.ifEmpty { null },
+                    transactionTime = draft.transactionTime,
+                    createdAt = now,
+                    updatedAt = now,
+                    isDeleted = false,
                 )
+                transactionDao.insert(entity)
+                if (draft.tagIds.isNotEmpty()) {
+                    transactionTagDao.insertAll(
+                        draft.tagIds.distinct().map {
+                            TransactionTagEntity(transactionId = entity.id, tagId = it)
+                        }
+                    )
+                }
+                entity.toDomain()
             }
-            Result.success(entity.toDomain())
+            Result.success(saved)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -107,30 +109,35 @@ class TransactionRepository(
 
     /** 编辑已有交易（同样受全部约束约束）。 */
     suspend fun update(id: String, draft: TransactionDraft): Result<Transaction> {
-        val existing = transactionDao.getById(id) ?: return Result.failure(NoSuchElementException("交易不存在"))
-        val error = validate(draft)
-        if (error != null) return Result.failure(TransactionValidationException(error))
         return try {
-            val updated = existing.copy(
-                type = draft.type,
-                amount = draft.amount,
-                currency = draft.currency,
-                accountId = draft.accountId,
-                targetAccountId = draft.targetAccountId,
-                categoryId = draft.categoryId,
-                merchantId = draft.merchantId,
-                note = draft.note?.trim()?.ifEmpty { null },
-                transactionTime = draft.transactionTime,
-                updatedAt = TimeUtils.now(),
-            )
-            transactionDao.update(updated)
-            transactionTagDao.deleteByTransaction(id)
-            if (draft.tagIds.isNotEmpty()) {
-                transactionTagDao.insertAll(
-                    draft.tagIds.map { TransactionTagEntity(transactionId = id, tagId = it) }
+            val saved = database.withTransaction {
+                val existing = transactionDao.getById(id) ?: throw NoSuchElementException("交易不存在")
+                if (existing.ledgerId != draft.ledgerId) {
+                    throw TransactionValidationException("交易不能移动到其他账本")
+                }
+                validate(draft)?.let { throw TransactionValidationException(it) }
+                val updated = existing.copy(
+                    type = draft.type,
+                    amount = draft.amount,
+                    currency = draft.currency,
+                    accountId = draft.accountId,
+                    targetAccountId = draft.targetAccountId,
+                    categoryId = draft.categoryId,
+                    merchantId = draft.merchantId,
+                    note = draft.note?.trim()?.ifEmpty { null },
+                    transactionTime = draft.transactionTime,
+                    updatedAt = TimeUtils.now(),
                 )
+                transactionDao.update(updated)
+                transactionTagDao.deleteByTransaction(id)
+                if (draft.tagIds.isNotEmpty()) {
+                    transactionTagDao.insertAll(
+                        draft.tagIds.distinct().map { TransactionTagEntity(transactionId = id, tagId = it) }
+                    )
+                }
+                updated.toDomain()
             }
-            Result.success(updated.toDomain())
+            Result.success(saved)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -199,6 +206,15 @@ class TransactionRepository(
             val target = accountDao.getById(targetId) ?: return "转入账户不存在"
             if (target.ledgerId != draft.ledgerId) return "转入账户不属于当前账本"
             if (draft.transactionTime < target.initialBalanceTime) return "时间不能早于转入账户初始时间"
+        }
+
+        draft.merchantId?.let { merchantId ->
+            val merchant = database.merchantDao().getById(merchantId) ?: return "商家不存在"
+            if (merchant.ledgerId != draft.ledgerId) return "商家不属于当前账本"
+        }
+        draft.tagIds.distinct().forEach { tagId ->
+            val tag = database.tagDao().getById(tagId) ?: return "标签不存在"
+            if (tag.ledgerId != draft.ledgerId) return "标签不属于当前账本"
         }
         return null
     }

@@ -20,6 +20,9 @@ class MoneyTest {
         assertEquals("25.36", Money.formatSignedMinor(2536))
         assertEquals("+25.36", Money.formatSignedMinor(2536, explicitPlus = true))
         assertEquals("-0.01", Money.formatSignedMinor(-1))
+        assertEquals("0.00", Money.formatSignedMinor(0))
+        assertEquals("0.00", Money.formatSignedMinor(0, explicitPlus = true))
+        assertEquals("¥0.00", Money.formatWithSymbol(0))
     }
 
     @Test

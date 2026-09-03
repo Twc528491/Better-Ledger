@@ -17,6 +17,9 @@ interface MerchantDao {
     @Query("SELECT * FROM merchant WHERE ledgerId = :ledgerId ORDER BY createdAt ASC")
     suspend fun getByLedger(ledgerId: String): List<MerchantEntity>
 
+    @Query("SELECT * FROM merchant WHERE id = :id")
+    suspend fun getById(id: String): MerchantEntity?
+
     @Query("SELECT * FROM merchant")
     suspend fun getAll(): List<MerchantEntity>
 

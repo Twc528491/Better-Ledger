@@ -1,7 +1,7 @@
 package com.personal.ledger.data.repository
 
-import com.personal.ledger.data.local.dao.BudgetDao
-import com.personal.ledger.data.local.dao.TransactionDao
+import androidx.room.withTransaction
+import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.BudgetEntity
 import com.personal.ledger.domain.calc.BudgetCalculator
 import com.personal.ledger.domain.model.Budget
@@ -20,10 +20,12 @@ data class BudgetProgress(
 )
 
 class BudgetRepository(
-    private val budgetDao: BudgetDao,
-    private val transactionDao: TransactionDao,
+    private val database: AppDatabase,
     private val categoryRepository: CategoryRepository,
 ) {
+
+    private val budgetDao = database.budgetDao()
+    private val transactionDao = database.transactionDao()
 
     fun observeByLedger(ledgerId: String): Flow<List<Budget>> =
         budgetDao.observeByLedger(ledgerId).map { list -> list.map { it.toDomain() } }
@@ -46,37 +48,38 @@ class BudgetRepository(
         amount: Long,
         currency: String,
     ): Result<Budget> {
-        if (amount <= 0) return Result.failure(IllegalArgumentException("预算金额必须大于 0"))
-        if (!month.matches(Regex("""\d{4}-\d{2}"""))) return Result.failure(IllegalArgumentException("月份格式错误"))
-
-        if (categoryId != null) {
-            val category = categoryRepository.getById(categoryId)
-                ?: return Result.failure(IllegalArgumentException("分类不存在"))
-            if (category.ledgerId != ledgerId) return Result.failure(IllegalArgumentException("分类不属于当前账本"))
-            if (category.type != com.personal.ledger.domain.model.CategoryType.EXPENSE) {
-                return Result.failure(IllegalArgumentException("预算只能关联支出分类"))
-            }
-        }
-
-        val now = TimeUtils.now()
         return try {
-            val existing = budgetDao.findByMonthAndCategory(ledgerId, month, categoryId)
-            val entity = if (existing != null) {
-                existing.copy(amount = amount, currency = currency, updatedAt = now)
-            } else {
-                BudgetEntity(
-                    id = UUID.randomUUID().toString(),
-                    ledgerId = ledgerId,
-                    month = month,
-                    categoryId = categoryId,
-                    amount = amount,
-                    currency = currency,
-                    createdAt = now,
-                    updatedAt = now,
-                )
+            val budget = database.withTransaction {
+                if (amount <= 0) throw IllegalArgumentException("预算金额必须大于 0")
+                if (!month.matches(Regex("""\d{4}-\d{2}"""))) throw IllegalArgumentException("月份格式错误")
+                if (categoryId != null) {
+                    val category = categoryRepository.getById(categoryId)
+                        ?: throw IllegalArgumentException("分类不存在")
+                    if (category.ledgerId != ledgerId) throw IllegalArgumentException("分类不属于当前账本")
+                    if (category.type != com.personal.ledger.domain.model.CategoryType.EXPENSE) {
+                        throw IllegalArgumentException("预算只能关联支出分类")
+                    }
+                }
+                val now = TimeUtils.now()
+                val existing = budgetDao.findByMonthAndCategory(ledgerId, month, categoryId)
+                val entity = if (existing != null) {
+                    existing.copy(amount = amount, currency = currency, updatedAt = now)
+                } else {
+                    BudgetEntity(
+                        id = UUID.randomUUID().toString(),
+                        ledgerId = ledgerId,
+                        month = month,
+                        categoryId = categoryId,
+                        amount = amount,
+                        currency = currency,
+                        createdAt = now,
+                        updatedAt = now,
+                    )
+                }
+                if (existing != null) budgetDao.update(entity) else budgetDao.insert(entity)
+                entity.toDomain()
             }
-            if (existing != null) budgetDao.update(entity) else budgetDao.insert(entity)
-            Result.success(entity.toDomain())
+            Result.success(budget)
         } catch (e: Exception) {
             Result.failure(e)
         }

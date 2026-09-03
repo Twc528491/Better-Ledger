@@ -80,7 +80,8 @@ class AddTransactionViewModel(
                     ledgerId = ledger.id,
                     baseCurrency = ledger.baseCurrency,
                     type = editing.type,
-                    amountText = kotlin.math.abs(editing.amount).toString(),
+                    // 数据库存储最小货币单位，编辑框展示十进制主货币单位。
+                    amountText = com.personal.ledger.util.Money.formatMinor(editing.amount),
                     accountId = editing.accountId,
                     targetAccountId = editing.targetAccountId,
                     categoryId = editing.categoryId,

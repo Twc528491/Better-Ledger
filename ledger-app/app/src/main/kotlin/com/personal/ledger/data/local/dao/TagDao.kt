@@ -17,6 +17,9 @@ interface TagDao {
     @Query("SELECT * FROM tag WHERE ledgerId = :ledgerId ORDER BY createdAt ASC")
     suspend fun getByLedger(ledgerId: String): List<TagEntity>
 
+    @Query("SELECT * FROM tag WHERE id = :id")
+    suspend fun getById(id: String): TagEntity?
+
     @Query("SELECT * FROM tag")
     suspend fun getAll(): List<TagEntity>
 

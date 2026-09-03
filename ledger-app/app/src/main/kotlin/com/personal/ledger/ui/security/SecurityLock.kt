@@ -43,7 +43,8 @@ class SecurityLock(private val activity: FragmentActivity) {
         if (BiometricManager.from(activity).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK or BiometricManager.Authenticators.DEVICE_CREDENTIAL) !=
             BiometricManager.BIOMETRIC_SUCCESS
         ) {
-            // 无可用验证方式：V1 直接放行（不锁死用户）。
+            // 安全锁已启用时不能因验证方式临时不可用而绕过锁。
+            activity.finishAffinity()
             return
         }
         prompting = true
@@ -57,13 +58,8 @@ class SecurityLock(private val activity: FragmentActivity) {
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     prompting = false
-                    // 除"用户主动取消验证（系统返回/锁屏取消）"外，一律退出应用。
-                    // 注意："退出"负按钮（ERROR_NEGATIVE_BUTTON）同样必须退出，防止绕过锁。
-                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
-                        errorCode != BiometricPrompt.ERROR_CANCELED
-                    ) {
-                        activity.finishAffinity()
-                    }
+                    // 任何取消或错误都关闭任务，避免返回键绕过系统验证。
+                    activity.finishAffinity()
                 }
             },
         )
@@ -74,7 +70,6 @@ class SecurityLock(private val activity: FragmentActivity) {
                 BiometricManager.Authenticators.BIOMETRIC_WEAK or
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
             )
-            .setNegativeButtonText("退出")
             .build()
         prompt.authenticate(info)
     }
@@ -120,7 +115,6 @@ fun promptForEnrollment(
             BiometricManager.Authenticators.BIOMETRIC_WEAK or
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL
         )
-        .setNegativeButtonText("取消")
         .build()
     prompt.authenticate(info)
 }

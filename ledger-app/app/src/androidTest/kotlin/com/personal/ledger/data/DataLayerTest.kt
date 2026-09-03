@@ -56,11 +56,9 @@ class DataLayerTest {
         settings = SettingsRepository(context)
         ledgerRepo = LedgerRepository(db.ledgerDao(), db.accountDao(), db.categoryDao(), settings)
         accountRepo = AccountRepository(db.accountDao(), db.transactionDao())
-        categoryRepo = CategoryRepository(db.categoryDao())
-        txRepo = TransactionRepository(
-            db.transactionDao(), db.accountDao(), db.categoryDao(), db.ledgerDao(), db.transactionTagDao(),
-        )
-        budgetRepo = BudgetRepository(db.budgetDao(), db.transactionDao(), categoryRepo)
+        categoryRepo = CategoryRepository(db)
+        txRepo = TransactionRepository(db)
+        budgetRepo = BudgetRepository(db, categoryRepo)
         merchantRepo = MerchantRepository(db.merchantDao())
         tagRepo = TagRepository(db.tagDao())
     }
@@ -150,6 +148,82 @@ class DataLayerTest {
         assertEquals("时间不能早于账户初始时间", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, categoryId = foodId, transactionTime = early))))
         // 币种必须与账本一致
         assertEquals("币种必须与账本一致", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "USD", cashId, categoryId = foodId, transactionTime = now))))
+    }
+
+    @Test
+    fun `交易关联实体必须属于同一账本且失败不留半条交易`() = runTest {
+        val ledgerId = seededLedgerId()
+        val otherLedger = ledgerRepo.createLedger("其他账本")
+        val cashId = db.accountDao().getByLedger(ledgerId).first().id
+        val foodId = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.EXPENSE).first().id
+        val otherTag = tagRepo.addTag(otherLedger.id, "其他账本标签").getOrThrow()
+        val otherMerchant = merchantRepo.addMerchant(otherLedger.id, "其他账本商家").getOrThrow()
+
+        val invalidTag = txRepo.add(
+            TransactionDraft(
+                ledgerId,
+                TransactionType.EXPENSE,
+                100,
+                "CNY",
+                cashId,
+                categoryId = foodId,
+                tagIds = listOf(otherTag.id),
+                transactionTime = TimeUtils.now(),
+            )
+        )
+        assertTrue(invalidTag.isFailure)
+        assertEquals(0, db.transactionDao().getAll().size)
+
+        val invalidMerchant = txRepo.add(
+            TransactionDraft(
+                ledgerId,
+                TransactionType.EXPENSE,
+                100,
+                "CNY",
+                cashId,
+                categoryId = foodId,
+                merchantId = otherMerchant.id,
+                transactionTime = TimeUtils.now(),
+            )
+        )
+        assertTrue(invalidMerchant.isFailure)
+        assertEquals(0, db.transactionDao().getAll().size)
+    }
+
+    @Test
+    fun `转入账户的初始时间不能越过已有转账`() = runTest {
+        val ledgerId = seededLedgerId()
+        val cash = accountRepo.observeByLedger(ledgerId).first().first()
+        val baseTime = cash.initialBalanceTime
+        val bank = accountRepo.addAccount(
+            ledgerId,
+            "银行卡",
+            AccountType.BANK,
+            "CNY",
+            0L,
+            baseTime,
+        ).getOrThrow()
+        val transferTime = baseTime + 1_000
+        txRepo.add(
+            TransactionDraft(
+                ledgerId,
+                TransactionType.TRANSFER,
+                100,
+                "CNY",
+                cash.id,
+                targetAccountId = bank.id,
+                transactionTime = transferTime,
+            )
+        ).getOrThrow()
+
+        val result = accountRepo.updateAccount(
+            bank,
+            bank.name,
+            bank.type,
+            bank.initialBalance,
+            transferTime + 1,
+        )
+        assertTrue(result.isFailure)
     }
 
     @Test

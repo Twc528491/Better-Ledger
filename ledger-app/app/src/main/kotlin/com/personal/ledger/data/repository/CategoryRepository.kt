@@ -1,6 +1,7 @@
 package com.personal.ledger.data.repository
 
-import com.personal.ledger.data.local.dao.CategoryDao
+import androidx.room.withTransaction
+import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.CategoryEntity
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
@@ -9,7 +10,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
-class CategoryRepository(private val categoryDao: CategoryDao) {
+class CategoryRepository(private val database: AppDatabase) {
+
+    private val categoryDao = database.categoryDao()
 
     fun observeByLedger(ledgerId: String): Flow<List<Category>> =
         categoryDao.observeByLedger(ledgerId).map { list -> list.map { it.toDomain() } }
@@ -31,23 +34,19 @@ class CategoryRepository(private val categoryDao: CategoryDao) {
         type: CategoryType,
         parentId: String? = null,
     ): Result<Category> {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("名称不能为空"))
-
-        val parent = parentId?.let { categoryDao.getById(it) }
-        if (parentId != null) {
-            if (parent == null) return Result.failure(IllegalArgumentException("父分类不存在"))
-            if (parent.ledgerId != ledgerId) return Result.failure(IllegalArgumentException("父分类不属于当前账本"))
-            if (parent.parentId != null) return Result.failure(IllegalArgumentException("分类最多两级"))
-            if (parent.type != type) return Result.failure(IllegalArgumentException("父子分类类型必须一致"))
-        }
-
-        // 事务内唯一性校验 + 插入。
         return try {
-            val count = categoryDao.countSameName(ledgerId, type, parentId, trimmed)
-            if (count > 0) {
-                Result.failure(IllegalArgumentException("同级下已存在同名分类"))
-            } else {
+            val category = database.withTransaction {
+                val trimmed = name.trim()
+                if (trimmed.isEmpty()) throw IllegalArgumentException("名称不能为空")
+                val parent = parentId?.let { categoryDao.getById(it) }
+                if (parentId != null) {
+                    if (parent == null) throw IllegalArgumentException("父分类不存在")
+                    if (parent.ledgerId != ledgerId) throw IllegalArgumentException("父分类不属于当前账本")
+                    if (parent.parentId != null) throw IllegalArgumentException("分类最多两级")
+                    if (parent.type != type) throw IllegalArgumentException("父子分类类型必须一致")
+                }
+                val count = categoryDao.countSameName(ledgerId, type, parentId, trimmed)
+                if (count > 0) throw IllegalArgumentException("同级下已存在同名分类")
                 val maxSort = categoryDao.getByLedgerAndType(ledgerId, type)
                     .filter { it.parentId == parentId }
                     .maxOfOrNull { it.sortOrder } ?: -1
@@ -61,8 +60,9 @@ class CategoryRepository(private val categoryDao: CategoryDao) {
                     isArchived = false,
                 )
                 categoryDao.insert(entity)
-                Result.success(entity.toDomain())
+                entity.toDomain()
             }
+            Result.success(category)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -70,13 +70,21 @@ class CategoryRepository(private val categoryDao: CategoryDao) {
 
     /** 重命名（保持层级与类型不变）。 */
     suspend fun rename(id: String, newName: String): Result<Unit> {
-        val entity = categoryDao.getById(id) ?: return Result.failure(NoSuchElementException("分类不存在"))
-        val trimmed = newName.trim()
-        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("名称不能为空"))
-        val count = categoryDao.countSameName(entity.ledgerId, entity.type, entity.parentId, trimmed, excludeId = entity.id)
-        if (count > 0) return Result.failure(IllegalArgumentException("同级下已存在同名分类"))
         return try {
-            categoryDao.update(entity.copy(name = trimmed))
+            database.withTransaction {
+                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val trimmed = newName.trim()
+                if (trimmed.isEmpty()) throw IllegalArgumentException("名称不能为空")
+                val count = categoryDao.countSameName(
+                    entity.ledgerId,
+                    entity.type,
+                    entity.parentId,
+                    trimmed,
+                    excludeId = entity.id,
+                )
+                if (count > 0) throw IllegalArgumentException("同级下已存在同名分类")
+                categoryDao.update(entity.copy(name = trimmed))
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

@@ -2,11 +2,13 @@ package com.personal.ledger.data.backup
 
 import android.content.Context
 import android.content.Intent
+import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.personal.ledger.BuildConfig
 import com.personal.ledger.data.local.database.AppDatabase
+import com.personal.ledger.data.local.database.DATABASE_VERSION
 import com.personal.ledger.data.settings.SettingsRepository
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.Money
@@ -17,6 +19,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.math.BigDecimal
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -44,16 +49,19 @@ class BackupRepository(
 
     /** 构建完整 JSON 备份内容。 */
     suspend fun buildBackupJson(): ByteArray = withContext(Dispatchers.IO) {
-        val data = BackupData(
-            ledgers = database.ledgerDao().getAll().map { it.toDto() },
-            accounts = database.accountDao().getAll().map { it.toDto() },
-            categories = database.categoryDao().getAll().map { it.toDto() },
-            merchants = database.merchantDao().getAll().map { it.toDto() },
-            tags = database.tagDao().getAll().map { it.toDto() },
-            transactions = database.transactionDao().getAll().map { it.toDto() },
-            transactionTags = database.transactionTagDao().getAll().map { it.toDto() },
-            budgets = database.budgetDao().getAll().map { it.toDto() },
-        )
+        // 多张表必须来自同一个数据库快照，避免后台备份撞上用户正在记账。
+        val data = database.withTransaction {
+            BackupData(
+                ledgers = database.ledgerDao().getAll().map { it.toDto() },
+                accounts = database.accountDao().getAll().map { it.toDto() },
+                categories = database.categoryDao().getAll().map { it.toDto() },
+                merchants = database.merchantDao().getAll().map { it.toDto() },
+                tags = database.tagDao().getAll().map { it.toDto() },
+                transactions = database.transactionDao().getAll().map { it.toDto() },
+                transactionTags = database.transactionTagDao().getAll().map { it.toDto() },
+                budgets = database.budgetDao().getAll().map { it.toDto() },
+            )
+        }
         val file = BackupFile(
             backupFormatVersion = BackupConstants.FORMAT_VERSION,
             exportedAt = TimeUtils.now(),
@@ -131,11 +139,11 @@ class BackupRepository(
      */
     suspend fun restoreJson(bytes: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            autoBackupBeforeRestore()
             val backup = json.decodeFromString(BackupFile.serializer(), bytes.toString(Charsets.UTF_8))
             if (backup.backupFormatVersion > BackupConstants.FORMAT_VERSION) {
                 throw IllegalStateException("备份格式版本过高（${backup.backupFormatVersion}）")
             }
+            backupBeforeRestoreOrThrow()
             database.withTransaction {
                 database.transactionTagDao().deleteAll()
                 database.transactionDao().deleteAll()
@@ -161,15 +169,37 @@ class BackupRepository(
     /** 恢复 SQLite：整库文件替换。调用后需重启应用生效。 */
     suspend fun restoreSqlite(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            autoBackupBeforeRestore()
-            database.close()
-            AppDatabase.closeInstance()
-            val dbFile = context.getDatabasePath("ledger.db")
-            listOf(dbFile, File(dbFile.path + "-wal"), File(dbFile.path + "-shm"))
-                .forEach { if (it.exists()) it.delete() }
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                dbFile.outputStream().use { output -> input.copyTo(output) }
-            } ?: throw IllegalStateException("无法读取备份文件")
+            val candidate = File.createTempFile("ledger-restore-candidate-", ".db", context.cacheDir)
+            try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    candidate.outputStream().use { output -> input.copyTo(output) }
+                } ?: throw IllegalStateException("无法读取备份文件")
+                validateSqliteBackup(candidate)
+                backupBeforeRestoreOrThrow()
+
+                val dbFile = context.getDatabasePath("ledger.db")
+                val staged = File(dbFile.parentFile, "${dbFile.name}.restore-new")
+                val rollback = File(dbFile.parentFile, "${dbFile.name}.restore-old")
+                candidate.copyTo(staged, overwrite = true)
+
+                AppDatabase.closeInstance()
+                rollback.delete()
+                if (dbFile.exists()) moveReplacing(dbFile, rollback)
+                try {
+                    moveReplacing(staged, dbFile)
+                    File(dbFile.path + "-wal").delete()
+                    File(dbFile.path + "-shm").delete()
+                    rollback.delete()
+                } catch (e: Exception) {
+                    dbFile.delete()
+                    if (rollback.exists()) moveReplacing(rollback, dbFile)
+                    throw e
+                } finally {
+                    staged.delete()
+                }
+            } finally {
+                candidate.delete()
+            }
             Unit
         }
     }
@@ -198,22 +228,69 @@ class BackupRepository(
     }
 
     /** 恢复前自动备份当前数据：优先写入用户选择的备份目录，否则写入应用 filesDir。 */
-    private suspend fun autoBackupBeforeRestore() {
-        runCatching {
-            val jsonBytes = buildBackupJson()
-            val name = BackupRotation.fileName(java.time.LocalDateTime.now())
-            val backupDirUri = settings.backupDirUri.first()
-            val saved = if (backupDirUri != null) {
-                runCatching {
-                    val dir = DocumentFile.fromTreeUri(context, Uri.parse(backupDirUri))
-                    val f = dir?.createFile(BackupConstants.MIME_JSON, "pre-restore-$name") ?: return@runCatching false
-                    context.contentResolver.openOutputStream(f.uri)?.use { it.write(jsonBytes) } != null
-                }.getOrDefault(false)
-            } else false
-            if (!saved) {
-                val dir = File(context.filesDir, "pre-restore-backups").apply { mkdirs() }
-                File(dir, "pre-restore-$name").writeBytes(jsonBytes)
+    private suspend fun backupBeforeRestoreOrThrow() {
+        val jsonBytes = buildBackupJson()
+        val name = BackupRotation.fileName(java.time.LocalDateTime.now())
+        val backupDirUri = settings.backupDirUri.first()
+        val savedToUserDirectory = if (backupDirUri != null) {
+            runCatching {
+                val dir = DocumentFile.fromTreeUri(context, Uri.parse(backupDirUri))
+                val file = dir?.createFile(BackupConstants.MIME_JSON, "pre-restore-$name")
+                    ?: return@runCatching false
+                context.contentResolver.openOutputStream(file.uri)?.use { it.write(jsonBytes) } != null
+            }.getOrDefault(false)
+        } else {
+            false
+        }
+        if (!savedToUserDirectory) {
+            val dir = File(context.filesDir, "pre-restore-backups")
+            if (!dir.exists() && !dir.mkdirs()) throw IllegalStateException("无法创建恢复前备份目录")
+            File(dir, "pre-restore-$name").writeBytes(jsonBytes)
+        }
+    }
+
+    private fun validateSqliteBackup(file: File) {
+        if (file.length() == 0L) throw IllegalStateException("备份文件为空")
+        val sqlite = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
+        try {
+            val quickCheck = sqlite.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
             }
+            if (quickCheck != "ok") throw IllegalStateException("SQLite 备份完整性校验失败")
+            val version = sqlite.rawQuery("PRAGMA user_version", null).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getInt(0) else 0
+            }
+            if (version !in 1..DATABASE_VERSION) {
+                throw IllegalStateException("不支持的数据库版本：$version")
+            }
+            val tables = sqlite.rawQuery(
+                "SELECT name FROM sqlite_master WHERE type = 'table'",
+                null,
+            ).use { cursor ->
+                buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(0))
+                }
+            }
+            val required = setOf(
+                "ledger", "account", "category", "merchant", "tag",
+                "transaction", "transaction_tag", "budget",
+            )
+            if (!tables.containsAll(required)) throw IllegalStateException("SQLite 备份缺少必要数据表")
+        } finally {
+            sqlite.close()
+        }
+    }
+
+    private fun moveReplacing(source: File, target: File) {
+        try {
+            Files.move(
+                source.toPath(),
+                target.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.move(source.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
 

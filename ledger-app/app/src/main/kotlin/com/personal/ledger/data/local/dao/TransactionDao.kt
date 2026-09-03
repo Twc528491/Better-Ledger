@@ -52,7 +52,10 @@ interface TransactionDao {
     @Query("SELECT * FROM `transaction` WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?
 
-    @Query("SELECT * FROM `transaction` WHERE ledgerId = :ledgerId AND accountId = :accountId")
+    @Query(
+        "SELECT * FROM `transaction` WHERE ledgerId = :ledgerId " +
+            "AND (accountId = :accountId OR targetAccountId = :accountId)"
+    )
     suspend fun getByAccount(ledgerId: String, accountId: String): List<TransactionEntity>
 
     @Query(
