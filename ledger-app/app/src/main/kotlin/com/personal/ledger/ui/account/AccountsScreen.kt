@@ -44,7 +44,9 @@ import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.AccountWithBalance
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountBadge
+import com.personal.ledger.ui.common.AccountVisuals
 import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.ui.common.balanceColor
 import com.personal.ledger.ui.common.highlightCardColor
 import com.personal.ledger.ui.common.highlightCardContentColor
@@ -59,6 +61,7 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
 
     Scaffold(
         topBar = {
@@ -112,7 +115,13 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 item { EmptyState(emoji = "👛", title = "暂无资产账户", subtitle = "点右上角 + 新建") }
             } else {
                 items(state.assets, key = { it.account.id }) { awb ->
-                    AccountRow(awb, onClick = { navController.navigate(Routes.accountDetail(awb.account.id)) })
+                    AccountRow(
+                        awb,
+                        onClick = {
+                            hapticLight()
+                            navController.navigate(Routes.accountDetail(awb.account.id))
+                        },
+                    )
                 }
             }
 
@@ -127,7 +136,13 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 item { EmptyState(emoji = "💸", title = "无负债账户", subtitle = "信用卡 / 贷款类账户会显示在这里") }
             } else {
                 items(state.liabilities, key = { it.account.id }) { awb ->
-                    AccountRow(awb, onClick = { navController.navigate(Routes.accountDetail(awb.account.id)) })
+                    AccountRow(
+                        awb,
+                        onClick = {
+                            hapticLight()
+                            navController.navigate(Routes.accountDetail(awb.account.id))
+                        },
+                    )
                 }
             }
         }
@@ -197,6 +212,8 @@ private fun AddAccountDialog(
     var name by remember { mutableStateOf("") }
     var initialText by remember { mutableStateOf("0") }
     var type by remember { mutableStateOf(AccountType.CASH) }
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticConfirm = com.personal.ledger.ui.common.rememberHapticConfirm()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -218,18 +235,24 @@ private fun AddAccountDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(Modifier.height(8.dp))
-                Text("类型", style = MaterialTheme.typography.bodyMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    AccountType.entries.forEach { t ->
-                        TextButton(onClick = { type = t }) {
-                            Text(
-                                typeLabel(t),
-                                style = if (type == t) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
-                            )
+                Spacer(Modifier.height(12.dp))
+                Text("类型", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(6.dp))
+                // 类型 9 宫格卡片
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AccountType.entries.chunked(3).forEach { rowTypes ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowTypes.forEach { t ->
+                                AccountTypeOptionCard(
+                                    type = t,
+                                    selected = type == t,
+                                    onClick = {
+                                        hapticLight()
+                                        type = t
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
                         }
                     }
                 }
@@ -237,6 +260,7 @@ private fun AddAccountDialog(
         },
         confirmButton = {
             Button(onClick = {
+                hapticConfirm()
                 val minor = Money.parseToMinor(initialText, allowNegative = true) ?: 0L
                 if (name.isNotBlank()) onConfirm(name.trim(), type, minor)
             }) { Text("创建") }
@@ -245,4 +269,32 @@ private fun AddAccountDialog(
             TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
+}
+
+/** 账户类型选择卡片（emoji + 名称，选中高亮）。 */
+@Composable
+private fun AccountTypeOptionCard(
+    type: AccountType,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+        border = if (selected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        modifier = modifier.clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(AccountVisuals.emojiFor(type), fontSize = MaterialTheme.typography.titleLarge.fontSize)
+            Text(
+                accountTypeLabel(type),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+            )
+        }
+    }
 }

@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun RecycleBinScreen(container: AppContainer, navController: NavHostController) {
     val scope = rememberCoroutineScope()
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
     val ledgerId = container.ledgerRepository.currentLedger
         .map { it?.id.orEmpty() }
     val items by ledgerId
@@ -96,6 +97,7 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             IconButton(onClick = {
+                                hapticLight()
                                 scope.launch { container.transactionRepository.restore(tx.id) }
                             }) {
                                 Icon(Icons.Filled.Restore, contentDescription = "恢复")

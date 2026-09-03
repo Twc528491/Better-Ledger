@@ -59,6 +59,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showLedgerDialog by remember { mutableStateOf(false) }
     var showCreateLedger by remember { mutableStateOf(false) }
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
 
     Scaffold(
         topBar = {
@@ -83,24 +84,28 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                 Text("记账项", style = MaterialTheme.typography.titleSmall)
             }
             item {
-                SettingsCard(emoji = "🏷️", title = "分类管理", subtitle = "收入 / 支出分类，最多两级") {
+                SettingsCard(emoji = "🏷️", title = "分类管理", subtitle = "收入 / 支出分类，最多两级", onClick = {
+                    hapticLight()
                     navController.navigate(Routes.CATEGORIES)
-                }
+                })
             }
             item {
-                SettingsCard(emoji = "🏪", title = "商家管理", subtitle = "常去商家，记账快速选择") {
+                SettingsCard(emoji = "🏪", title = "商家管理", subtitle = "常去商家，记账快速选择", onClick = {
+                    hapticLight()
                     navController.navigate(Routes.MERCHANTS)
-                }
+                })
             }
             item {
-                SettingsCard(emoji = "#️⃣", title = "标签管理", subtitle = "自定义标签，一笔可多个") {
+                SettingsCard(emoji = "#️⃣", title = "标签管理", subtitle = "自定义标签，一笔可多个", onClick = {
+                    hapticLight()
                     navController.navigate(Routes.TAGS)
-                }
+                })
             }
             item {
-                SettingsCard(emoji = "🎯", title = "预算设置", subtitle = "月总预算与分类预算") {
+                SettingsCard(emoji = "🎯", title = "预算设置", subtitle = "月总预算与分类预算", onClick = {
+                    hapticLight()
                     navController.navigate(Routes.BUDGETS)
-                }
+                })
             }
 
             item {
@@ -115,7 +120,11 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                     emoji = "📚",
                     title = "账本管理",
                     subtitle = "当前：${state.currentLedgerName}",
-                ) { showLedgerDialog = true }
+                    onClick = {
+                        hapticLight()
+                        showLedgerDialog = true
+                    },
+                )
             }
         }
     }
@@ -131,6 +140,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    hapticLight()
                                     vm.switchLedger(ledger.id)
                                     showLedgerDialog = false
                                 }

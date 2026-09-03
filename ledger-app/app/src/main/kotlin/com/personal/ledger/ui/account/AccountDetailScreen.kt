@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -25,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -36,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -45,6 +48,8 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.calc.BalanceCalculator
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.TransactionType
+import com.personal.ledger.ui.common.AccountVisuals
+import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.launch
@@ -189,6 +194,7 @@ private fun EditAccountDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var archived by remember { mutableStateOf(account.isArchived) }
     var nameError by remember { mutableStateOf<String?>(null) }
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -199,28 +205,60 @@ private fun EditAccountDialog(
                 nameError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = initialText, onValueChange = { initialText = it }, label = { Text("初始余额") }, singleLine = true)
-                Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    AccountType.entries.forEach { t ->
-                        TextButton(onClick = { type = t }) {
-                            Text(
-                                accountTypeLabel(t),
-                                style = if (type == t) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
-                            )
+                Spacer(Modifier.height(12.dp))
+                Text("类型", style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(6.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AccountType.entries.chunked(3).forEach { rowTypes ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowTypes.forEach { t ->
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (type == t) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                    border = if (type == t) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            hapticLight()
+                                            type = t
+                                        },
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(vertical = 8.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        Text(
+                                            AccountVisuals.emojiFor(t),
+                                            fontSize = MaterialTheme.typography.titleLarge.fontSize,
+                                        )
+                                        Text(
+                                            accountTypeLabel(t),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("初始时间", style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = { showDatePicker = true }) {
+                    TextButton(onClick = {
+                        hapticLight()
+                        showDatePicker = true
+                    }) {
                         Text(TimeUtils.formatMonthDay(initialTime))
                     }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(if (archived) "已归档" else "归档账户", style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = { archived = !archived }) {
+                    TextButton(onClick = {
+                        hapticLight()
+                        archived = !archived
+                    }) {
                         Text(if (archived) "恢复" else "归档")
                     }
                 }

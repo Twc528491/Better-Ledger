@@ -150,6 +150,10 @@ class TransactionsViewModel(
         month.value = month.value.plusMonths(1)
     }
 
+    fun setMonth(ym: YearMonth) {
+        month.value = ym
+    }
+
     fun setFilter(type: TransactionType?) {
         filter.value = type
     }

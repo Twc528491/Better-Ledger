@@ -48,6 +48,7 @@ import com.personal.ledger.ui.common.incomeContainerColor
 import com.personal.ledger.ui.common.transferAmountColor
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.budgetColor
+import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.charts.ChartSlice
 import com.personal.ledger.ui.common.charts.RingChartWithLegend
 import com.personal.ledger.ui.common.charts.TrendBarChart
@@ -69,6 +70,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
     var budgets by remember { mutableStateOf<List<BudgetProgress>>(emptyList()) }
+    val hapticLight = rememberHapticLight()
 
     LaunchedEffect(state.monthLabel) { vm.loadBudgets { budgets = it } }
 
@@ -77,12 +79,18 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             TopAppBar(
                 title = { Text("统计 · ${state.monthLabel}") },
                 navigationIcon = {
-                    IconButton(onClick = { vm.previousMonth() }) {
+                    IconButton(onClick = {
+                        hapticLight()
+                        vm.previousMonth()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一月")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.nextMonth() }) {
+                    IconButton(onClick = {
+                        hapticLight()
+                        vm.nextMonth()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一月")
                     }
                 },

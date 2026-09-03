@@ -132,6 +132,19 @@ object AccountVisuals {
     }
 }
 
+/** 账户类型中文标签（各界面共用）。 */
+fun accountTypeLabel(type: AccountType): String = when (type) {
+    AccountType.CASH -> "现金"
+    AccountType.BANK -> "银行卡"
+    AccountType.ALIPAY -> "支付宝"
+    AccountType.WECHAT -> "微信"
+    AccountType.CREDIT_CARD -> "信用卡"
+    AccountType.SAVINGS -> "储蓄"
+    AccountType.INVESTMENT -> "投资"
+    AccountType.LOAN -> "贷款"
+    AccountType.OTHER -> "其他"
+}
+
 /** 账户类型主题色（浅色模式用柔和浅底，深色模式用亮色调）。 */
 @Composable
 fun accountColor(type: AccountType): Color {

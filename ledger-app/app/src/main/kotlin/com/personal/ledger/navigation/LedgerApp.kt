@@ -32,6 +32,7 @@ import androidx.navigation.compose.rememberNavController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.ui.account.AccountDetailScreen
 import com.personal.ledger.ui.account.AccountsScreen
+import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.home.HomeScreen
 import com.personal.ledger.ui.settings.BookkeepingSettingsScreen
 import com.personal.ledger.ui.settings.CategoriesScreen
@@ -89,6 +90,7 @@ fun LedgerApp(container: AppContainer) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val isTabRoute = currentRoute in tabRoutes
+    val hapticLight = rememberHapticLight()
 
     // 首次启动：创建默认账本 + 默认分类；恢复后当前账本失效时回退到第一个有效账本。
     LaunchedEffect(Unit) {
@@ -101,12 +103,15 @@ fun LedgerApp(container: AppContainer) {
             if (isTabRoute) {
                 NavigationBar {
                     leftTabs.forEach { tab ->
-                        TabItemView(navController, tab, currentRoute)
+                        TabItemView(navController, tab, currentRoute, hapticLight)
                     }
                     // 中间重点按钮：记一笔
                     NavigationBarItem(
                         selected = false,
-                        onClick = { navController.navigate(Routes.add()) },
+                        onClick = {
+                            hapticLight()
+                            navController.navigate(Routes.add())
+                        },
                         icon = {
                             Box(
                                 modifier = Modifier
@@ -125,7 +130,7 @@ fun LedgerApp(container: AppContainer) {
                         label = { Text("记一笔") },
                     )
                     rightTabs.forEach { tab ->
-                        TabItemView(navController, tab, currentRoute)
+                        TabItemView(navController, tab, currentRoute, hapticLight)
                     }
                 }
             }
@@ -165,10 +170,12 @@ private fun androidx.compose.foundation.layout.RowScope.TabItemView(
     navController: androidx.navigation.NavHostController,
     tab: TabItem,
     currentRoute: String?,
+    hapticLight: () -> Unit,
 ) {
     NavigationBarItem(
         selected = currentRoute == tab.route,
         onClick = {
+            hapticLight()
             navController.navigate(tab.route) {
                 popUpTo(navController.graph.findStartDestination().id) {
                     saveState = true

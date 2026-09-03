@@ -56,6 +56,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showThemeDialog by remember { mutableStateOf(false) }
     val activity = LocalContext.current as? androidx.fragment.app.FragmentActivity
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
 
     Scaffold(
         topBar = {
@@ -86,7 +87,10 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showThemeDialog = true }
+                                .clickable {
+                                    hapticLight()
+                                    showThemeDialog = true
+                                }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
@@ -111,6 +115,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                             Switch(
                                 checked = state.securityLockEnabled,
                                 onCheckedChange = { enabled ->
+                                    hapticLight()
                                     if (enabled) {
                                         if (activity != null) {
                                             com.personal.ledger.ui.security.promptForEnrollment(
@@ -140,7 +145,10 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { navController.navigate(Routes.DATA) }
+                                .clickable {
+                                    hapticLight()
+                                    navController.navigate(Routes.DATA)
+                                }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,

@@ -57,6 +57,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
     var editingCategoryId by remember { mutableStateOf<String?>(null) }
     var editingTotal by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
+    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
 
     val categoryNames = categories.associate { it.id to it.name }
 
@@ -70,10 +71,16 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.previousMonth() }) {
+                    IconButton(onClick = {
+                        hapticLight()
+                        vm.previousMonth()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一月")
                     }
-                    IconButton(onClick = { vm.nextMonth() }) {
+                    IconButton(onClick = {
+                        hapticLight()
+                        vm.nextMonth()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一月")
                     }
                 },
