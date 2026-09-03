@@ -46,6 +46,8 @@ import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountBadge
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.balanceColor
+import com.personal.ledger.ui.common.highlightCardColor
+import com.personal.ledger.ui.common.highlightCardContentColor
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.AccountsViewModel
 
@@ -84,7 +86,7 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 // 净资产主卡片
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = highlightCardColor(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
@@ -93,7 +95,7 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                             Money.formatWithSymbol(state.netWorth),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = highlightCardContentColor(),
                         )
                     }
                 }

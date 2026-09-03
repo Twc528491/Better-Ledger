@@ -5,6 +5,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,39 +19,53 @@ import com.personal.ledger.domain.model.TransactionType
 import kotlin.math.abs
 
 /**
- * UI 视觉语义（配色 / 图标 / 分类 emoji），浅色与深色主题自适应。
+ * UI 视觉语义（配色 / 图标 / 分类 emoji），按主题分支：
+ * - 浅色模式：沿用旧版扁平样式——卡片用默认 surface、金额/余额用默认文字色，保证辨识度；
+ * - 深色模式：使用丰富配色（卡片深色容器 + 亮色金额）。
  * 收入 / 支出 / 负债除颜色外始终配合 + / - 号（UI.md 第 9 节）。
  */
 
-/** 支出语义色（浅/深）。 */
-@Composable fun expenseAmountColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFFF8A80) else Color(0xFFE53935)
+/** 卡片容器色：深色 = 深色容器；浅色 = 默认 surface（旧版扁平）。 */
+@Composable fun cardColor(): Color =
+    if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface
 
-/** 支出容器色（浅/深）。 */
+/** 主卡片（本月支出 / 净资产）背景色。 */
+@Composable fun highlightCardColor(): Color =
+    if (isSystemInDarkTheme()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+
+/** 主卡片内容色。 */
+@Composable fun highlightCardContentColor(): Color =
+    if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+
+/** 支出语义色（仅深色模式使用彩色；浅色回退默认文字色）。 */
+@Composable fun expenseAmountColor(): Color =
+    if (isSystemInDarkTheme()) Color(0xFFFF8A80) else MaterialTheme.colorScheme.onSurface
+
+/** 支出容器色。 */
 @Composable fun expenseContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF3A2020) else Color(0xFFFFEBEE)
+    if (isSystemInDarkTheme()) Color(0xFF3A2020) else MaterialTheme.colorScheme.surface
 
 /** 收入语义色。 */
 @Composable fun incomeAmountColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF81C784) else Color(0xFF43A047)
+    if (isSystemInDarkTheme()) Color(0xFF81C784) else MaterialTheme.colorScheme.onSurface
 
 /** 收入容器色。 */
 @Composable fun incomeContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF1B3520) else Color(0xFFE8F5E9)
+    if (isSystemInDarkTheme()) Color(0xFF1B3520) else MaterialTheme.colorScheme.surface
 
 /** 转账语义色。 */
 @Composable fun transferAmountColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF90CAF9) else Color(0xFF1E88E5)
+    if (isSystemInDarkTheme()) Color(0xFF90CAF9) else MaterialTheme.colorScheme.onSurface
 
 /** 转账容器色。 */
 @Composable fun transferContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF1A2B3D) else Color(0xFFE3F2FD)
+    if (isSystemInDarkTheme()) Color(0xFF1A2B3D) else MaterialTheme.colorScheme.surface
 
 /** 警示（预算 80~100%）。 */
 @Composable fun warningColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFFFB74D) else Color(0xFFFB8C00)
+    if (isSystemInDarkTheme()) Color(0xFFFFB74D) else MaterialTheme.colorScheme.onSurface
 
-/** 金额颜色：支出红 / 收入绿 / 转账蓝。 */
+/** 金额颜色：深色 = 支出红 / 收入绿 / 转账蓝；浅色 = 默认文字色（旧版样式）。 */
 @Composable
 fun amountColor(type: TransactionType): Color = when (type) {
     TransactionType.EXPENSE -> expenseAmountColor()
@@ -58,18 +73,25 @@ fun amountColor(type: TransactionType): Color = when (type) {
     TransactionType.TRANSFER -> transferAmountColor()
 }
 
-/** 余额颜色：正 = 资产（绿），负 = 负债（红）。 */
+/** 余额颜色：深色 = 正绿负红；浅色 = 默认文字色。 */
 @Composable
 fun balanceColor(balance: Long): Color =
-    if (balance >= 0) incomeAmountColor() else expenseAmountColor()
+    if (isSystemInDarkTheme()) {
+        if (balance >= 0) Color(0xFF81C784) else Color(0xFFFF8A80)
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
 
-/** 预算进度颜色：<80% 绿，80~100% 橙，超支红；未设置用主色。 */
+/** 预算进度颜色：深色 = <80% 绿 / 80~100% 橙 / 超支红；浅色 = 主色（旧版样式）。 */
 @Composable
-fun budgetColor(permille: Int?, fallback: Color): Color = when {
-    permille == null -> fallback
-    permille < 800 -> incomeAmountColor()
-    permille < 1000 -> warningColor()
-    else -> expenseAmountColor()
+fun budgetColor(permille: Int?, fallback: Color): Color {
+    if (!isSystemInDarkTheme()) return fallback
+    return when {
+        permille == null -> fallback
+        permille < 800 -> Color(0xFF81C784)
+        permille < 1000 -> Color(0xFFFFB74D)
+        else -> Color(0xFFFF8A80)
+    }
 }
 
 /** 分类 emoji（种子分类带专属 emoji；自定义分类按类型回退）。 */
@@ -91,11 +113,11 @@ fun categoryColor(name: String): Color {
     return if (isSystemInDarkTheme()) {
         Color.hsv(hue.toFloat(), 0.30f, 0.38f)
     } else {
-        Color.hsv(hue.toFloat(), 0.42f, 0.90f)
+        Color.hsv(hue.toFloat(), 0.30f, 0.94f)
     }
 }
 
-/** 账户类型视觉：emoji + 主题色。 */
+/** 账户类型视觉：emoji。 */
 object AccountVisuals {
     fun emojiFor(type: AccountType): String = when (type) {
         AccountType.CASH -> "💵"
@@ -110,20 +132,22 @@ object AccountVisuals {
     }
 }
 
-/** 账户类型主题色（深色模式用亮色调保证可见）。 */
+/** 账户类型主题色（浅色模式用柔和浅底，深色模式用亮色调）。 */
 @Composable
 fun accountColor(type: AccountType): Color {
-    val dark = isSystemInDarkTheme()
+    if (!isSystemInDarkTheme()) {
+        return MaterialTheme.colorScheme.surfaceVariant
+    }
     return when (type) {
-        AccountType.CASH -> if (dark) Color(0xFF81C784) else Color(0xFF43A047)
-        AccountType.BANK -> if (dark) Color(0xFF90CAF9) else Color(0xFF1E88E5)
-        AccountType.ALIPAY -> if (dark) Color(0xFF6FA8FF) else Color(0xFF1677FF)
-        AccountType.WECHAT -> if (dark) Color(0xFF66E09A) else Color(0xFF07C160)
-        AccountType.CREDIT_CARD -> if (dark) Color(0xFFCE93D8) else Color(0xFF8E24AA)
-        AccountType.SAVINGS -> if (dark) Color(0xFFFFB74D) else Color(0xFFFB8C00)
-        AccountType.INVESTMENT -> if (dark) Color(0xFF4DB6AC) else Color(0xFF00897B)
-        AccountType.LOAN -> if (dark) Color(0xFFFF8A80) else Color(0xFFE53935)
-        AccountType.OTHER -> if (dark) Color(0xFFBDBDBD) else Color(0xFF757575)
+        AccountType.CASH -> Color(0xFF81C784)
+        AccountType.BANK -> Color(0xFF90CAF9)
+        AccountType.ALIPAY -> Color(0xFF6FA8FF)
+        AccountType.WECHAT -> Color(0xFF66E09A)
+        AccountType.CREDIT_CARD -> Color(0xFFCE93D8)
+        AccountType.SAVINGS -> Color(0xFFFFB74D)
+        AccountType.INVESTMENT -> Color(0xFF4DB6AC)
+        AccountType.LOAN -> Color(0xFFFF8A80)
+        AccountType.OTHER -> Color(0xFFBDBDBD)
     }
 }
 

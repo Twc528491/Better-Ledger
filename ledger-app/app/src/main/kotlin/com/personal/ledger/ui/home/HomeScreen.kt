@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +57,8 @@ import com.personal.ledger.ui.common.transferAmountColor
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.amountColor
 import com.personal.ledger.ui.common.budgetColor
+import com.personal.ledger.ui.common.highlightCardColor
+import com.personal.ledger.ui.common.highlightCardContentColor
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.HomeViewModel
 import androidx.compose.ui.graphics.Color
@@ -106,8 +108,8 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "设置")
+                    IconButton(onClick = { navController.navigate(Routes.BOOKKEEPING_SETTINGS) }) {
+                        Icon(Icons.Filled.Tune, contentDescription = "记账设置")
                     }
                 },
             )
@@ -124,7 +126,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
             item {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = highlightCardColor(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.padding(20.dp)) {
@@ -134,7 +136,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                             Money.formatWithSymbol(state.expense),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = highlightCardContentColor(),
                         )
                     }
                 }
