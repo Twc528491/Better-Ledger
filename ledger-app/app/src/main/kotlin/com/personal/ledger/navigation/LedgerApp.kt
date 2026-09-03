@@ -1,14 +1,18 @@
 package com.personal.ledger.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -16,8 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,6 +33,7 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.ui.account.AccountDetailScreen
 import com.personal.ledger.ui.account.AccountsScreen
 import com.personal.ledger.ui.home.HomeScreen
+import com.personal.ledger.ui.settings.BookkeepingSettingsScreen
 import com.personal.ledger.ui.settings.CategoriesScreen
 import com.personal.ledger.ui.settings.BudgetsScreen
 import com.personal.ledger.ui.settings.DataScreen
@@ -44,6 +51,7 @@ object Routes {
     const val STATISTICS = "statistics"
     const val ACCOUNTS = "accounts"
     const val SETTINGS = "settings"
+    const val BOOKKEEPING_SETTINGS = "bookkeeping_settings"
     const val ADD = "add?txId={txId}"
     const val RECYCLE = "recycle"
     const val CATEGORIES = "categories"
@@ -63,20 +71,24 @@ private data class TabItem(
     val icon: ImageVector,
 )
 
-private val tabs = listOf(
+private val leftTabs = listOf(
     TabItem(Routes.HOME, "首页", Icons.Filled.Home),
     TabItem(Routes.TRANSACTIONS, "账单", Icons.AutoMirrored.Filled.List),
+)
+
+private val rightTabs = listOf(
     TabItem(Routes.STATISTICS, "统计", Icons.Filled.BarChart),
     TabItem(Routes.ACCOUNTS, "资产", Icons.Filled.AccountBalanceWallet),
 )
+
+private val tabRoutes = leftTabs.map { it.route } + rightTabs.map { it.route }
 
 @Composable
 fun LedgerApp(container: AppContainer) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val isTabRoute = currentRoute in tabs.map { it.route }
-    val showFab = isTabRoute
+    val isTabRoute = currentRoute in tabRoutes
 
     // 首次启动：创建默认账本 + 默认分类；恢复后当前账本失效时回退到第一个有效账本。
     LaunchedEffect(Unit) {
@@ -88,29 +100,33 @@ fun LedgerApp(container: AppContainer) {
         bottomBar = {
             if (isTabRoute) {
                 NavigationBar {
-                    tabs.forEach { tab ->
-                        NavigationBarItem(
-                            selected = currentRoute == tab.route,
-                            onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
-                        )
+                    leftTabs.forEach { tab ->
+                        TabItemView(navController, tab, currentRoute)
                     }
-                }
-            }
-        },
-        floatingActionButton = {
-            if (showFab) {
-                FloatingActionButton(onClick = { navController.navigate(Routes.add()) }) {
-                    Icon(Icons.Filled.Add, contentDescription = "记一笔")
+                    // 中间重点按钮：记一笔
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = { navController.navigate(Routes.add()) },
+                        icon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(52.dp)
+                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = "记一笔",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(30.dp),
+                                )
+                            }
+                        },
+                        label = { Text("记一笔") },
+                    )
+                    rightTabs.forEach { tab ->
+                        TabItemView(navController, tab, currentRoute)
+                    }
                 }
             }
         },
@@ -125,6 +141,7 @@ fun LedgerApp(container: AppContainer) {
             composable(Routes.STATISTICS) { StatisticsScreen(container, navController) }
             composable(Routes.ACCOUNTS) { AccountsScreen(container, navController) }
             composable(Routes.SETTINGS) { SettingsScreen(container, navController) }
+            composable(Routes.BOOKKEEPING_SETTINGS) { BookkeepingSettingsScreen(container, navController) }
             composable(Routes.ADD) { entry ->
                 val txId = entry.arguments?.getString("txId")?.ifEmpty { null }
                 AddTransactionScreen(container, navController, txId)
@@ -141,4 +158,26 @@ fun LedgerApp(container: AppContainer) {
             }
         }
     }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.TabItemView(
+    navController: androidx.navigation.NavHostController,
+    tab: TabItem,
+    currentRoute: String?,
+) {
+    NavigationBarItem(
+        selected = currentRoute == tab.route,
+        onClick = {
+            navController.navigate(tab.route) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        },
+        icon = { Icon(tab.icon, contentDescription = tab.label) },
+        label = { Text(tab.label) },
+    )
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,10 +42,10 @@ import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.AccountWithBalance
+import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountBadge
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.balanceColor
-import com.personal.ledger.navigation.Routes
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.AccountsViewModel
 
@@ -62,6 +63,9 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
             TopAppBar(
                 title = { Text("资产") },
                 actions = {
+                    IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
+                        Icon(Icons.Filled.Settings, contentDescription = "设置")
+                    }
                     IconButton(onClick = { showAddDialog = true }) {
                         Icon(Icons.Filled.Add, contentDescription = "新建账户")
                     }
@@ -165,7 +169,7 @@ private fun AccountRow(awb: AccountWithBalance, onClick: () -> Unit) {
                 Money.formatWithSymbol(awb.balance),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = balanceColor(awb.balance, MaterialTheme.colorScheme.onSurface),
+                color = balanceColor(awb.balance),
             )
         }
     }

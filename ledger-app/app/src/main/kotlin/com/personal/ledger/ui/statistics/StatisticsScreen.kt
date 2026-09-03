@@ -41,7 +41,12 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.repository.BudgetProgress
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
-import com.personal.ledger.ui.common.LedgerColors
+import com.personal.ledger.ui.common.expenseAmountColor
+import com.personal.ledger.ui.common.expenseContainerColor
+import com.personal.ledger.ui.common.incomeAmountColor
+import com.personal.ledger.ui.common.incomeContainerColor
+import com.personal.ledger.ui.common.transferAmountColor
+import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.budgetColor
 import com.personal.ledger.ui.common.charts.ChartSlice
 import com.personal.ledger.ui.common.charts.RingChartWithLegend
@@ -94,7 +99,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                     // 支出主卡片
                     Surface(
                         shape = RoundedCornerShape(24.dp),
-                        color = LedgerColors.ExpenseContainer,
+                        color = expenseContainerColor(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
@@ -103,7 +108,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                                 Money.formatWithSymbol(state.expense),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = LedgerColors.Expense,
+                                color = expenseAmountColor(),
                             )
                         }
                     }
@@ -111,7 +116,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Surface(
                             shape = RoundedCornerShape(18.dp),
-                            color = LedgerColors.IncomeContainer,
+                            color = incomeContainerColor(),
                             modifier = Modifier.weight(1f),
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
@@ -120,13 +125,13 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                                     Money.formatSignedMinor(state.income, explicitPlus = true),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = LedgerColors.Income,
+                                    color = incomeAmountColor(),
                                 )
                             }
                         }
                         Surface(
                             shape = RoundedCornerShape(18.dp),
-                            color = if (state.income - state.expense >= 0) LedgerColors.TransferContainer else LedgerColors.ExpenseContainer,
+                            color = if (state.income - state.expense >= 0) transferContainerColor() else expenseContainerColor(),
                             modifier = Modifier.weight(1f),
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
@@ -135,7 +140,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                                     Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (state.income - state.expense >= 0) LedgerColors.Transfer else LedgerColors.Expense,
+                                    color = if (state.income - state.expense >= 0) transferAmountColor() else expenseAmountColor(),
                                 )
                             }
                         }
@@ -235,7 +240,7 @@ private fun CategoryStatRow(stat: CategoryStat) {
             Spacer(Modifier.height(4.dp))
             LinearProgressIndicator(
                 progress = { stat.fraction },
-                color = LedgerColors.Expense,
+                color = expenseAmountColor(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp),

@@ -49,7 +49,12 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
-import com.personal.ledger.ui.common.LedgerColors
+import com.personal.ledger.ui.common.expenseAmountColor
+import com.personal.ledger.ui.common.expenseContainerColor
+import com.personal.ledger.ui.common.incomeAmountColor
+import com.personal.ledger.ui.common.incomeContainerColor
+import com.personal.ledger.ui.common.transferAmountColor
+import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.amountColor
 import com.personal.ledger.ui.common.budgetColor
 import com.personal.ledger.util.Money
@@ -140,7 +145,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = LedgerColors.IncomeContainer,
+                        color = incomeContainerColor(),
                         modifier = Modifier.weight(1f),
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -149,13 +154,13 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                 Money.formatSignedMinor(state.income, explicitPlus = true),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = LedgerColors.Income,
+                                color = incomeAmountColor(),
                             )
                         }
                     }
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = if (state.income - state.expense >= 0) LedgerColors.TransferContainer else LedgerColors.ExpenseContainer,
+                        color = if (state.income - state.expense >= 0) transferContainerColor() else expenseContainerColor(),
                         modifier = Modifier.weight(1f),
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -164,7 +169,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                 Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = if (state.income - state.expense >= 0) LedgerColors.Transfer else LedgerColors.Expense,
+                                color = if (state.income - state.expense >= 0) transferAmountColor() else expenseAmountColor(),
                             )
                         }
                     }
@@ -286,7 +291,7 @@ private fun TransactionRow(
                 androidx.compose.foundation.layout.Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(LedgerColors.TransferContainer, androidx.compose.foundation.shape.CircleShape),
+                        .background(transferContainerColor(), androidx.compose.foundation.shape.CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("🔁")
@@ -314,7 +319,7 @@ private fun TransactionRow(
             },
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = amountColor(tx.type, MaterialTheme.colorScheme.onSurface),
+            color = amountColor(tx.type),
         )
     }
 }

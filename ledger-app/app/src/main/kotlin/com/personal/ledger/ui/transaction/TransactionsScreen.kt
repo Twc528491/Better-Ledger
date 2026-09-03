@@ -52,7 +52,7 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
-import com.personal.ledger.ui.common.LedgerColors
+import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.amountColor
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
@@ -341,7 +341,7 @@ private fun TransactionItem(
                 androidx.compose.foundation.layout.Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(LedgerColors.TransferContainer, androidx.compose.foundation.shape.CircleShape),
+                        .background(transferContainerColor(), androidx.compose.foundation.shape.CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("🔁")
@@ -385,7 +385,7 @@ private fun TransactionItem(
                 },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = amountColor(tx.type, MaterialTheme.colorScheme.onSurface),
+                color = amountColor(tx.type),
             )
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, contentDescription = "删除")
