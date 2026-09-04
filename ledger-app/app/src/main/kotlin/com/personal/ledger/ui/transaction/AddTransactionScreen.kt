@@ -160,7 +160,8 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+                .padding(horizontal = 16.dp)
+                .padding(top = 6.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 类型分段选择（全宽）

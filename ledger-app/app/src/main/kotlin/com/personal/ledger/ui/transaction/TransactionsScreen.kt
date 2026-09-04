@@ -61,6 +61,7 @@ import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.TransactionDeleteDialogs
 import com.personal.ledger.ui.common.amountColor
 import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticLongPress
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.util.Money
@@ -88,6 +89,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
     var showMonthPicker by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
     val hapticLight = rememberHapticLight()
+    val hapticLongPress = rememberHapticLongPress()
     val hapticNavigation = rememberHapticNavigation()
 
     Scaffold(
@@ -158,7 +160,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
                 )
             }
 
@@ -167,7 +169,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -244,7 +246,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                     hapticNavigation()
                                     navController.navigate(Routes.add(tx.id))
                                 },
-                                onLongClick = { deleteCandidate = tx },
+                                onLongClick = {
+                                    hapticLongPress()
+                                    deleteCandidate = tx
+                                },
                             )
                             HorizontalDivider()
                         }
@@ -509,7 +514,11 @@ private fun TransactionItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                hapticFeedbackEnabled = false,
+            )
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,

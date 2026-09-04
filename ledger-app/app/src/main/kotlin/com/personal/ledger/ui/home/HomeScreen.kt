@@ -64,6 +64,7 @@ import com.personal.ledger.ui.common.highlightCardContentColor
 import com.personal.ledger.ui.common.LedgerCard
 import com.personal.ledger.ui.common.LedgerSectionHeader
 import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticLongPress
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.HomeViewModel
@@ -86,6 +87,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
     var ledgerMenuOpen by remember { mutableStateOf(false) }
     var deleteCandidate by remember { mutableStateOf<Transaction?>(null) }
     val hapticLight = rememberHapticLight()
+    val hapticLongPress = rememberHapticLongPress()
     val hapticNavigation = rememberHapticNavigation()
 
     Scaffold(
@@ -130,7 +132,12 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 .fillMaxSize()
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 16.dp,
+                top = 4.dp,
+                end = 16.dp,
+                bottom = 8.dp,
+            ),
         ) {
             // 本月支出主卡片（金额最高视觉优先级）
             item {
@@ -199,7 +206,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
             item {
                 LedgerSectionHeader(
                     title = "最近交易",
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = 4.dp),
                     actionLabel = "查看全部",
                     onAction = {
                         hapticNavigation()
@@ -236,7 +243,10 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                         hapticNavigation()
                                         navController.navigate(Routes.add(tx.id))
                                     },
-                                    onLongClick = { deleteCandidate = tx },
+                                    onLongClick = {
+                                        hapticLongPress()
+                                        deleteCandidate = tx
+                                    },
                                 )
                                 if (index < state.recent.lastIndex) HorizontalDivider()
                             }
@@ -310,7 +320,11 @@ private fun TransactionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                hapticFeedbackEnabled = false,
+            )
             .padding(horizontal = 14.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
