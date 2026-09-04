@@ -60,17 +60,19 @@ class AddTransactionViewModel(
     fun load(txId: String?) {
         viewModelScope.launch {
             val ledger = ledgerRepository.currentLedger.first() ?: return@launch
-            val accounts = accountRepository.observeByLedger(ledger.id).first()
-                .filter { !it.isArchived }
-            val categories = categoryRepository.getByLedger(ledger.id)
-                .filter { !it.isArchived }
-            val expenseCats = categories.filter { it.type == com.personal.ledger.domain.model.CategoryType.EXPENSE }
-            val incomeCats = categories.filter { it.type == com.personal.ledger.domain.model.CategoryType.INCOME }
-            val merchants = merchantRepository.getByLedger(ledger.id).filter { !it.isArchived }
-            val tags = tagRepository.getByLedger(ledger.id).filter { !it.isArchived }
-
             val editing = txId?.let { transactionRepository.getById(it) }
             val editingTags = editing?.id?.let { editingTagIds(it) } ?: emptySet()
+            // 编辑旧账单时保留其已归档关联项，否则用户一打开就会看到“未选择”。
+            val accounts = accountRepository.observeByLedger(ledger.id).first()
+                .filter { !it.isArchived || it.id == editing?.accountId || it.id == editing?.targetAccountId }
+            val categories = categoryRepository.getByLedger(ledger.id)
+                .filter { !it.isArchived || it.id == editing?.categoryId }
+            val expenseCats = categories.filter { it.type == com.personal.ledger.domain.model.CategoryType.EXPENSE }
+            val incomeCats = categories.filter { it.type == com.personal.ledger.domain.model.CategoryType.INCOME }
+            val merchants = merchantRepository.getByLedger(ledger.id)
+                .filter { !it.isArchived || it.id == editing?.merchantId }
+            val tags = tagRepository.getByLedger(ledger.id)
+                .filter { !it.isArchived || it.id in editingTags }
             val lastUsed = settings.lastUsedAccountId.first()
             val accountId = editing?.accountId
                 ?: (accounts.firstOrNull { it.id == lastUsed }?.id ?: accounts.firstOrNull()?.id)

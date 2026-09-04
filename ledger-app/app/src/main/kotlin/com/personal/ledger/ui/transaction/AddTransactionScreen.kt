@@ -1,5 +1,6 @@
 package com.personal.ledger.ui.transaction
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -46,6 +50,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -66,6 +72,7 @@ import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.AddTransactionViewModel
 import java.time.Instant
@@ -87,10 +94,13 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
+    var showCategoryPicker by remember { mutableStateOf(false) }
     var showAccountPicker by remember { mutableStateOf(false) }
     var pickTarget by remember { mutableStateOf(false) }
     var showMerchantPicker by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
+    var detailsExpanded by remember { mutableStateOf(false) }
+    val amountFocusRequester = remember { FocusRequester() }
     val hapticConfirm = rememberHapticConfirm()
     val hapticLight = rememberHapticLight()
 
@@ -98,6 +108,13 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
 
     LaunchedEffect(state.saved) {
         if (state.saved) navController.popBackStack()
+    }
+
+    LaunchedEffect(state.ledgerId, state.editing) {
+        if (state.ledgerId != null && txId == null) amountFocusRequester.requestFocus()
+        if (state.editing != null || state.merchantId != null || state.selectedTagIds.isNotEmpty() || state.note.isNotEmpty()) {
+            detailsExpanded = true
+        }
     }
 
     Scaffold(
@@ -110,6 +127,22 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                     }
                 },
             )
+        },
+        bottomBar = {
+            Surface(shadowElevation = 4.dp) {
+                Button(
+                    onClick = {
+                        hapticConfirm()
+                        vm.save()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .height(52.dp),
+                ) {
+                    Text("保存", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            }
         },
     ) { padding ->
         Column(
@@ -147,7 +180,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                     Text("金额", style = MaterialTheme.typography.bodySmall)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            "¥",
+                            Money.symbolFor(state.baseCurrency),
                             style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
@@ -160,6 +193,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier
                                 .weight(1f)
+                                .focusRequester(amountFocusRequester)
                                 .padding(start = 8.dp),
                         )
                     }
@@ -176,11 +210,12 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                     } else {
                         state.incomeCategories
                     }
+                    val visibleCategories = primaryCategories(categories, state.categoryId)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        categories.forEach { cat ->
+                        visibleCategories.forEach { cat ->
                             CategoryOptionCard(
                                 category = cat,
                                 selected = state.categoryId == cat.id,
@@ -189,6 +224,12 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                     vm.setCategoryId(cat.id)
                                 },
                             )
+                        }
+                        if (categories.size > visibleCategories.size) {
+                            MoreCategoryCard(onClick = {
+                                hapticLight()
+                                showCategoryPicker = true
+                            })
                         }
                     }
                 }
@@ -216,7 +257,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 )
             }
 
-            // 商家 / 标签 / 备注 / 时间 信息卡片
+            // 低频信息默认收起，让日常记账停留在首屏。
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = cardColor(),
@@ -228,72 +269,102 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                             .fillMaxWidth()
                             .clickable {
                                 hapticLight()
-                                showMerchantPicker = true
+                                detailsExpanded = !detailsExpanded
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("🏪 商家", style = MaterialTheme.typography.bodyLarge)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("更多信息", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
                             Text(
-                                state.merchants.firstOrNull { it.id == state.merchantId }?.name ?: "选填",
-                                style = MaterialTheme.typography.bodyMedium,
+                                detailsSummary(state.merchantId != null, state.selectedTagIds.size, state.note.isNotBlank()),
+                                style = MaterialTheme.typography.bodySmall,
                             )
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (detailsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = if (detailsExpanded) "收起更多信息" else "展开更多信息",
+                            )
                         }
                     }
-                    HorizontalDivider()
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                        Text("🏷️ 标签（选填，可多选）", style = MaterialTheme.typography.bodyLarge)
-                        Spacer(Modifier.height(8.dp))
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            state.tags.forEach { tag ->
-                                TagChip(
-                                    name = tag.name,
-                                    selected = tag.id in state.selectedTagIds,
-                                    onClick = {
+                    AnimatedVisibility(visible = detailsExpanded) {
+                        Column {
+                            HorizontalDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
                                         hapticLight()
-                                        vm.toggleTag(tag.id)
-                                    },
+                                        showMerchantPicker = true
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🏪 商家", style = MaterialTheme.typography.bodyLarge)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        state.merchants.firstOrNull { it.id == state.merchantId }?.name ?: "选填",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                                }
+                            }
+                            HorizontalDivider()
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text("🏷️ 标签（选填，可多选）", style = MaterialTheme.typography.bodyLarge)
+                                Spacer(Modifier.height(8.dp))
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    state.tags.forEach { tag ->
+                                        TagChip(
+                                            name = tag.name,
+                                            selected = tag.id in state.selectedTagIds,
+                                            onClick = {
+                                                hapticLight()
+                                                vm.toggleTag(tag.id)
+                                            },
+                                        )
+                                    }
+                                    TextButton(onClick = {
+                                        hapticLight()
+                                        showTagPicker = true
+                                    }) { Text("+ 新建标签") }
+                                }
+                            }
+                            HorizontalDivider()
+                            OutlinedTextField(
+                                value = state.note,
+                                onValueChange = { vm.setNote(it) },
+                                label = { Text("备注（选填）") },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                            HorizontalDivider()
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        hapticLight()
+                                        showDatePicker = true
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("🕐 日期", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    TimeUtils.formatMonthDay(state.time) + " " + timeOfDay(state.time),
+                                    style = MaterialTheme.typography.bodyMedium,
                                 )
                             }
-                            TextButton(onClick = {
-                                hapticLight()
-                                showTagPicker = true
-                            }) { Text("+ 新建标签") }
                         }
-                    }
-                    HorizontalDivider()
-                    OutlinedTextField(
-                        value = state.note,
-                        onValueChange = { vm.setNote(it) },
-                        label = { Text("备注（选填）") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                hapticLight()
-                                showDatePicker = true
-                            }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("🕐 时间", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            TimeUtils.formatMonthDay(state.time) + " " + timeOfDay(state.time),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
                     }
                 }
             }
@@ -302,17 +373,6 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
 
-            Button(
-                onClick = {
-                    hapticConfirm()
-                    vm.save()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-            ) {
-                Text("保存", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
         }
     }
 
@@ -344,7 +404,9 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     if (showAccountPicker) {
         SimplePickerDialog(
             title = "选择账户",
-            items = state.accounts.map { it.id to it.name },
+            items = state.accounts
+                .filter { !pickTarget || it.id != state.accountId }
+                .map { it.id to it.name },
             onPick = { id ->
                 hapticLight()
                 if (pickTarget) vm.setTargetAccountId(id) else vm.setAccountId(id)
@@ -354,11 +416,30 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
         )
     }
 
+    if (showCategoryPicker) {
+        val categories = if (state.type == TransactionType.EXPENSE) state.expenseCategories else state.incomeCategories
+        SimplePickerDialog(
+            title = "选择分类",
+            items = categories.map { it.id to it.name },
+            onPick = { id ->
+                hapticLight()
+                vm.setCategoryId(id)
+                showCategoryPicker = false
+            },
+            onDismiss = { showCategoryPicker = false },
+        )
+    }
+
     if (showMerchantPicker) {
         SimplePickerDialog(
             title = "选择商家",
             items = state.merchants.map { it.id to it.name },
             addLabel = "+ 新建商家",
+            clearLabel = "不选择商家",
+            onClear = {
+                vm.setMerchantId(null)
+                showMerchantPicker = false
+            },
             onPick = { id ->
                 hapticLight()
                 vm.setMerchantId(id)
@@ -399,6 +480,20 @@ private fun timeOfDay(ms: Long): String {
     return "%02d:%02d".format(t.hour, t.minute)
 }
 
+private fun primaryCategories(categories: List<Category>, selectedId: String?): List<Category> {
+    val primary = categories.take(6).toMutableList()
+    val selected = categories.firstOrNull { it.id == selectedId }
+    if (selected != null && primary.none { it.id == selected.id }) {
+        if (primary.isNotEmpty()) primary[primary.lastIndex] = selected else primary += selected
+    }
+    return primary.distinctBy { it.id }
+}
+
+private fun detailsSummary(hasMerchant: Boolean, tagCount: Int, hasNote: Boolean): String {
+    val count = listOf(hasMerchant, tagCount > 0, hasNote).count { it }
+    return if (count == 0) "商家、标签、备注与日期" else "已填写 $count 项 · 点击展开"
+}
+
 /** 分类选择卡片（emoji 圆标 + 名称，选中描边高亮）。 */
 @Composable
 private fun CategoryOptionCard(
@@ -418,7 +513,7 @@ private fun CategoryOptionCard(
             modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CategoryBadge(name = category.name, type = category.type, sizeDp = 40)
+            CategoryBadge(name = category.name, type = category.type, sizeDp = 40, visualKey = category.id)
             Spacer(Modifier.height(6.dp))
             Text(
                 category.name,
@@ -426,6 +521,24 @@ private fun CategoryOptionCard(
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
+        }
+    }
+}
+
+@Composable
+private fun MoreCategoryCard(onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = cardColor(),
+        modifier = Modifier.width(86.dp).clickable(onClick = onClick),
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("•••", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(6.dp))
+            Text("更多", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -496,6 +609,8 @@ private fun SimplePickerDialog(
     onPick: (String) -> Unit = {},
     onAdd: ((String) -> Unit)? = null,
     addLabel: String = "新建",
+    clearLabel: String? = null,
+    onClear: (() -> Unit)? = null,
     onDismiss: () -> Unit,
 ) {
     var newName by remember { mutableStateOf("") }
@@ -503,7 +618,16 @@ private fun SimplePickerDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                if (clearLabel != null && onClear != null) {
+                    TextButton(onClick = onClear, modifier = Modifier.fillMaxWidth()) {
+                        Text(clearLabel)
+                    }
+                }
                 items.forEach { (id, name) ->
                     Text(
                         name,

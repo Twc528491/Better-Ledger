@@ -15,13 +15,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +33,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -112,13 +116,16 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                         hapticLight()
                         showFilterSheet = true
                     }) {
-                        Icon(Icons.Filled.FilterList, contentDescription = "筛选")
-                        if (state.hasActiveFilter) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-                            )
+                        Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.FilterList, contentDescription = "筛选")
+                            if (state.hasActiveFilter) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(8.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = { navController.navigate(Routes.RECYCLE) }) {
@@ -173,8 +180,8 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text("支出 ${Money.formatWithSymbol(state.expenseTotal)}", style = MaterialTheme.typography.bodySmall)
-                Text("收入 ${Money.formatWithSymbol(state.incomeTotal)}", style = MaterialTheme.typography.bodySmall)
+                Text("支出 ${Money.formatWithCurrency(state.expenseTotal, state.baseCurrency)}", style = MaterialTheme.typography.bodySmall)
+                Text("收入 ${Money.formatWithCurrency(state.incomeTotal, state.baseCurrency)}", style = MaterialTheme.typography.bodySmall)
             }
 
             if (state.transactions.isEmpty()) {
@@ -223,6 +230,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 accountNames = accountMap,
                                 tagNames = tagMap,
                                 tagIdsOf = state.tagIdsOf,
+                                currency = state.baseCurrency,
                                 onClick = {
                                     hapticConfirm()
                                     navController.navigate(Routes.add(tx.id))
@@ -242,7 +250,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
 
     if (showMonthPicker) {
         MonthPickerDialog(
-            current = YearMonth.now(),
+            current = state.selectedMonth,
             onPick = { ym ->
                 hapticLight()
                 vm.setMonth(ym)
@@ -261,6 +269,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
             ) {
@@ -479,6 +488,7 @@ private fun TransactionItem(
     accountNames: Map<String, String>,
     tagNames: Map<String, String>,
     tagIdsOf: Map<String, List<String>>,
+    currency: String,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -509,6 +519,7 @@ private fun TransactionItem(
                     } else {
                         com.personal.ledger.domain.model.CategoryType.INCOME
                     },
+                    visualKey = tx.categoryId ?: categoryName,
                 )
             }
             Column(modifier = Modifier.padding(start = 12.dp)) {
@@ -524,14 +535,14 @@ private fun TransactionItem(
                     "${categoryNames[tx.categoryId] ?: ""} · ${accountNames[tx.accountId] ?: ""}"
                 }
                 Text(
-                    subtitle + tagText,
+                    "${timeOfDay(tx.transactionTime)} · $subtitle$tagText",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                when (tx.type) {
+                Money.symbolFor(currency) + when (tx.type) {
                     TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
                     TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
                     TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
@@ -540,11 +551,28 @@ private fun TransactionItem(
                 fontWeight = FontWeight.Bold,
                 color = amountColor(tx.type),
             )
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "删除")
+            var menuExpanded by remember { mutableStateOf(false) }
+            IconButton(onClick = { menuExpanded = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
+            }
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("删除") },
+                    onClick = {
+                        menuExpanded = false
+                        onDelete()
+                    },
+                )
             }
         }
     }
+}
+
+private fun timeOfDay(ms: Long): String {
+    val time = java.time.Instant.ofEpochMilli(ms)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalTime()
+    return "%02d:%02d".format(time.hour, time.minute)
 }
 
 private fun titleOf(

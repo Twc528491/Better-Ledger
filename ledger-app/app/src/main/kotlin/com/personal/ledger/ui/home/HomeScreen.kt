@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,8 +37,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,18 +49,18 @@ import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.expenseAmountColor
-import com.personal.ledger.ui.common.expenseContainerColor
 import com.personal.ledger.ui.common.incomeAmountColor
-import com.personal.ledger.ui.common.incomeContainerColor
 import com.personal.ledger.ui.common.transferAmountColor
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.amountColor
 import com.personal.ledger.ui.common.budgetColor
 import com.personal.ledger.ui.common.highlightCardColor
 import com.personal.ledger.ui.common.highlightCardContentColor
+import com.personal.ledger.ui.common.LedgerCard
+import com.personal.ledger.ui.common.LedgerSectionHeader
+import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.HomeViewModel
-import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,7 +78,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val ledgers by container.ledgerRepository.ledgers.collectAsStateWithLifecycle(initialValue = emptyList())
     var ledgerMenuOpen by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
+    val hapticLight = rememberHapticLight()
 
     Scaffold(
         topBar = {
@@ -88,14 +87,14 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            hapticLight()
                             ledgerMenuOpen = true
                         },
                     ) {
                         Text(state.ledgerName.ifEmpty { "个人账本" }, style = MaterialTheme.typography.titleLarge)
                         Icon(Icons.Filled.ArrowDropDown, contentDescription = "切换账本")
                         DropdownMenu(expanded = ledgerMenuOpen, onDismissRequest = { ledgerMenuOpen = false }) {
-                            ledgers.forEach { ledger ->
+                            ledgers.filter { !it.isArchived }.forEach { ledger ->
                                 DropdownMenuItem(
                                     text = { Text(ledger.name) },
                                     onClick = {
@@ -133,7 +132,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                         Text("${state.monthLabel}支出", style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            Money.formatWithSymbol(state.expense),
+                            Money.formatWithCurrency(state.expense, state.baseCurrency),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
                             color = highlightCardContentColor(),
@@ -142,33 +141,23 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
 
-            // 收入 / 结余 双卡片
+            // 收入 / 结余放在同一低层级容器，减少首页卡片堆叠。
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = incomeContainerColor(),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                LedgerCard {
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
                             Text("收入", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                Money.formatSignedMinor(state.income, explicitPlus = true),
+                                Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income, explicitPlus = true),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = incomeAmountColor(),
                             )
                         }
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (state.income - state.expense >= 0) transferContainerColor() else expenseContainerColor(),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
                             Text("结余", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
+                                Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = if (state.income - state.expense >= 0) transferAmountColor() else expenseAmountColor(),
@@ -180,21 +169,30 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
 
             // 预算卡片（进度条随使用率变色：绿 → 橙 → 红）
             item {
-                BudgetSection(state.totalBudget)
+                BudgetSection(state.totalBudget, state.baseCurrency) {
+                    navController.navigate(Routes.BUDGETS)
+                }
             }
 
             // 最近交易卡片
             item {
-                Text(
-                    "最近交易",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+                LedgerSectionHeader(
+                    title = "最近交易",
+                    modifier = Modifier.padding(top = 8.dp),
+                    actionLabel = "查看全部",
+                    onAction = { navController.navigate(Routes.TRANSACTIONS) },
                 )
             }
 
-            if (state.recent.isEmpty()) {
+            if (state.loading) {
                 item {
-                    EmptyState(emoji = "🧾", title = "还没有交易", subtitle = "点右下角 + 记一笔")
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+            } else if (state.recent.isEmpty()) {
+                item {
+                    EmptyState(emoji = "🧾", title = "还没有交易", subtitle = "点底部中央 + 记一笔")
                 }
             } else {
                 item {
@@ -211,7 +209,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                     merchantNames = state.merchantNames,
                                     accountNames = state.accountNames,
                                     onClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        hapticLight()
                                         navController.navigate(Routes.add(tx.id))
                                     },
                                 )
@@ -226,11 +224,15 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
 }
 
 @Composable
-private fun BudgetSection(progress: com.personal.ledger.data.repository.BudgetProgress?) {
+private fun BudgetSection(
+    progress: com.personal.ledger.data.repository.BudgetProgress?,
+    currency: String,
+    onClick: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             if (progress == null) {
@@ -240,7 +242,7 @@ private fun BudgetSection(progress: com.personal.ledger.data.repository.BudgetPr
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("预算", style = MaterialTheme.typography.titleSmall)
                     Text(
-                        "${Money.formatMinor(progress.spent)} / ${Money.formatMinor(progress.budget.amount)}",
+                        "${Money.formatWithCurrency(progress.spent, currency)} / ${Money.formatWithCurrency(progress.budget.amount, currency)}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
@@ -299,7 +301,7 @@ private fun TransactionRow(
                     Text("🔁")
                 }
             } else {
-                CategoryBadge(name = categoryName ?: "其他", type = type)
+                CategoryBadge(name = categoryName ?: "其他", type = type, visualKey = tx.categoryId ?: categoryName.orEmpty())
             }
             Column(modifier = Modifier.padding(start = 12.dp)) {
                 Text(

@@ -28,7 +28,9 @@ import java.time.YearMonth
 
 data class TransactionsUiState(
     val ledgerName: String = "",
+    val baseCurrency: String = "CNY",
     val monthLabel: String = "",
+    val selectedMonth: YearMonth = YearMonth.now(),
     val transactions: List<Transaction> = emptyList(),
     val filter: TransactionType? = null,
     val query: String = "",
@@ -71,7 +73,7 @@ class TransactionsViewModel(
         .flatMapLatest { bundle ->
             val ledger = bundle.ledger
             if (ledger == null) {
-                flowOf(TransactionsUiState(monthLabel = labelOf(bundle.ym)))
+                flowOf(TransactionsUiState(monthLabel = labelOf(bundle.ym), selectedMonth = bundle.ym))
             } else {
                 combine(
                     combine(
@@ -111,7 +113,9 @@ class TransactionsViewModel(
                     }
                     TransactionsUiState(
                         ledgerName = ledger.name,
+                        baseCurrency = ledger.baseCurrency,
                         monthLabel = labelOf(bundle.ym),
+                        selectedMonth = bundle.ym,
                         transactions = filtered,
                         filter = bundle.f,
                         query = bundle.q,
