@@ -2,6 +2,8 @@ package com.personal.ledger.ui.transaction
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +25,6 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,8 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -59,16 +58,17 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.TransactionDeleteDialogs
 import com.personal.ledger.ui.common.amountColor
-import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.TransactionsViewModel
 import java.time.YearMonth
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun TransactionsScreen(container: AppContainer, navController: NavHostController) {
     val vm: TransactionsViewModel = viewModel {
@@ -83,12 +83,12 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
         )
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
-    var pendingDelete by remember { mutableStateOf<Transaction?>(null) }
+    var deleteCandidate by remember { mutableStateOf<Transaction?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
-    val hapticConfirm = rememberHapticConfirm()
     val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
 
     Scaffold(
         topBar = {
@@ -128,7 +128,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             }
                         }
                     }
-                    IconButton(onClick = { navController.navigate(Routes.RECYCLE) }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.navigate(Routes.RECYCLE)
+                    }) {
                         Icon(Icons.Filled.DeleteOutline, contentDescription = "回收站")
                     }
                 },
@@ -145,7 +148,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     singleLine = true,
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
-                            IconButton(onClick = { vm.setQuery("") }) {
+                            IconButton(onClick = {
+                                hapticLight()
+                                vm.setQuery("")
+                            }) {
                                 Icon(Icons.Filled.Close, contentDescription = "清除搜索")
                             }
                         }
@@ -170,7 +176,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
-                    TextButton(onClick = { vm.clearFilters() }) { Text("清除筛选") }
+                    TextButton(onClick = {
+                        hapticLight()
+                        vm.clearFilters()
+                    }) { Text("清除筛选") }
                 }
             }
 
@@ -232,13 +241,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 tagIdsOf = state.tagIdsOf,
                                 currency = state.baseCurrency,
                                 onClick = {
-                                    hapticConfirm()
+                                    hapticNavigation()
                                     navController.navigate(Routes.add(tx.id))
                                 },
-                                onDelete = {
-                                    hapticConfirm()
-                                    pendingDelete = tx
-                                },
+                                onLongClick = { deleteCandidate = tx },
                             )
                             HorizontalDivider()
                         }
@@ -384,7 +390,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = { vm.clearFilters() }) { Text("清除全部") }
+                    TextButton(onClick = {
+                        hapticLight()
+                        vm.clearFilters()
+                    }) { Text("清除全部") }
                     TextButton(onClick = {
                         hapticLight()
                         showFilterSheet = false
@@ -394,21 +403,11 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
         }
     }
 
-    pendingDelete?.let { tx ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("删除账单") },
-            text = { Text("删除后进入回收站，可恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    vm.delete(tx.id) { pendingDelete = null }
-                }) { Text("删除") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
-            },
-        )
-    }
+    TransactionDeleteDialogs(
+        transaction = deleteCandidate,
+        onDismiss = { deleteCandidate = null },
+        onDelete = { tx, onFinished -> vm.delete(tx.id) { onFinished() } },
+    )
 }
 
 private fun activeFilterSummary(state: com.personal.ledger.viewmodel.TransactionsUiState): String {
@@ -435,17 +434,28 @@ private fun MonthPickerDialog(
     onDismiss: () -> Unit,
 ) {
     var year by remember { mutableStateOf(current.year) }
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            hapticNavigation()
+            onDismiss()
+        },
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = { year-- }) { Text("‹") }
+                TextButton(onClick = {
+                    hapticLight()
+                    year--
+                }) { Text("‹") }
                 Text("${year}年", style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = { year++ }) { Text("›") }
+                TextButton(onClick = {
+                    hapticLight()
+                    year++
+                }) { Text("›") }
             }
         },
         text = {
@@ -475,11 +485,15 @@ private fun MonthPickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = {
+                hapticNavigation()
+                onDismiss()
+            }) { Text("取消") }
         },
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TransactionItem(
     tx: Transaction,
@@ -490,12 +504,12 @@ private fun TransactionItem(
     tagIdsOf: Map<String, List<String>>,
     currency: String,
     onClick: () -> Unit,
-    onDelete: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
@@ -544,39 +558,16 @@ private fun TransactionItem(
                 )
             }
         }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(
-                Money.symbolFor(currency) + when (tx.type) {
-                    TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-                    TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                    TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
-                },
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = amountColor(tx.type),
-            )
-            var menuExpanded by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clickable { menuExpanded = true },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作", modifier = Modifier.size(18.dp))
-            }
-            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                DropdownMenuItem(
-                    text = { Text("删除") },
-                    onClick = {
-                        menuExpanded = false
-                        onDelete()
-                    },
-                )
-            }
-        }
+        Text(
+            Money.symbolFor(currency) + when (tx.type) {
+                TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
+                TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
+                TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
+            },
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            color = amountColor(tx.type),
+        )
     }
 }
 

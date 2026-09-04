@@ -40,6 +40,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Budget
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.BudgetsViewModel
 
@@ -57,7 +61,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
     var editingCategoryId by remember { mutableStateOf<String?>(null) }
     var editingTotal by remember { mutableStateOf(false) }
     var showCategoryPicker by remember { mutableStateOf(false) }
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
     val categoryNames = categories.associate { it.id to it.name }
 
@@ -66,7 +73,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             TopAppBar(
                 title = { Text("预算设置 · ${state.month}") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -92,7 +102,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { editingTotal = true }
+                        .clickable {
+                            hapticNavigation()
+                            editingTotal = true
+                        }
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -112,7 +125,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { editingCategoryId = cat.id }
+                        .clickable {
+                            hapticNavigation()
+                            editingCategoryId = cat.id
+                        }
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -126,7 +142,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                 HorizontalDivider()
             }
             item {
-                TextButton(onClick = { showCategoryPicker = true }) {
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showCategoryPicker = true
+                }) {
                     Icon(Icons.Filled.Add, contentDescription = null)
                     Text("为分类设置预算")
                 }
@@ -136,7 +155,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
 
     if (showCategoryPicker) {
         AlertDialog(
-            onDismissRequest = { showCategoryPicker = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showCategoryPicker = false
+            },
             title = { Text("选择分类") },
             text = {
                 Column {
@@ -148,6 +170,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
+                                        hapticLight()
                                         showCategoryPicker = false
                                         editingCategoryId = cat.id
                                     }
@@ -159,7 +182,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showCategoryPicker = false }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showCategoryPicker = false
+                }) { Text("取消") }
             },
         )
     }
@@ -169,12 +195,25 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             title = "月总预算",
             initial = state.budgets.firstOrNull { it.categoryId == null }?.amount,
             onConfirm = { minor ->
-                vm.setBudget(null, minor) { editingTotal = false }
+                vm.setBudget(null, minor) { result ->
+                    result.onSuccess {
+                        hapticConfirm()
+                        editingTotal = false
+                    }.onFailure { hapticReject() }
+                }
             },
             onDelete = {
-                vm.deleteBudget(null) { editingTotal = false }
+                vm.deleteBudget(null) { result ->
+                    result.onSuccess {
+                        hapticConfirm()
+                        editingTotal = false
+                    }.onFailure { hapticReject() }
+                }
             },
-            onDismiss = { editingTotal = false },
+            onDismiss = {
+                hapticNavigation()
+                editingTotal = false
+            },
         )
     }
 
@@ -184,12 +223,25 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                 title = "分类预算（${categoryNames[catId] ?: ""}）",
                 initial = state.budgets.firstOrNull { it.categoryId == catId }?.amount,
                 onConfirm = { minor ->
-                    vm.setBudget(catId, minor) { editingCategoryId = null }
+                    vm.setBudget(catId, minor) { result ->
+                        result.onSuccess {
+                            hapticConfirm()
+                            editingCategoryId = null
+                        }.onFailure { hapticReject() }
+                    }
                 },
                 onDelete = {
-                    vm.deleteBudget(catId) { editingCategoryId = null }
+                    vm.deleteBudget(catId) { result ->
+                        result.onSuccess {
+                            hapticConfirm()
+                            editingCategoryId = null
+                        }.onFailure { hapticReject() }
+                    }
                 },
-                onDismiss = { editingCategoryId = null },
+                onDismiss = {
+                    hapticNavigation()
+                    editingCategoryId = null
+                },
             )
         }
     }
@@ -204,8 +256,13 @@ private fun BudgetAmountDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(initial?.let { Money.formatMinor(it) } ?: "") }
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticReject = rememberHapticReject()
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            hapticNavigation()
+            onDismiss()
+        },
         title = { Text(title) },
         text = {
             Column {
@@ -223,11 +280,18 @@ private fun BudgetAmountDialog(
         confirmButton = {
             TextButton(onClick = {
                 val minor = Money.parseToMinor(text)
-                if (minor != null && minor > 0) onConfirm(minor)
+                if (minor != null && minor > 0) {
+                    onConfirm(minor)
+                } else {
+                    hapticReject()
+                }
             }) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = {
+                hapticNavigation()
+                onDismiss()
+            }) { Text("取消") }
         },
     )
 }

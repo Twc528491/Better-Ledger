@@ -42,6 +42,10 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.backup.BackupConstants
 import com.personal.ledger.data.backup.BackupRepository
 import com.personal.ledger.data.backup.BackupScheduler
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.launch
 
@@ -50,6 +54,10 @@ import kotlinx.coroutines.launch
 fun DataScreen(container: AppContainer, navController: NavHostController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
     val backupDirUri by container.settings.backupDirUri.collectAsStateWithLifecycle(initialValue = null)
     val autoBackupEnabled by container.settings.autoBackupEnabled.collectAsStateWithLifecycle(initialValue = false)
 
@@ -68,6 +76,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             val ok = runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { it.write(container.backupRepository.buildCsv()) } != null
             }.getOrDefault(false)
+            if (ok) hapticConfirm() else hapticReject()
             toast(if (ok) "CSV 已导出" else "CSV 导出失败")
         }
     }
@@ -78,6 +87,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             val ok = runCatching {
                 context.contentResolver.openOutputStream(uri)?.use { it.write(container.backupRepository.buildBackupJson()) } != null
             }.getOrDefault(false)
+            if (ok) hapticConfirm() else hapticReject()
             toast(if (ok) "JSON 备份已导出" else "JSON 导出失败")
         }
     }
@@ -93,6 +103,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 } ?: throw IllegalStateException("无法写入目标")
                 tmp.delete()
             }
+            if (result.isSuccess) hapticConfirm() else hapticReject()
             toast(if (result.isSuccess) "SQLite 备份已导出" else "SQLite 导出失败")
         }
     }
@@ -100,7 +111,10 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
-        if (uri != null) pendingRestoreUri = uri
+        if (uri != null) {
+            hapticNavigation()
+            pendingRestoreUri = uri
+        }
     }
     // 自动备份目录：OpenDocumentTree + 持久化权限
     val treeLauncher = rememberLauncherForActivityResult(
@@ -117,6 +131,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             container.settings.setBackupDirUri(uri.toString())
             BackupScheduler.enable(context)
             container.settings.setAutoBackupEnabled(true)
+            hapticConfirm()
             toast("备份目录已设置，自动备份已开启")
         }
     }
@@ -126,7 +141,10 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             TopAppBar(
                 title = { Text("数据管理") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -141,18 +159,22 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
         ) {
             SectionTitle("导出")
             ActionButton("导出 CSV（Excel 可直接打开）") {
+                hapticNavigation()
                 csvLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.csv")
             }
             ActionButton("导出 JSON（完整备份）") {
+                hapticNavigation()
                 jsonLauncher.launch("ledger-backup-${TimeUtils.currentMonthKey()}.json")
             }
             ActionButton("导出 SQLite（数据库文件）") {
+                hapticNavigation()
                 sqliteLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.db")
             }
             HorizontalDivider()
 
             SectionTitle("恢复")
             ActionButton("从备份恢复（整库覆盖）") {
+                hapticNavigation()
                 restoreLauncher.launch(arrayOf(BackupConstants.MIME_JSON, BackupConstants.MIME_SQLITE, "*/*"))
             }
             Text(
@@ -164,6 +186,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
 
             SectionTitle("自动备份")
             ActionButton(if (backupDirUri == null) "选择备份目录" else "更改备份目录") {
+                hapticNavigation()
                 treeLauncher.launch(null)
             }
             Text(
@@ -184,12 +207,14 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 Switch(
                     checked = autoBackupEnabled,
                     onCheckedChange = { enabled ->
+                        hapticLight()
                         scope.launch {
                             container.settings.setAutoBackupEnabled(enabled)
                             if (enabled) {
                                 if (backupDirUri != null) {
                                     BackupScheduler.enable(context)
                                 } else {
+                                    hapticReject()
                                     toast("请先选择备份目录")
                                     container.settings.setAutoBackupEnabled(false)
                                 }
@@ -205,24 +230,34 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
 
     message?.let {
         AlertDialog(
-            onDismissRequest = { message = null },
+            onDismissRequest = {
+                hapticNavigation()
+                message = null
+            },
             title = { Text("提示") },
             text = { Text(it) },
             confirmButton = {
-                TextButton(onClick = { message = null }) { Text("好的") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    message = null
+                }) { Text("好的") }
             },
         )
     }
 
     pendingRestoreUri?.let { uri ->
         AlertDialog(
-            onDismissRequest = { pendingRestoreUri = null },
+            onDismissRequest = {
+                hapticNavigation()
+                pendingRestoreUri = null
+            },
             title = { Text("确认恢复") },
             text = {
                 Text("恢复会覆盖现有全部数据（恢复前将自动备份当前数据）。是否继续？")
             },
             confirmButton = {
                 TextButton(onClick = {
+                    hapticConfirm()
                     pendingRestoreUri = null
                     scope.launch {
                         val fileName = uri.lastPathSegment.orEmpty()
@@ -243,6 +278,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                                 container.ledgerRepository.fallbackCurrentLedgerIfInvalid()
                                 toast("恢复成功")
                             } else {
+                                hapticReject()
                                 toast("恢复失败：${result.exceptionOrNull()?.message}")
                             }
                         } else {
@@ -252,6 +288,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                             if (result.isSuccess) {
                                 BackupRepository.restartApp(context)
                             } else {
+                                hapticReject()
                                 toast("恢复失败：${result.exceptionOrNull()?.message}")
                             }
                         }
@@ -259,7 +296,10 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 }) { Text("恢复") }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRestoreUri = null }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    pendingRestoreUri = null
+                }) { Text("取消") }
             },
         )
     }

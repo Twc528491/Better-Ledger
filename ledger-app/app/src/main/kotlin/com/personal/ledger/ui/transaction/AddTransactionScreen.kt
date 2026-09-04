@@ -56,7 +56,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -72,6 +71,8 @@ import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.AddTransactionViewModel
@@ -103,11 +104,20 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     val amountFocusRequester = remember { FocusRequester() }
     val hapticConfirm = rememberHapticConfirm()
     val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticReject = rememberHapticReject()
 
     LaunchedEffect(txId) { vm.load(txId) }
 
     LaunchedEffect(state.saved) {
-        if (state.saved) navController.popBackStack()
+        if (state.saved) {
+            hapticConfirm()
+            navController.popBackStack()
+        }
+    }
+
+    LaunchedEffect(state.error) {
+        if (state.error != null) hapticReject()
     }
 
     LaunchedEffect(state.ledgerId, state.editing) {
@@ -122,7 +132,10 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             TopAppBar(
                 title = { Text(if (state.editing != null) "编辑账单" else "记一笔") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -131,10 +144,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
         bottomBar = {
             Surface(shadowElevation = 4.dp) {
                 Button(
-                    onClick = {
-                        hapticConfirm()
-                        vm.save()
-                    },
+                    onClick = { vm.save() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -170,36 +180,26 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 }
             }
 
-            // 金额输入卡片
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = cardColor(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                    Text("金额", style = MaterialTheme.typography.labelSmall)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            Money.symbolFor(state.baseCurrency),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        OutlinedTextField(
-                            value = state.amountText,
-                            onValueChange = { vm.setAmountText(it) },
-                            placeholder = { Text("0.00", fontSize = 22.sp) },
-                            textStyle = MaterialTheme.typography.titleLarge,
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(amountFocusRequester)
-                                .padding(start = 4.dp)
-                                .height(52.dp),
-                        )
-                    }
-                }
-            }
+            // 单一标准高度输入框：币种前缀与数字共享基线，避免固定高度裁切文字。
+            OutlinedTextField(
+                value = state.amountText,
+                onValueChange = { vm.setAmountText(it) },
+                label = { Text("金额") },
+                prefix = {
+                    Text(
+                        Money.symbolFor(state.baseCurrency),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                },
+                placeholder = { Text("0.00", style = MaterialTheme.typography.titleMedium) },
+                textStyle = MaterialTheme.typography.titleMedium,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(amountFocusRequester),
+            )
 
             if (state.type != TransactionType.TRANSFER) {
                 // 分类选择卡片
@@ -383,6 +383,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
+                    hapticConfirm()
                     val picked = datePickerState.selectedDateMillis
                     if (picked != null) {
                         val date = Instant.ofEpochMilli(picked).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -395,7 +396,10 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 }) { Text("确定") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showDatePicker = false
+                }) { Text("取消") }
             },
         ) {
             DatePicker(state = datePickerState)
@@ -615,8 +619,14 @@ private fun SimplePickerDialog(
     onDismiss: () -> Unit,
 ) {
     var newName by remember { mutableStateOf("") }
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val dismissWithHaptic = {
+        hapticNavigation()
+        onDismiss()
+    }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismissWithHaptic,
         title = { Text(title) },
         text = {
             Column(
@@ -625,7 +635,10 @@ private fun SimplePickerDialog(
                     .verticalScroll(rememberScrollState()),
             ) {
                 if (clearLabel != null && onClear != null) {
-                    TextButton(onClick = onClear, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = {
+                        hapticConfirm()
+                        onClear()
+                    }, modifier = Modifier.fillMaxWidth()) {
                         Text(clearLabel)
                     }
                 }
@@ -648,14 +661,17 @@ private fun SimplePickerDialog(
                         singleLine = true,
                     )
                     TextButton(onClick = {
-                        if (newName.isNotBlank()) onAdd(newName.trim())
+                        if (newName.isNotBlank()) {
+                            hapticConfirm()
+                            onAdd(newName.trim())
+                        }
                     }) { Text(addLabel) }
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = dismissWithHaptic) { Text("取消") }
         },
     )
 }

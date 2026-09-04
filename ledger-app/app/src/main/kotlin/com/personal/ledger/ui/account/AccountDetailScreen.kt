@@ -55,6 +55,10 @@ import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountVisuals
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.accountTypeLabel
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.launch
@@ -72,6 +76,9 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
 
     var showEdit by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
     val acc = account.firstOrNull { it.id == accountId }
     val txs = txList.filter { it.accountId == accountId || it.targetAccountId == accountId }
@@ -88,12 +95,18 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
             TopAppBar(
                 title = { Text(acc?.name ?: "账户详情") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showEdit = true }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        showEdit = true
+                    }) {
                         Icon(Icons.Filled.Edit, contentDescription = "编辑")
                     }
                 },
@@ -131,7 +144,10 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { navController.navigate(Routes.add(tx.id)) }
+                        .clickable {
+                            hapticNavigation()
+                            navController.navigate(Routes.add(tx.id))
+                        }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -160,8 +176,14 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                 scope.launch {
                     container.accountRepository.updateAccount(
                         acc, name, type, initialMinor, initialTime, archived,
-                    ).onSuccess { showEdit = false; error = null }
-                        .onFailure { error = it.message }
+                    ).onSuccess {
+                        hapticConfirm()
+                        showEdit = false
+                        error = null
+                    }.onFailure {
+                        hapticReject()
+                        error = it.message
+                    }
                 }
             },
             onDismiss = { showEdit = false; error = null },
@@ -197,10 +219,16 @@ private fun EditAccountDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var archived by remember { mutableStateOf(account.isArchived) }
     var nameError by remember { mutableStateOf<String?>(null) }
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
+        AlertDialog(
+        onDismissRequest = {
+            hapticNavigation()
+            onDismiss()
+        },
         title = { Text("编辑账户") },
         text = {
             Column(
@@ -253,7 +281,7 @@ private fun EditAccountDialog(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("初始时间", style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
-                        hapticLight()
+                        hapticNavigation()
                         showDatePicker = true
                     }) {
                         Text(TimeUtils.formatMonthDay(initialTime))
@@ -275,22 +303,32 @@ private fun EditAccountDialog(
         confirmButton = {
             Button(onClick = {
                 if (name.isBlank()) {
+                    hapticReject()
                     nameError = "名称不能为空"
                     return@Button
                 }
-                val minor = Money.parseToMinor(initialText, allowNegative = true) ?: return@Button
+                val minor = Money.parseToMinor(initialText, allowNegative = true) ?: run {
+                    hapticReject()
+                    return@Button
+                }
                 onConfirm(name.trim(), type, minor, initialTime, archived)
             }) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = {
+                hapticNavigation()
+                onDismiss()
+            }) { Text("取消") }
         },
     )
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialTime)
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showDatePicker = false
+            },
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let {
@@ -299,11 +337,15 @@ private fun EditAccountDialog(
                         initialTime = date.atTime(current.toLocalTime())
                             .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     }
+                    hapticConfirm()
                     showDatePicker = false
                 }) { Text("确定") }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showDatePicker = false
+                }) { Text("取消") }
             },
         ) {
             DatePicker(state = datePickerState)

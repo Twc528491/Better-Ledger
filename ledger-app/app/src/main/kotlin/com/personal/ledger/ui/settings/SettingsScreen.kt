@@ -40,6 +40,8 @@ import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.settings.ThemeMode
 import com.personal.ledger.navigation.Routes
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.viewmodel.SettingsViewModel
 
 /**
@@ -54,14 +56,18 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showThemeDialog by remember { mutableStateOf(false) }
     val activity = LocalContext.current as? androidx.fragment.app.FragmentActivity
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("设置") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -86,7 +92,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    hapticLight()
+                                    hapticNavigation()
                                     navController.navigate(Routes.BOOKKEEPING_SETTINGS)
                                 }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -104,7 +110,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    hapticLight()
+                                    hapticNavigation()
                                     showThemeDialog = true
                                 }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -162,7 +168,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    hapticLight()
+                                    hapticNavigation()
                                     navController.navigate(Routes.DATA)
                                 }
                                 .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -194,7 +200,10 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
 
     if (showThemeDialog) {
         AlertDialog(
-            onDismissRequest = { showThemeDialog = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showThemeDialog = false
+            },
             title = { Text("深色模式") },
             text = {
                 Column {
@@ -207,6 +216,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    hapticLight()
                                     vm.setThemeMode(mode)
                                     showThemeDialog = false
                                 }
@@ -215,10 +225,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                         ) {
                             RadioButton(
                                 selected = state.themeMode == mode,
-                                onClick = {
-                                    vm.setThemeMode(mode)
-                                    showThemeDialog = false
-                                },
+                                onClick = null,
                             )
                             Text(label, modifier = Modifier.padding(start = 8.dp))
                         }
@@ -227,7 +234,10 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showThemeDialog = false }) { Text("关闭") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showThemeDialog = false
+                }) { Text("关闭") }
             },
         )
     }

@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,18 +50,27 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
     ).collectAsStateWithLifecycle(initialValue = emptyList())
     var showAdd by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("标签管理") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showAdd = true }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        showAdd = true
+                    }) {
                         Icon(Icons.Filled.Add, contentDescription = "新建标签")
                     }
                 },
@@ -71,7 +83,11 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            scope.launch { container.tagRepository.setArchived(tag.id, !tag.isArchived) }
+                            scope.launch {
+                                container.tagRepository.setArchived(tag.id, !tag.isArchived)
+                                    .onSuccess { hapticConfirm() }
+                                    .onFailure { hapticReject() }
+                            }
                         }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -94,7 +110,10 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
     if (showAdd) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showAdd = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showAdd = false
+            },
             title = { Text("新建标签") },
             text = {
                 Column {
@@ -112,13 +131,23 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                     val ledgerId = currentLedger?.id ?: return@TextButton
                     scope.launch {
                         container.tagRepository.addTag(ledgerId, name)
-                            .onSuccess { showAdd = false; error = null }
-                            .onFailure { error = it.message }
+                            .onSuccess {
+                                hapticConfirm()
+                                showAdd = false
+                                error = null
+                            }
+                            .onFailure {
+                                hapticReject()
+                                error = it.message
+                            }
                     }
                 }) { Text("创建") }
             },
             dismissButton = {
-                TextButton(onClick = { showAdd = false }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showAdd = false
+                }) { Text("取消") }
             },
         )
     }

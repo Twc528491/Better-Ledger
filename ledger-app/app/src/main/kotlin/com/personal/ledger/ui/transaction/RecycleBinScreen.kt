@@ -30,6 +30,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.TransactionType
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.flow.flatMapLatest
@@ -41,7 +44,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun RecycleBinScreen(container: AppContainer, navController: NavHostController) {
     val scope = rememberCoroutineScope()
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
     val ledgerId = container.ledgerRepository.currentLedger
         .map { it?.id.orEmpty() }
     val items by ledgerId
@@ -55,7 +60,10 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
             TopAppBar(
                 title = { Text("回收站") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -97,8 +105,11 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
                                 style = MaterialTheme.typography.titleMedium,
                             )
                             IconButton(onClick = {
-                                hapticLight()
-                                scope.launch { container.transactionRepository.restore(tx.id) }
+                                scope.launch {
+                                    container.transactionRepository.restore(tx.id)
+                                        .onSuccess { hapticConfirm() }
+                                        .onFailure { hapticReject() }
+                                }
                             }) {
                                 Icon(Icons.Filled.Restore, contentDescription = "恢复")
                             }

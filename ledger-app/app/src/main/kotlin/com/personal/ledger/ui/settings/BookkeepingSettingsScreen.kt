@@ -43,6 +43,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.navigation.Routes
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.viewmodel.SettingsViewModel
 
 /**
@@ -59,14 +63,20 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showLedgerDialog by remember { mutableStateOf(false) }
     var showCreateLedger by remember { mutableStateOf(false) }
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("记账设置") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -85,25 +95,25 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             }
             item {
                 SettingsCard(emoji = "🏷️", title = "分类管理", subtitle = "收入 / 支出分类，最多两级", onClick = {
-                    hapticLight()
+                    hapticNavigation()
                     navController.navigate(Routes.CATEGORIES)
                 })
             }
             item {
                 SettingsCard(emoji = "🏪", title = "商家管理", subtitle = "常去商家，记账快速选择", onClick = {
-                    hapticLight()
+                    hapticNavigation()
                     navController.navigate(Routes.MERCHANTS)
                 })
             }
             item {
                 SettingsCard(emoji = "#️⃣", title = "标签管理", subtitle = "自定义标签，一笔可多个", onClick = {
-                    hapticLight()
+                    hapticNavigation()
                     navController.navigate(Routes.TAGS)
                 })
             }
             item {
                 SettingsCard(emoji = "🎯", title = "预算设置", subtitle = "月总预算与分类预算", onClick = {
-                    hapticLight()
+                    hapticNavigation()
                     navController.navigate(Routes.BUDGETS)
                 })
             }
@@ -121,7 +131,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                     title = "账本管理",
                     subtitle = "当前：${state.currentLedgerName}",
                     onClick = {
-                        hapticLight()
+                        hapticNavigation()
                         showLedgerDialog = true
                     },
                 )
@@ -131,7 +141,10 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
 
     if (showLedgerDialog) {
         AlertDialog(
-            onDismissRequest = { showLedgerDialog = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showLedgerDialog = false
+            },
             title = { Text("账本管理") },
             text = {
                 Column {
@@ -149,10 +162,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                         ) {
                             RadioButton(
                                 selected = ledger.name == state.currentLedgerName,
-                                onClick = {
-                                    vm.switchLedger(ledger.id)
-                                    showLedgerDialog = false
-                                },
+                                onClick = null,
                             )
                             Text(
                                 ledger.name + if (ledger.isArchived) "（已归档）" else "",
@@ -161,13 +171,19 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                                     .padding(start = 8.dp),
                             )
                             if (ledger.name != state.currentLedgerName) {
-                                TextButton(onClick = { vm.setLedgerArchived(ledger.id, !ledger.isArchived) {} }) {
+                                TextButton(onClick = {
+                                    vm.setLedgerArchived(ledger.id, !ledger.isArchived) { result ->
+                                        result.onSuccess { hapticConfirm() }
+                                            .onFailure { hapticReject() }
+                                    }
+                                }) {
                                     Text(if (ledger.isArchived) "恢复" else "归档")
                                 }
                             }
                         }
                     }
                     TextButton(onClick = {
+                        hapticNavigation()
                         showLedgerDialog = false
                         showCreateLedger = true
                     }) { Text("+ 新建账本") }
@@ -175,7 +191,10 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showLedgerDialog = false }) { Text("关闭") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showLedgerDialog = false
+                }) { Text("关闭") }
             },
         )
     }
@@ -183,7 +202,10 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     if (showCreateLedger) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showCreateLedger = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showCreateLedger = false
+            },
             title = { Text("新建账本") },
             text = {
                 OutlinedTextField(
@@ -196,12 +218,20 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             confirmButton = {
                 TextButton(onClick = {
                     if (name.isNotBlank()) {
-                        vm.createLedger(name) { showCreateLedger = false }
+                        vm.createLedger(name) { result ->
+                            result.onSuccess {
+                                hapticConfirm()
+                                showCreateLedger = false
+                            }.onFailure { hapticReject() }
+                        }
                     }
                 }) { Text("创建") }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateLedger = false }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showCreateLedger = false
+                }) { Text("取消") }
             },
         )
     }

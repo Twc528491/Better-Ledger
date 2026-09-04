@@ -46,6 +46,10 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.ui.common.CategoryBadge
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.viewmodel.CategoriesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,18 +62,26 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     var showAddDialog by remember { mutableStateOf(false) }
     var addParentId by remember { mutableStateOf<String?>(null) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("分类管理") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.popBackStack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = {
+                        hapticNavigation()
                         addParentId = null
                         showAddDialog = true
                     }) {
@@ -86,12 +98,18 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
             ) {
                 FilterChip(
                     selected = state.type == CategoryType.EXPENSE,
-                    onClick = { vm.setType(CategoryType.EXPENSE) },
+                    onClick = {
+                        hapticLight()
+                        vm.setType(CategoryType.EXPENSE)
+                    },
                     label = { Text("支出") },
                 )
                 FilterChip(
                     selected = state.type == CategoryType.INCOME,
-                    onClick = { vm.setType(CategoryType.INCOME) },
+                    onClick = {
+                        hapticLight()
+                        vm.setType(CategoryType.INCOME)
+                    },
                     label = { Text("收入") },
                 )
             }
@@ -117,11 +135,26 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                         isSub = cat.parentId != null,
                         canMoveUp = index > 0,
                         canMoveDown = index >= 0 && index < siblings.lastIndex,
-                        onMoveUp = { vm.move(cat.id, -1) },
-                        onMoveDown = { vm.move(cat.id, 1) },
-                        onEdit = { editingCategory = cat },
-                        onToggleArchive = { vm.setArchived(cat.id, !cat.isArchived) {} },
+                        onMoveUp = {
+                            hapticLight()
+                            vm.move(cat.id, -1)
+                        },
+                        onMoveDown = {
+                            hapticLight()
+                            vm.move(cat.id, 1)
+                        },
+                        onEdit = {
+                            hapticNavigation()
+                            editingCategory = cat
+                        },
+                        onToggleArchive = {
+                            vm.setArchived(cat.id, !cat.isArchived) { result ->
+                                result.onSuccess { hapticConfirm() }
+                                    .onFailure { hapticReject() }
+                            }
+                        },
                         onAddChild = if (cat.parentId == null && !cat.isArchived) ({
+                            hapticNavigation()
                             addParentId = cat.id
                             showAddDialog = true
                         }) else null,
@@ -135,7 +168,10 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     if (showAddDialog) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { showAddDialog = false },
+            onDismissRequest = {
+                hapticNavigation()
+                showAddDialog = false
+            },
             title = { Text(if (addParentId == null) "新建一级分类" else "新建二级分类") },
             text = {
                 OutlinedTextField(
@@ -149,13 +185,20 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                 TextButton(onClick = {
                     if (name.isNotBlank()) {
                         vm.addCategory(name, addParentId) { result ->
-                            result.onSuccess { showAddDialog = false }
+                            result.onSuccess {
+                                hapticConfirm()
+                                showAddDialog = false
+                            }
+                                .onFailure { hapticReject() }
                         }
                     }
                 }) { Text("创建") }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    showAddDialog = false
+                }) { Text("取消") }
             },
         )
     }
@@ -163,7 +206,10 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     editingCategory?.let { category ->
         var name by remember(category.id) { mutableStateOf(category.name) }
         AlertDialog(
-            onDismissRequest = { editingCategory = null },
+            onDismissRequest = {
+                hapticNavigation()
+                editingCategory = null
+            },
             title = { Text("重命名分类") },
             text = {
                 OutlinedTextField(
@@ -177,13 +223,20 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                 TextButton(onClick = {
                     if (name.isNotBlank()) {
                         vm.rename(category.id, name.trim()) { result ->
-                            result.onSuccess { editingCategory = null }
+                            result.onSuccess {
+                                hapticConfirm()
+                                editingCategory = null
+                            }
+                                .onFailure { hapticReject() }
                         }
                     }
                 }) { Text("保存") }
             },
             dismissButton = {
-                TextButton(onClick = { editingCategory = null }) { Text("取消") }
+                TextButton(onClick = {
+                    hapticNavigation()
+                    editingCategory = null
+                }) { Text("取消") }
             },
         )
     }
@@ -202,6 +255,7 @@ private fun CategoryRow(
     onAddChild: (() -> Unit)?,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val hapticNavigation = rememberHapticNavigation()
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -236,23 +290,35 @@ private fun CategoryRow(
             Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下移${category.name}")
         }
         androidx.compose.foundation.layout.Box {
-            IconButton(onClick = { menuExpanded = true }) {
+        IconButton(onClick = {
+            hapticNavigation()
+            menuExpanded = true
+        }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "${category.name}更多操作")
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(
                     text = { Text("重命名") },
-                    onClick = { menuExpanded = false; onEdit() },
+                    onClick = {
+                        menuExpanded = false
+                        onEdit()
+                    },
                 )
                 if (onAddChild != null) {
                     DropdownMenuItem(
                         text = { Text("新建二级分类") },
-                        onClick = { menuExpanded = false; onAddChild() },
+                        onClick = {
+                            menuExpanded = false
+                            onAddChild()
+                        },
                     )
                 }
                 DropdownMenuItem(
                     text = { Text(if (category.isArchived) "恢复" else "归档") },
-                    onClick = { menuExpanded = false; onToggleArchive() },
+                    onClick = {
+                        menuExpanded = false
+                        onToggleArchive()
+                    },
                 )
             }
         }

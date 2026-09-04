@@ -40,7 +40,7 @@ data class HomeUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModel(
     private val ledgerRepository: LedgerRepository,
-    transactionRepository: TransactionRepository,
+    private val transactionRepository: TransactionRepository,
     budgetRepository: BudgetRepository,
     categoryRepository: CategoryRepository,
     merchantRepository: MerchantRepository,
@@ -51,6 +51,10 @@ class HomeViewModel(
 
     fun switchLedger(id: String) {
         viewModelScope.launch { ledgerRepository.setCurrentLedger(id) }
+    }
+
+    fun delete(id: String, onDone: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch { onDone(transactionRepository.softDelete(id)) }
     }
 
     val uiState: StateFlow<HomeUiState> = combine(

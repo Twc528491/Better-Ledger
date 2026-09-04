@@ -50,6 +50,10 @@ import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.ui.common.balanceColor
 import com.personal.ledger.ui.common.highlightCardColor
 import com.personal.ledger.ui.common.highlightCardContentColor
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.AccountsViewModel
 
@@ -61,17 +65,26 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("资产") },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.navigate(Routes.SETTINGS)
+                    }) {
                         Icon(Icons.Filled.Settings, contentDescription = "设置")
                     }
-                    IconButton(onClick = { showAddDialog = true }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        showAddDialog = true
+                    }) {
                         Icon(Icons.Filled.Add, contentDescription = "新建账户")
                     }
                 },
@@ -152,7 +165,10 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
         AddAccountDialog(
             onConfirm = { name, type, initialMinor ->
                 vm.addAccount(name, type, initialMinor) { result ->
-                    result.onSuccess { showAddDialog = false }
+                    result.onSuccess {
+                        hapticConfirm()
+                        showAddDialog = false
+                    }.onFailure { hapticReject() }
                 }
             },
             onDismiss = { showAddDialog = false },
@@ -212,11 +228,15 @@ private fun AddAccountDialog(
     var name by remember { mutableStateOf("") }
     var initialText by remember { mutableStateOf("0") }
     var type by remember { mutableStateOf(AccountType.CASH) }
-    val hapticLight = com.personal.ledger.ui.common.rememberHapticLight()
-    val hapticConfirm = com.personal.ledger.ui.common.rememberHapticConfirm()
+    val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val hapticReject = rememberHapticReject()
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            hapticNavigation()
+            onDismiss()
+        },
         title = { Text("新建账户") },
         text = {
             Column {
@@ -260,13 +280,19 @@ private fun AddAccountDialog(
         },
         confirmButton = {
             Button(onClick = {
-                hapticConfirm()
-                val minor = Money.parseToMinor(initialText, allowNegative = true) ?: 0L
-                if (name.isNotBlank()) onConfirm(name.trim(), type, minor)
+                val minor = Money.parseToMinor(initialText, allowNegative = true)
+                if (name.isNotBlank() && minor != null) {
+                    onConfirm(name.trim(), type, minor)
+                } else {
+                    hapticReject()
+                }
             }) { Text("创建") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = {
+                hapticNavigation()
+                onDismiss()
+            }) { Text("取消") }
         },
     )
 }

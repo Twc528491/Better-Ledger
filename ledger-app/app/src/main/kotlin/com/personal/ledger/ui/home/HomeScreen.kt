@@ -2,6 +2,8 @@ package com.personal.ledger.ui.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +50,7 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.TransactionDeleteDialogs
 import com.personal.ledger.ui.common.expenseAmountColor
 import com.personal.ledger.ui.common.incomeAmountColor
 import com.personal.ledger.ui.common.transferAmountColor
@@ -61,10 +64,11 @@ import com.personal.ledger.ui.common.highlightCardContentColor
 import com.personal.ledger.ui.common.LedgerCard
 import com.personal.ledger.ui.common.LedgerSectionHeader
 import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.HomeViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(container: AppContainer, navController: NavHostController) {
     val vm: HomeViewModel = viewModel {
@@ -80,7 +84,9 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val ledgers by container.ledgerRepository.ledgers.collectAsStateWithLifecycle(initialValue = emptyList())
     var ledgerMenuOpen by remember { mutableStateOf(false) }
+    var deleteCandidate by remember { mutableStateOf<Transaction?>(null) }
     val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
 
     Scaffold(
         topBar = {
@@ -109,7 +115,10 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
+                    IconButton(onClick = {
+                        hapticNavigation()
+                        navController.navigate(Routes.SETTINGS)
+                    }) {
                         Icon(Icons.Filled.Tune, contentDescription = "设置")
                     }
                 },
@@ -181,6 +190,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
             // 预算卡片（进度条随使用率变色：绿 → 橙 → 红）
             item {
                 BudgetSection(state.totalBudget, state.baseCurrency) {
+                    hapticNavigation()
                     navController.navigate(Routes.BUDGETS)
                 }
             }
@@ -191,7 +201,10 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     title = "最近交易",
                     modifier = Modifier.padding(top = 8.dp),
                     actionLabel = "查看全部",
-                    onAction = { navController.navigate(Routes.TRANSACTIONS) },
+                    onAction = {
+                        hapticNavigation()
+                        navController.navigate(Routes.TRANSACTIONS)
+                    },
                 )
             }
 
@@ -220,9 +233,10 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                     merchantNames = state.merchantNames,
                                     accountNames = state.accountNames,
                                     onClick = {
-                                        hapticLight()
+                                        hapticNavigation()
                                         navController.navigate(Routes.add(tx.id))
                                     },
+                                    onLongClick = { deleteCandidate = tx },
                                 )
                                 if (index < state.recent.lastIndex) HorizontalDivider()
                             }
@@ -232,6 +246,12 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
             }
         }
     }
+
+    TransactionDeleteDialogs(
+        transaction = deleteCandidate,
+        onDismiss = { deleteCandidate = null },
+        onDelete = { tx, onFinished -> vm.delete(tx.id) { onFinished() } },
+    )
 }
 
 @Composable
@@ -278,17 +298,19 @@ private fun BudgetSection(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun TransactionRow(
     tx: Transaction,
     categoryNames: Map<String, String>,
     merchantNames: Map<String, String>,
     accountNames: Map<String, String>,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
