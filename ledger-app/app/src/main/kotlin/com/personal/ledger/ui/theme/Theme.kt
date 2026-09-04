@@ -8,6 +8,8 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import com.personal.ledger.data.settings.ThemeMode
@@ -37,6 +39,9 @@ private val DarkColors = darkColorScheme(
     error = Color(0xFFF2B8B5),
 )
 
+/** 供语义颜色组件读取应用内实际主题，避免“手动深色”与系统主题不一致。 */
+val LocalLedgerDarkTheme = staticCompositionLocalOf { false }
+
 @Composable
 fun LedgerTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
@@ -54,9 +59,11 @@ fun LedgerTheme(
         darkTheme -> DarkColors
         else -> LightColors
     }
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = MaterialTheme.typography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalLedgerDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = MaterialTheme.typography,
+            content = content,
+        )
+    }
 }

@@ -26,6 +26,14 @@ class MoneyTest {
     }
 
     @Test
+    fun `formatWithCurrency 使用币种而非固定人民币符号`() {
+        assertEquals("¥25.36", Money.formatWithCurrency(2536, "CNY"))
+        assertEquals("$25.36", Money.formatWithCurrency(2536, "usd"))
+        assertEquals("€25.36", Money.formatWithCurrency(2536, "EUR"))
+        assertEquals("GBP 25.36", Money.formatWithCurrency(2536, "gbp"))
+    }
+
+    @Test
     fun `parseToMinor 解析与舍入`() {
         assertEquals(2536L, Money.parseToMinor("25.36"))
         assertEquals(100L, Money.parseToMinor("1"))

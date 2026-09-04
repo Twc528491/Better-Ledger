@@ -1,7 +1,6 @@
 package com.personal.ledger.ui.common
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -16,7 +15,7 @@ import androidx.compose.ui.unit.sp
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.TransactionType
-import kotlin.math.abs
+import com.personal.ledger.ui.theme.LocalLedgerDarkTheme
 
 /**
  * UI 视觉语义（配色 / 图标 / 分类 emoji），按主题分支：
@@ -27,43 +26,43 @@ import kotlin.math.abs
 
 /** 卡片容器色：深色 = 深色容器；浅色 = 默认 surface（旧版扁平）。 */
 @Composable fun cardColor(): Color =
-    if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface
 
 /** 主卡片（本月支出 / 净资产）背景色。 */
 @Composable fun highlightCardColor(): Color =
-    if (isSystemInDarkTheme()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
 
 /** 主卡片内容色。 */
 @Composable fun highlightCardContentColor(): Color =
-    if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
 
 /** 支出语义色（仅深色模式使用彩色；浅色回退默认文字色）。 */
 @Composable fun expenseAmountColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFFF8A80) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFFFF8A80) else MaterialTheme.colorScheme.onSurface
 
 /** 支出容器色。 */
 @Composable fun expenseContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF3A2020) else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) Color(0xFF3A2020) else MaterialTheme.colorScheme.surface
 
 /** 收入语义色。 */
 @Composable fun incomeAmountColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF81C784) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFF81C784) else MaterialTheme.colorScheme.onSurface
 
 /** 收入容器色。 */
 @Composable fun incomeContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF1B3520) else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) Color(0xFF1B3520) else MaterialTheme.colorScheme.surface
 
 /** 转账语义色。 */
 @Composable fun transferAmountColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF90CAF9) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFF90CAF9) else MaterialTheme.colorScheme.onSurface
 
 /** 转账容器色。 */
 @Composable fun transferContainerColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFF1A2B3D) else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) Color(0xFF1A2B3D) else MaterialTheme.colorScheme.surface
 
 /** 警示（预算 80~100%）。 */
 @Composable fun warningColor(): Color =
-    if (isSystemInDarkTheme()) Color(0xFFFFB74D) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFFFFB74D) else MaterialTheme.colorScheme.onSurface
 
 /** 金额颜色：深色 = 支出红 / 收入绿 / 转账蓝；浅色 = 默认文字色（旧版样式）。 */
 @Composable
@@ -76,7 +75,7 @@ fun amountColor(type: TransactionType): Color = when (type) {
 /** 余额颜色：深色 = 正绿负红；浅色 = 默认文字色。 */
 @Composable
 fun balanceColor(balance: Long): Color =
-    if (isSystemInDarkTheme()) {
+    if (LocalLedgerDarkTheme.current) {
         if (balance >= 0) Color(0xFF81C784) else Color(0xFFFF8A80)
     } else {
         MaterialTheme.colorScheme.onSurface
@@ -85,7 +84,7 @@ fun balanceColor(balance: Long): Color =
 /** 预算进度颜色：深色 = <80% 绿 / 80~100% 橙 / 超支红；浅色 = 主色（旧版样式）。 */
 @Composable
 fun budgetColor(permille: Int?, fallback: Color): Color {
-    if (!isSystemInDarkTheme()) return fallback
+    if (!LocalLedgerDarkTheme.current) return fallback
     return when {
         permille == null -> fallback
         permille < 800 -> Color(0xFF81C784)
@@ -102,15 +101,21 @@ object CategoryVisuals {
         "工资" to "💰", "其他收入" to "🎁",
     )
 
-    fun emojiFor(name: String, type: CategoryType): String =
-        emojiByKey[name] ?: if (type == CategoryType.INCOME) "💵" else "🏷️"
+    private val expenseFallbacks = listOf("🏷️", "🧾", "📦", "🪙", "🛍️")
+    private val incomeFallbacks = listOf("💵", "💰", "🎁", "🪙")
+
+    fun emojiFor(name: String, type: CategoryType, visualKey: String = name): String {
+        emojiByKey[name]?.let { return it }
+        val fallbacks = if (type == CategoryType.INCOME) incomeFallbacks else expenseFallbacks
+        return fallbacks[Math.floorMod(visualKey.hashCode(), fallbacks.size)]
+    }
 }
 
-/** 按名称稳定取色（同一分类永远同色；深色模式降低亮度保证对比）。 */
+/** 按稳定标识取色；传分类 ID 后，重命名不会改变颜色。 */
 @Composable
-fun categoryColor(name: String): Color {
-    val hue = abs(name.hashCode()) % 360
-    return if (isSystemInDarkTheme()) {
+fun categoryColor(visualKey: String): Color {
+    val hue = Math.floorMod(visualKey.hashCode(), 360)
+    return if (LocalLedgerDarkTheme.current) {
         Color.hsv(hue.toFloat(), 0.30f, 0.38f)
     } else {
         Color.hsv(hue.toFloat(), 0.30f, 0.94f)
@@ -148,7 +153,7 @@ fun accountTypeLabel(type: AccountType): String = when (type) {
 /** 账户类型主题色（浅色模式用柔和浅底，深色模式用亮色调）。 */
 @Composable
 fun accountColor(type: AccountType): Color {
-    if (!isSystemInDarkTheme()) {
+    if (!LocalLedgerDarkTheme.current) {
         return MaterialTheme.colorScheme.surfaceVariant
     }
     return when (type) {
@@ -184,10 +189,16 @@ fun EmojiBadge(
 
 /** 分类圆标（emoji + 稳定分类色）。 */
 @Composable
-fun CategoryBadge(name: String, type: CategoryType, modifier: Modifier = Modifier, sizeDp: Int = 36) {
+fun CategoryBadge(
+    name: String,
+    type: CategoryType,
+    modifier: Modifier = Modifier,
+    sizeDp: Int = 36,
+    visualKey: String = name,
+) {
     EmojiBadge(
-        emoji = CategoryVisuals.emojiFor(name, type),
-        background = categoryColor(name),
+        emoji = CategoryVisuals.emojiFor(name, type, visualKey),
+        background = categoryColor(visualKey),
         modifier = modifier,
         sizeDp = sizeDp,
     )

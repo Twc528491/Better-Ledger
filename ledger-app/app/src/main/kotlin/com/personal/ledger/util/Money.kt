@@ -31,6 +31,19 @@ object Money {
     fun formatWithSymbol(minor: Long, symbol: String = "¥"): String =
         "$symbol${formatSignedMinor(minor)}"
 
+    /** 常见币种展示符号；未知币种保留代码，避免误导为人民币。 */
+    fun symbolFor(currency: String): String = when (currency.trim().uppercase(Locale.ROOT)) {
+        "CNY" -> "¥"
+        "USD" -> "$"
+        "HKD" -> "HK$"
+        "JPY" -> "¥"
+        "EUR" -> "€"
+        else -> currency.trim().uppercase(Locale.ROOT).let { if (it.isEmpty()) "" else "$it " }
+    }
+
+    fun formatWithCurrency(minor: Long, currency: String): String =
+        "${symbolFor(currency)}${formatSignedMinor(minor)}"
+
     /**
      * 用户输入的十进制金额文本 → 最小货币单位整数。
      * 最多两位小数，四舍五入到分；非法输入返回 null。
