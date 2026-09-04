@@ -20,14 +20,12 @@ fun TransactionDeleteDialogs(
 ) {
     if (transaction == null) return
     var awaitingConfirmation by remember(transaction.id) { mutableStateOf(false) }
-    val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
-    val hapticStrong = rememberHapticStrong()
+    val hapticDelete = rememberHapticDelete()
 
     if (!awaitingConfirmation) {
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 onDismiss()
             },
             title = { Text("账单操作") },
@@ -42,7 +40,6 @@ fun TransactionDeleteDialogs(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    hapticNavigation()
                     onDismiss()
                 }) { Text("取消") }
             },
@@ -50,14 +47,13 @@ fun TransactionDeleteDialogs(
     } else {
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 onDismiss()
             },
             title = { Text("确认删除") },
             text = { Text("删除后账单会进入回收站，仍可恢复。") },
             confirmButton = {
                 TextButton(onClick = {
-                    hapticStrong()
+                    hapticDelete()
                     onDelete(transaction, onDismiss)
                 }) {
                     Text("确认删除", color = MaterialTheme.colorScheme.error)
@@ -65,7 +61,6 @@ fun TransactionDeleteDialogs(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    hapticNavigation()
                     awaitingConfirmation = false
                 }) { Text("返回") }
             },

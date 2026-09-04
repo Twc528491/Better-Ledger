@@ -110,10 +110,7 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
     if (showAdd) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = {
-                hapticNavigation()
-                showAdd = false
-            },
+            onDismissRequest = { showAdd = false },
             title = { Text("新建标签") },
             text = {
                 Column {
@@ -144,10 +141,7 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                 }) { Text("创建") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    hapticNavigation()
-                    showAdd = false
-                }) { Text("取消") }
+                TextButton(onClick = { showAdd = false }) { Text("取消") }
             },
         )
     }

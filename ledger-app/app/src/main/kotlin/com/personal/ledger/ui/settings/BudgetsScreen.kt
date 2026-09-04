@@ -156,7 +156,6 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
     if (showCategoryPicker) {
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 showCategoryPicker = false
             },
             title = { Text("选择分类") },
@@ -182,10 +181,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = {
-                    hapticNavigation()
-                    showCategoryPicker = false
-                }) { Text("取消") }
+                TextButton(onClick = { showCategoryPicker = false }) { Text("取消") }
             },
         )
     }
@@ -211,7 +207,6 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                 }
             },
             onDismiss = {
-                hapticNavigation()
                 editingTotal = false
             },
         )
@@ -239,7 +234,6 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 onDismiss = {
-                    hapticNavigation()
                     editingCategoryId = null
                 },
             )
@@ -256,13 +250,9 @@ private fun BudgetAmountDialog(
     onDismiss: () -> Unit,
 ) {
     var text by remember { mutableStateOf(initial?.let { Money.formatMinor(it) } ?: "") }
-    val hapticNavigation = rememberHapticNavigation()
     val hapticReject = rememberHapticReject()
     AlertDialog(
-        onDismissRequest = {
-            hapticNavigation()
-            onDismiss()
-        },
+        onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column {
@@ -288,10 +278,7 @@ private fun BudgetAmountDialog(
             }) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = {
-                hapticNavigation()
-                onDismiss()
-            }) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
 }

@@ -200,10 +200,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
 
     if (showThemeDialog) {
         AlertDialog(
-            onDismissRequest = {
-                hapticNavigation()
-                showThemeDialog = false
-            },
+            onDismissRequest = { showThemeDialog = false },
             title = { Text("深色模式") },
             text = {
                 Column {
@@ -234,10 +231,7 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = {
-                    hapticNavigation()
-                    showThemeDialog = false
-                }) { Text("关闭") }
+                TextButton(onClick = { showThemeDialog = false }) { Text("关闭") }
             },
         )
     }

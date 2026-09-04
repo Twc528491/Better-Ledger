@@ -99,7 +99,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 .padding(padding),
         ) {
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     // 支出主卡片
                     Surface(
                         shape = RoundedCornerShape(20.dp),

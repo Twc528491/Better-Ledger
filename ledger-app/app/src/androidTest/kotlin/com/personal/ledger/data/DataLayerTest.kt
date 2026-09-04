@@ -243,6 +243,37 @@ class DataLayerTest {
     }
 
     @Test
+    fun `商家与分类删除仅软归档并保留交易引用`() = runTest {
+        val ledgerId = seededLedgerId()
+        val cashId = db.accountDao().getAll().first().id
+        val category = categoryRepo.getByLedger(ledgerId)
+            .first { it.type == CategoryType.EXPENSE && !it.isArchived }
+        val merchant = merchantRepo.addMerchant(ledgerId, "测试商家").getOrThrow()
+        val tx = txRepo.add(
+            TransactionDraft(
+                ledgerId,
+                TransactionType.EXPENSE,
+                100,
+                "CNY",
+                cashId,
+                categoryId = category.id,
+                merchantId = merchant.id,
+                transactionTime = TimeUtils.now(),
+            ),
+        ).getOrThrow()
+
+        assertTrue(categoryRepo.delete(category.id).isSuccess)
+        assertTrue(merchantRepo.delete(merchant.id).isSuccess)
+
+        assertTrue(db.categoryDao().getById(category.id)!!.isArchived)
+        assertTrue(db.merchantDao().getById(merchant.id)!!.isArchived)
+        val preserved = txRepo.getById(tx.id)!!
+        assertEquals(category.id, preserved.categoryId)
+        assertEquals(merchant.id, preserved.merchantId)
+        assertEquals(1, txRepo.observeByLedger(ledgerId).first().size)
+    }
+
+    @Test
     fun `预算唯一性父分类汇总与类型限制`() = runTest {
         val ledgerId = seededLedgerId()
         val cashId = db.accountDao().getAll().first().id

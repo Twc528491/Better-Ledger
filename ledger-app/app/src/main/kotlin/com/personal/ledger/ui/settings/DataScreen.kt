@@ -231,14 +231,12 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
     message?.let {
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 message = null
             },
             title = { Text("提示") },
             text = { Text(it) },
             confirmButton = {
                 TextButton(onClick = {
-                    hapticNavigation()
                     message = null
                 }) { Text("好的") }
             },
@@ -248,7 +246,6 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
     pendingRestoreUri?.let { uri ->
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 pendingRestoreUri = null
             },
             title = { Text("确认恢复") },
@@ -297,7 +294,6 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             },
             dismissButton = {
                 TextButton(onClick = {
-                    hapticNavigation()
                     pendingRestoreUri = null
                 }) { Text("取消") }
             },

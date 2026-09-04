@@ -142,7 +142,6 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     if (showLedgerDialog) {
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 showLedgerDialog = false
             },
             title = { Text("账本管理") },
@@ -192,7 +191,6 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = {
-                    hapticNavigation()
                     showLedgerDialog = false
                 }) { Text("关闭") }
             },
@@ -203,7 +201,6 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
         var name by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = {
-                hapticNavigation()
                 showCreateLedger = false
             },
             title = { Text("新建账本") },
@@ -229,7 +226,6 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             },
             dismissButton = {
                 TextButton(onClick = {
-                    hapticNavigation()
                     showCreateLedger = false
                 }) { Text("取消") }
             },

@@ -229,14 +229,10 @@ private fun AddAccountDialog(
     var initialText by remember { mutableStateOf("0") }
     var type by remember { mutableStateOf(AccountType.CASH) }
     val hapticLight = rememberHapticLight()
-    val hapticNavigation = rememberHapticNavigation()
     val hapticReject = rememberHapticReject()
 
     AlertDialog(
-        onDismissRequest = {
-            hapticNavigation()
-            onDismiss()
-        },
+        onDismissRequest = onDismiss,
         title = { Text("新建账户") },
         text = {
             Column {
@@ -289,10 +285,7 @@ private fun AddAccountDialog(
             }) { Text("创建") }
         },
         dismissButton = {
-            TextButton(onClick = {
-                hapticNavigation()
-                onDismiss()
-            }) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
 }

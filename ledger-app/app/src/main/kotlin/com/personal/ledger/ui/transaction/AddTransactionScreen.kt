@@ -160,8 +160,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(top = 6.dp, bottom = 16.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 类型分段选择（全宽）
@@ -397,10 +396,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 }) { Text("确定") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    hapticNavigation()
-                    showDatePicker = false
-                }) { Text("取消") }
+                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
             },
         ) {
             DatePicker(state = datePickerState)
@@ -622,12 +618,9 @@ private fun SimplePickerDialog(
     var newName by remember { mutableStateOf("") }
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
-    val dismissWithHaptic = {
-        hapticNavigation()
-        onDismiss()
-    }
+    val dismissWithoutHaptic = onDismiss
     AlertDialog(
-        onDismissRequest = dismissWithHaptic,
+        onDismissRequest = dismissWithoutHaptic,
         title = { Text(title) },
         text = {
             Column(
@@ -672,7 +665,7 @@ private fun SimplePickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = dismissWithHaptic) { Text("取消") }
+            TextButton(onClick = dismissWithoutHaptic) { Text("取消") }
         },
     )
 }

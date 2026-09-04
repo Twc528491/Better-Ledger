@@ -225,10 +225,7 @@ private fun EditAccountDialog(
     val hapticReject = rememberHapticReject()
 
         AlertDialog(
-        onDismissRequest = {
-            hapticNavigation()
-            onDismiss()
-        },
+        onDismissRequest = onDismiss,
         title = { Text("编辑账户") },
         text = {
             Column(
@@ -315,20 +312,14 @@ private fun EditAccountDialog(
             }) { Text("保存") }
         },
         dismissButton = {
-            TextButton(onClick = {
-                hapticNavigation()
-                onDismiss()
-            }) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialTime)
         DatePickerDialog(
-            onDismissRequest = {
-                hapticNavigation()
-                showDatePicker = false
-            },
+            onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let {
@@ -342,10 +333,7 @@ private fun EditAccountDialog(
                 }) { Text("确定") }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    hapticNavigation()
-                    showDatePicker = false
-                }) { Text("取消") }
+                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
             },
         ) {
             DatePicker(state = datePickerState)

@@ -99,7 +99,7 @@ fun budgetColor(permille: Int?, fallback: Color): Color {
     }
 }
 
-/** 分类 emoji（种子分类带专属 emoji；自定义分类按类型回退）。 */
+/** 分类 emoji（种子分类与自定义分类均使用可预测的名称 / 类型映射）。 */
 object CategoryVisuals {
     private val emojiByKey = mapOf(
         "餐饮" to "🍜", "交通" to "🚌", "购物" to "🛒", "居住" to "🏠",
@@ -107,13 +107,26 @@ object CategoryVisuals {
         "工资" to "💰", "其他收入" to "🎁",
     )
 
-    private val expenseFallbacks = listOf("🏷️", "🧾", "📦", "🪙", "🛍️")
-    private val incomeFallbacks = listOf("💵", "💰", "🎁", "🪙")
+    private val keywordMappings = listOf(
+        listOf("餐", "饭", "食", "外卖", "咖啡", "早餐", "午餐", "晚餐") to "🍜",
+        listOf("交通", "公交", "地铁", "打车", "出租", "加油", "停车", "出行") to "🚌",
+        listOf("购物", "买", "超市", "商场", "衣", "服饰") to "🛒",
+        listOf("住", "房", "租", "居家", "家居", "水电") to "🏠",
+        listOf("娱乐", "游戏", "电影", "音乐", "旅行", "旅游") to "🎮",
+        listOf("医", "药", "医院", "健康", "保健") to "🏥",
+        listOf("工资", "薪", "奖金", "收入", "报销", "兼职") to "💰",
+        listOf("礼", "红包", "赠", "利息", "股息") to "🎁",
+    )
 
+    @Suppress("UNUSED_PARAMETER")
     fun emojiFor(name: String, type: CategoryType, visualKey: String = name): String {
-        emojiByKey[name]?.let { return it }
-        val fallbacks = if (type == CategoryType.INCOME) incomeFallbacks else expenseFallbacks
-        return fallbacks[Math.floorMod(visualKey.hashCode(), fallbacks.size)]
+        val normalized = name.trim()
+        emojiByKey[normalized]?.let { return it }
+        keywordMappings.firstOrNull { (keywords, _) ->
+            keywords.any { normalized.contains(it) }
+        }?.second?.let { return it }
+        // visualKey 仅保留在 API 中以兼容旧调用；图标不再按随机/ID 哈希变化。
+        return if (type == CategoryType.INCOME) "💵" else "📦"
     }
 }
 

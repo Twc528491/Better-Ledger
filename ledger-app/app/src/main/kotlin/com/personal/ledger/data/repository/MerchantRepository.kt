@@ -36,8 +36,7 @@ class MerchantRepository(private val merchantDao: MerchantDao) {
     }
 
     suspend fun setArchived(id: String, archived: Boolean): Result<Unit> {
-        val all = merchantDao.getAll()
-        val entity = all.firstOrNull { it.id == id }
+        val entity = merchantDao.getById(id)
             ?: return Result.failure(NoSuchElementException("商家不存在"))
         return try {
             merchantDao.update(entity.copy(isArchived = archived))
@@ -46,4 +45,21 @@ class MerchantRepository(private val merchantDao: MerchantDao) {
             Result.failure(e)
         }
     }
+
+    /** 重命名商家；保留 id，历史交易仍能解析到新名称。 */
+    suspend fun rename(id: String, newName: String): Result<Unit> {
+        val entity = merchantDao.getById(id)
+            ?: return Result.failure(NoSuchElementException("商家不存在"))
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("名称不能为空"))
+        return try {
+            merchantDao.update(entity.copy(name = trimmed))
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** 删除商家采用软归档，避免破坏历史交易中的 merchantId 引用。 */
+    suspend fun delete(id: String): Result<Unit> = setArchived(id, archived = true)
 }

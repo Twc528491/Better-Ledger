@@ -160,7 +160,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
 
@@ -169,7 +169,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -440,12 +440,8 @@ private fun MonthPickerDialog(
 ) {
     var year by remember { mutableStateOf(current.year) }
     val hapticLight = rememberHapticLight()
-    val hapticNavigation = rememberHapticNavigation()
     AlertDialog(
-        onDismissRequest = {
-            hapticNavigation()
-            onDismiss()
-        },
+        onDismissRequest = onDismiss,
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -490,10 +486,7 @@ private fun MonthPickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = {
-                hapticNavigation()
-                onDismiss()
-            }) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text("取消") }
         },
     )
 }

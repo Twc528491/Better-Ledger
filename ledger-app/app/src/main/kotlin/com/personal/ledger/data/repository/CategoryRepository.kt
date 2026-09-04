@@ -102,6 +102,29 @@ class CategoryRepository(private val database: AppDatabase) {
         }
     }
 
+    /**
+     * 删除分类采用软归档，保留交易与预算中的 categoryId。
+     * 删除一级分类时同步归档其二级分类，避免留下看不见父级的活动子分类。
+     */
+    suspend fun delete(id: String): Result<Unit> {
+        return try {
+            database.withTransaction {
+                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val all = categoryDao.getByLedger(entity.ledgerId)
+                if (entity.parentId == null) {
+                    all.filter { it.parentId == entity.id && !it.isArchived }
+                        .forEach { categoryDao.update(it.copy(isArchived = true)) }
+                }
+                if (!entity.isArchived) {
+                    categoryDao.update(entity.copy(isArchived = true))
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** 在同一层级内移动分类；交换排序值可保持父子层级和其他分类稳定。 */
     suspend fun move(id: String, direction: Int): Result<Unit> {
         if (direction !in setOf(-1, 1)) return Result.failure(IllegalArgumentException("无效移动方向"))

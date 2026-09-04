@@ -132,12 +132,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 .fillMaxSize()
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 16.dp,
-                top = 4.dp,
-                end = 16.dp,
-                bottom = 8.dp,
-            ),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
             // 本月支出主卡片（金额最高视觉优先级）
             item {
@@ -206,7 +201,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
             item {
                 LedgerSectionHeader(
                     title = "最近交易",
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                     actionLabel = "查看全部",
                     onAction = {
                         hapticNavigation()

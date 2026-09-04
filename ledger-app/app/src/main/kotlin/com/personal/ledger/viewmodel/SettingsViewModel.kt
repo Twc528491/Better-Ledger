@@ -124,6 +124,13 @@ class CategoriesViewModel(
         }
     }
 
+    /** 分类删除保持历史引用，实际执行安全软归档。 */
+    fun deleteCategory(id: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            onDone(categoryRepository.delete(id))
+        }
+    }
+
     fun rename(id: String, name: String, onDone: (Result<Unit>) -> Unit) {
         viewModelScope.launch { onDone(categoryRepository.rename(id, name)) }
     }
