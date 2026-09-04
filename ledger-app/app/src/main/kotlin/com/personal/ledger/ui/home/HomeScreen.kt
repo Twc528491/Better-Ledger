@@ -107,8 +107,8 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Routes.BOOKKEEPING_SETTINGS) }) {
-                        Icon(Icons.Filled.Tune, contentDescription = "记账设置")
+                    IconButton(onClick = { navController.navigate(Routes.SETTINGS) }) {
+                        Icon(Icons.Filled.Tune, contentDescription = "设置")
                     }
                 },
             )

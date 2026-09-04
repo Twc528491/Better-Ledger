@@ -11,6 +11,7 @@
 | 应用名 | 个人账本 | 取自 UI.md 首页示例 |
 | minSdk / targetSdk / compileSdk | 26 / 36 / 36 | minSdk 26 为直接使用 java.time；文档未规定 minSdk |
 | 数据库文件名 | `ledger.db`，应用私有存储 | |
+| 当前版本 | `0.2.0-test`（beta） | 第四阶段验收版本；当前以 debug 签名构建，供测试使用 |
 
 ## 数据与业务
 
@@ -52,8 +53,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Task "assembleRelease" -Inst
 
 | 项 | 状态 |
 |---|---|
-| JVM 单元测试 | 32 个：金额 / 余额 / 预算 / 月度趋势 / 交易规则 / 备份轮换 / JSON 往返 / CSV 转义 |
-| 仪器测试（真机/模拟器运行） | 10 个：`DataLayerTest`（8 个：种子数据、余额与转账、交易约束、回收站、预算、分类唯一性、标签商家、账本归档回退）+ `DatabaseSmokeTest` + `MigrationTest`（v1 schema 校验） |
+| JVM 单元测试 | 33 个：金额（含币种格式化） / 余额 / 预算 / 月度趋势 / 交易规则 / 备份轮换 / JSON 往返 / CSV 转义 |
+| 仪器测试（真机/模拟器运行） | 14 个：`DataLayerTest`（10 个：种子数据、余额与转账、交易约束、回收站、预算、分类唯一性、标签商家、账本归档回退、跨账本关联、转入账户初始时间）+ `DatabaseSmokeTest` + `MigrationTest`（v1 schema 校验）+ `LedgerComponentsTest`（2 个 Compose UI 测试：设置区块动作与环形图无障碍摘要） |
 | Room Schema | 导出至 `app/schemas/`，纳入版本管理 |
 
 真机运行仪器测试（USB 连接 + 开启 USB 调试）：

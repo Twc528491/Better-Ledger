@@ -123,6 +123,14 @@ class CategoriesViewModel(
             onDone(categoryRepository.setArchived(id, archived))
         }
     }
+
+    fun rename(id: String, name: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch { onDone(categoryRepository.rename(id, name)) }
+    }
+
+    fun move(id: String, direction: Int, onDone: (Result<Unit>) -> Unit = {}) {
+        viewModelScope.launch { onDone(categoryRepository.move(id, direction)) }
+    }
 }
 
 data class CategoriesUiState(

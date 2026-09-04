@@ -102,6 +102,28 @@ class CategoryRepository(private val database: AppDatabase) {
         }
     }
 
+    /** 在同一层级内移动分类；交换排序值可保持父子层级和其他分类稳定。 */
+    suspend fun move(id: String, direction: Int): Result<Unit> {
+        if (direction !in setOf(-1, 1)) return Result.failure(IllegalArgumentException("无效移动方向"))
+        return try {
+            database.withTransaction {
+                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val siblings = categoryDao.getByLedgerAndType(entity.ledgerId, entity.type)
+                    .filter { it.parentId == entity.parentId && it.isArchived == entity.isArchived }
+                    .sortedBy { it.sortOrder }
+                val index = siblings.indexOfFirst { it.id == id }
+                val targetIndex = index + direction
+                if (index < 0 || targetIndex !in siblings.indices) return@withTransaction
+                val target = siblings[targetIndex]
+                categoryDao.update(entity.copy(sortOrder = target.sortOrder))
+                categoryDao.update(target.copy(sortOrder = entity.sortOrder))
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** 构建 分类id → 父分类id 映射（供预算分类树汇总使用）。 */
     suspend fun parentMap(ledgerId: String): Map<String, String?> =
         categoryDao.getByLedger(ledgerId).associate { it.id to it.parentId }

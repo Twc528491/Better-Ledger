@@ -25,11 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -69,10 +65,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
         )
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
-    var budgets by remember { mutableStateOf<List<BudgetProgress>>(emptyList()) }
     val hapticLight = rememberHapticLight()
-
-    LaunchedEffect(state.monthLabel) { vm.loadBudgets { budgets = it } }
 
     Scaffold(
         topBar = {
@@ -113,7 +106,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                         Column(modifier = Modifier.padding(20.dp)) {
                             Text("支出", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                Money.formatWithSymbol(state.expense),
+                                Money.formatWithCurrency(state.expense, state.baseCurrency),
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = expenseAmountColor(),
@@ -130,7 +123,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Text("收入", style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    Money.formatSignedMinor(state.income, explicitPlus = true),
+                                    Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income, explicitPlus = true),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = incomeAmountColor(),
@@ -145,7 +138,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Text("结余", style = MaterialTheme.typography.bodyMedium)
                                 Text(
-                                    Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
+                                    Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = if (state.income - state.expense >= 0) transferAmountColor() else expenseAmountColor(),
@@ -174,6 +167,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                     RingChartWithLegend(
                         slices = slices,
                         total = state.expense,
+                        currency = state.baseCurrency,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
                 }
@@ -190,7 +184,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 item { Text("本月暂无支出", modifier = Modifier.padding(16.dp)) }
             } else {
                 items(state.expenseByCategory, key = { it.category.id }) { stat ->
-                    CategoryStatRow(stat)
+                    CategoryStatRow(stat, state.baseCurrency)
                 }
             }
 
@@ -217,11 +211,15 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 )
             }
 
-            if (budgets.isEmpty()) {
+            if (state.budgets.isEmpty()) {
                 item { Text("本月未设置预算", modifier = Modifier.padding(16.dp)) }
             } else {
-                items(budgets, key = { it.budget.id }) { b ->
-                    BudgetRow(b)
+                items(state.budgets, key = { it.budget.id }) { b ->
+                    BudgetRow(
+                        b = b,
+                        categoryName = b.budget.categoryId?.let { state.categoryNames[it] },
+                        currency = state.baseCurrency,
+                    )
                 }
             }
         }
@@ -229,19 +227,19 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
 }
 
 @Composable
-private fun CategoryStatRow(stat: CategoryStat) {
+private fun CategoryStatRow(stat: CategoryStat, currency: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryBadge(name = stat.category.name, type = stat.category.type)
+        CategoryBadge(name = stat.category.name, type = stat.category.type, visualKey = stat.category.id)
         Column(modifier = Modifier.padding(start = 12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stat.category.name, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "${Money.formatMinor(stat.amount)}  ${(stat.fraction * 100).toInt()}%",
+                    "${Money.formatWithCurrency(stat.amount, currency)}  ${(stat.fraction * 100).toInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -258,13 +256,13 @@ private fun CategoryStatRow(stat: CategoryStat) {
 }
 
 @Composable
-private fun BudgetRow(b: BudgetProgress) {
+private fun BudgetRow(b: BudgetProgress, categoryName: String?, currency: String) {
     val pct = b.permille?.div(10) ?: 0
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(b.budget.categoryId?.let { "分类预算" } ?: "总预算", style = MaterialTheme.typography.bodyLarge)
+            Text(categoryName ?: "总预算", style = MaterialTheme.typography.bodyLarge)
             Text(
-                "${Money.formatMinor(b.spent)} / ${Money.formatMinor(b.budget.amount)}  $pct%",
+                "${Money.formatWithCurrency(b.spent, currency)} / ${Money.formatWithCurrency(b.budget.amount, currency)}  $pct%",
                 style = MaterialTheme.typography.bodyMedium,
                 color = budgetColor(b.permille, MaterialTheme.colorScheme.onSurface),
             )

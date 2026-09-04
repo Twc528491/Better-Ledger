@@ -1,6 +1,5 @@
 package com.personal.ledger.ui.settings
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -33,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +45,7 @@ import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
+import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.viewmodel.CategoriesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -51,6 +57,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
     var addParentId by remember { mutableStateOf<String?>(null) }
+    var editingCategory by remember { mutableStateOf<Category?>(null) }
 
     Scaffold(
         topBar = {
@@ -101,15 +108,24 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
 
             LazyColumn {
                 items(display, key = { it.id }) { cat ->
-                    CategoryRow(cat, isSub = cat.parentId != null) {
-                        vm.setArchived(cat.id, !cat.isArchived) {}
+                    val siblings = state.categories.filter {
+                        it.parentId == cat.parentId && it.isArchived == cat.isArchived
                     }
-                    if (cat.parentId == null) {
-                        TextButton(onClick = {
+                    val index = siblings.indexOfFirst { it.id == cat.id }
+                    CategoryRow(
+                        category = cat,
+                        isSub = cat.parentId != null,
+                        canMoveUp = index > 0,
+                        canMoveDown = index >= 0 && index < siblings.lastIndex,
+                        onMoveUp = { vm.move(cat.id, -1) },
+                        onMoveDown = { vm.move(cat.id, 1) },
+                        onEdit = { editingCategory = cat },
+                        onToggleArchive = { vm.setArchived(cat.id, !cat.isArchived) {} },
+                        onAddChild = if (cat.parentId == null && !cat.isArchived) ({
                             addParentId = cat.id
                             showAddDialog = true
-                        }) { Text("+ 二级分类") }
-                    }
+                        }) else null,
+                    )
                     HorizontalDivider()
                 }
             }
@@ -143,25 +159,102 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
             },
         )
     }
+
+    editingCategory?.let { category ->
+        var name by remember(category.id) { mutableStateOf(category.name) }
+        AlertDialog(
+            onDismissRequest = { editingCategory = null },
+            title = { Text("重命名分类") },
+            text = {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("分类名称") },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (name.isNotBlank()) {
+                        vm.rename(category.id, name.trim()) { result ->
+                            result.onSuccess { editingCategory = null }
+                        }
+                    }
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingCategory = null }) { Text("取消") }
+            },
+        )
+    }
 }
 
 @Composable
-private fun CategoryRow(category: Category, isSub: Boolean, onToggleArchive: () -> Unit) {
+private fun CategoryRow(
+    category: Category,
+    isSub: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onEdit: () -> Unit,
+    onToggleArchive: () -> Unit,
+    onAddChild: (() -> Unit)?,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggleArchive)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(start = if (isSub) 36.dp else 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            (if (isSub) "    " else "") + category.name + if (category.isArchived) "（已归档）" else "",
-            style = MaterialTheme.typography.bodyLarge,
+        CategoryBadge(
+            name = category.name,
+            type = category.type,
+            visualKey = category.id,
+            sizeDp = if (isSub) 32 else 38,
         )
-        Text(
-            if (category.isArchived) "恢复" else "归档",
-            style = MaterialTheme.typography.bodySmall,
-        )
+        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(
+                category.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isSub) FontWeight.Normal else FontWeight.SemiBold,
+            )
+            Text(
+                when {
+                    category.isArchived -> "已归档"
+                    isSub -> "二级分类"
+                    else -> "一级分类"
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        IconButton(onClick = onMoveUp, enabled = canMoveUp) {
+            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "上移${category.name}")
+        }
+        IconButton(onClick = onMoveDown, enabled = canMoveDown) {
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下移${category.name}")
+        }
+        androidx.compose.foundation.layout.Box {
+            IconButton(onClick = { menuExpanded = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "${category.name}更多操作")
+            }
+            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                DropdownMenuItem(
+                    text = { Text("重命名") },
+                    onClick = { menuExpanded = false; onEdit() },
+                )
+                if (onAddChild != null) {
+                    DropdownMenuItem(
+                        text = { Text("新建二级分类") },
+                        onClick = { menuExpanded = false; onAddChild() },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text(if (category.isArchived) "恢复" else "归档") },
+                    onClick = { menuExpanded = false; onToggleArchive() },
+                )
+            }
+        }
     }
 }

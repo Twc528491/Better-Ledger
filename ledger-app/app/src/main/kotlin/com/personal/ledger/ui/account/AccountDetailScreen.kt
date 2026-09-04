@@ -8,10 +8,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -48,7 +51,9 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.calc.BalanceCalculator
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.TransactionType
+import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountVisuals
+import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
@@ -100,23 +105,33 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("当前余额", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        Money.formatWithSymbol(balance),
+                        Money.formatWithCurrency(balance, acc?.currency ?: "CNY"),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "类型：${accountTypeLabel(acc?.type ?: AccountType.OTHER)} · 初始余额：${Money.formatWithSymbol(acc?.initialBalance ?: 0L)}",
+                        "类型：${accountTypeLabel(acc?.type ?: AccountType.OTHER)} · 初始余额：${Money.formatWithCurrency(acc?.initialBalance ?: 0L, acc?.currency ?: "CNY")}",
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 HorizontalDivider()
             }
+            if (txs.isEmpty()) {
+                item {
+                    EmptyState(
+                        emoji = "🧾",
+                        title = "这个账户还没有交易",
+                        subtitle = "记账或转账后会显示在这里",
+                        modifier = Modifier.padding(16.dp),
+                    )
+                }
+            }
             items(txs, key = { it.id }) { tx ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { }
+                        .clickable { navController.navigate(Routes.add(tx.id)) }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
@@ -125,7 +140,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         Text(TimeUtils.formatMonthDay(tx.transactionTime), style = MaterialTheme.typography.bodySmall)
                     }
                     Text(
-                        when (tx.type) {
+                        Money.symbolFor(acc?.currency ?: "CNY") + when (tx.type) {
                             TransactionType.TRANSFER -> if (tx.accountId == accountId) Money.formatSignedMinor(-tx.amount) else Money.formatSignedMinor(tx.amount, explicitPlus = true)
                             TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
                             TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
@@ -167,18 +182,6 @@ private fun typeLabelOf(t: TransactionType) = when (t) {
     TransactionType.TRANSFER -> "转账"
 }
 
-internal fun accountTypeLabel(type: AccountType): String = when (type) {
-    AccountType.CASH -> "现金"
-    AccountType.BANK -> "银行卡"
-    AccountType.ALIPAY -> "支付宝"
-    AccountType.WECHAT -> "微信"
-    AccountType.CREDIT_CARD -> "信用卡"
-    AccountType.SAVINGS -> "储蓄"
-    AccountType.INVESTMENT -> "投资"
-    AccountType.LOAN -> "贷款"
-    AccountType.OTHER -> "其他"
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditAccountDialog(
@@ -200,7 +203,11 @@ private fun EditAccountDialog(
         onDismissRequest = onDismiss,
         title = { Text("编辑账户") },
         text = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 560.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
                 OutlinedTextField(value = name, onValueChange = { name = it; nameError = null }, label = { Text("名称") }, singleLine = true)
                 nameError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Spacer(Modifier.height(8.dp))

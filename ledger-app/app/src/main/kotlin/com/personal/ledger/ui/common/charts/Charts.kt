@@ -2,7 +2,9 @@ package com.personal.ledger.ui.common.charts
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +23,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.personal.ledger.util.Money
 import java.time.YearMonth
@@ -52,6 +56,7 @@ fun RingChart(
     total: Long,
     modifier: Modifier = Modifier,
     centerLabel: String = "支出",
+    currency: String = "CNY",
 ) {
     if (slices.isEmpty() || total <= 0) {
         Text(
@@ -62,7 +67,8 @@ fun RingChart(
         )
         return
     }
-    Canvas(modifier = modifier) {
+    val chartDescription = slices.joinToString(", ") { "${it.label}${Money.formatWithCurrency(it.value, currency)}" }
+    Canvas(modifier = modifier.semantics { contentDescription = "$centerLabel，$chartDescription" }) {
         val stroke = Stroke(width = size.minDimension * 0.16f, cap = StrokeCap.Butt)
         val inset = stroke.width / 2
         val arcSize = Size(size.minDimension - stroke.width, size.minDimension - stroke.width)
@@ -90,15 +96,23 @@ fun RingChartWithLegend(
     slices: List<ChartSlice>,
     total: Long,
     centerLabel: String = "支出",
+    currency: String = "CNY",
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        RingChart(
-            slices = slices,
-            total = total,
-            centerLabel = centerLabel,
-            modifier = Modifier.size(132.dp),
-        )
+        Box(modifier = Modifier.size(132.dp), contentAlignment = Alignment.Center) {
+            RingChart(
+                slices = slices,
+                total = total,
+                centerLabel = centerLabel,
+                currency = currency,
+                modifier = Modifier.fillMaxSize(),
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(centerLabel, style = MaterialTheme.typography.labelMedium)
+                Text(Money.formatWithCurrency(total, currency), style = MaterialTheme.typography.labelLarge)
+            }
+        }
         Spacer(Modifier.width(12.dp))
         Column {
             slices.forEach { slice ->
@@ -108,7 +122,7 @@ fun RingChartWithLegend(
                     }
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "${slice.label}  ${Money.formatMinor(slice.value)}",
+                        "${slice.label}  ${Money.formatWithCurrency(slice.value, currency)}",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -127,10 +141,23 @@ fun TrendBarChart(
 ) {
     val maxValue = (incomes + expenses).maxOrNull() ?: 0L
     Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Text("● 收入", color = Color(0xFF4CAF50), style = MaterialTheme.typography.labelSmall)
+            Spacer(Modifier.width(12.dp))
+            Text("● 支出", color = Color(0xFFF44336), style = MaterialTheme.typography.labelSmall)
+        }
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(140.dp),
+                .height(140.dp)
+                .semantics {
+                    contentDescription = months.indices.joinToString(", ") { index ->
+                        "${months[index].monthValue}月收入${Money.formatMinor(incomes[index])}，支出${Money.formatMinor(expenses[index])}"
+                    }
+                },
         ) {
             if (months.isEmpty() || maxValue <= 0) return@Canvas
             val groupCount = months.size

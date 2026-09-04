@@ -43,9 +43,7 @@ import com.personal.ledger.navigation.Routes
 import com.personal.ledger.viewmodel.SettingsViewModel
 
 /**
- * 综合设置（资产页右上角角落入口）：
- * 深色模式 / 安全锁 / 数据管理 / 关于。
- * 分类、商家、标签、预算、账本等记账设置见 [BookkeepingSettingsScreen]（首页入口）。
+ * 设置总入口：记账项、外观与安全、数据管理均从这里进入。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +82,24 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    hapticLight()
+                                    navController.navigate(Routes.BOOKKEEPING_SETTINGS)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text("🧾 记账设置", style = MaterialTheme.typography.bodyLarge)
+                                Text("分类、商家、标签、预算与账本", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("进入", color = MaterialTheme.colorScheme.primary)
+                        }
+                        HorizontalDivider()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
