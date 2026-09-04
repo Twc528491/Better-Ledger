@@ -138,7 +138,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
-                        .height(52.dp),
+                        .height(48.dp),
                 ) {
                     Text("保存", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
@@ -151,7 +151,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             // 类型分段选择（全宽）
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -172,29 +172,30 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
 
             // 金额输入卡片
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = cardColor(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
-                    Text("金额", style = MaterialTheme.typography.bodySmall)
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    Text("金额", style = MaterialTheme.typography.labelSmall)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             Money.symbolFor(state.baseCurrency),
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.primary,
                         )
                         OutlinedTextField(
                             value = state.amountText,
                             onValueChange = { vm.setAmountText(it) },
-                            placeholder = { Text("0.00", fontSize = 28.sp) },
-                            textStyle = MaterialTheme.typography.headlineMedium,
+                            placeholder = { Text("0.00", fontSize = 22.sp) },
+                            textStyle = MaterialTheme.typography.titleLarge,
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(amountFocusRequester)
-                                .padding(start = 8.dp),
+                                .padding(start = 4.dp)
+                                .height(52.dp),
                         )
                     }
                 }
@@ -204,7 +205,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 // 分类选择卡片
                 Column {
                     Text("分类（必填）", style = MaterialTheme.typography.titleSmall)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(4.dp))
                     val categories = if (state.type == TransactionType.EXPENSE) {
                         state.expenseCategories
                     } else {
@@ -259,7 +260,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
 
             // 低频信息默认收起，让日常记账停留在首屏。
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = cardColor(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -271,7 +272,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                 hapticLight()
                                 detailsExpanded = !detailsExpanded
                             }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -299,7 +300,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                         hapticLight()
                                         showMerchantPicker = true
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -313,9 +314,9 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                 }
                             }
                             HorizontalDivider()
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                                 Text("🏷️ 标签（选填，可多选）", style = MaterialTheme.typography.bodyLarge)
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(4.dp))
                                 FlowRow(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -344,7 +345,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                 singleLine = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
                             )
                             HorizontalDivider()
                             Row(
@@ -354,7 +355,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                         hapticLight()
                                         showDatePicker = true
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
@@ -502,22 +503,22 @@ private fun CategoryOptionCard(
     onClick: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = if (selected) MaterialTheme.colorScheme.primaryContainer else cardColor(),
-        border = if (selected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
+        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = Modifier
-            .width(86.dp)
+            .width(76.dp)
             .clickable(onClick = onClick),
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CategoryBadge(name = category.name, type = category.type, sizeDp = 40, visualKey = category.id)
-            Spacer(Modifier.height(6.dp))
+            CategoryBadge(name = category.name, type = category.type, sizeDp = 28, visualKey = category.id)
+            Spacer(Modifier.height(4.dp))
             Text(
                 category.name,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
             )
@@ -528,17 +529,17 @@ private fun CategoryOptionCard(
 @Composable
 private fun MoreCategoryCard(onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         color = cardColor(),
-        modifier = Modifier.width(86.dp).clickable(onClick = onClick),
+        modifier = Modifier.width(76.dp).clickable(onClick = onClick),
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            modifier = Modifier.padding(vertical = 8.dp, horizontal = 3.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("•••", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(6.dp))
-            Text("更多", style = MaterialTheme.typography.bodyMedium)
+            Text("•••", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text("更多", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -555,7 +556,7 @@ private fun TagChip(name: String, selected: Boolean, onClick: () -> Unit) {
         Text(
             (if (selected) "✓ " else "# ") + name,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
         )
     }
 }
@@ -568,7 +569,7 @@ private fun AccountPickerCard(
     onClick: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         color = cardColor(),
         modifier = Modifier.fillMaxWidth(),
     ) {
@@ -576,14 +577,14 @@ private fun AccountPickerCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AccountBadge(type = account?.type ?: com.personal.ledger.domain.model.AccountType.OTHER, sizeDp = 40)
+            AccountBadge(type = account?.type ?: com.personal.ledger.domain.model.AccountType.OTHER, sizeDp = 32)
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp),
+                    .padding(start = 10.dp),
             ) {
                 Text(title, style = MaterialTheme.typography.bodySmall)
                 if (account != null) {

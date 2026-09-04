@@ -19,50 +19,61 @@ import com.personal.ledger.ui.theme.LocalLedgerDarkTheme
 
 /**
  * UI 视觉语义（配色 / 图标 / 分类 emoji），按主题分支：
- * - 浅色模式：沿用旧版扁平样式——卡片用默认 surface、金额/余额用默认文字色，保证辨识度；
- * - 深色模式：使用丰富配色（卡片深色容器 + 亮色金额）。
+ * - 浅色模式：使用低饱和浅色容器 + 深色文字，避免所有卡片都退化为白色；
+ * - 深色模式：使用同一色相的深色容器 + 亮色文字。
  * 收入 / 支出 / 负债除颜色外始终配合 + / - 号（UI.md 第 9 节）。
  */
 
-/** 卡片容器色：深色 = 深色容器；浅色 = 默认 surface（旧版扁平）。 */
+// 浅色容器刻意沿用深色语义色相，但降低饱和度和亮度，保证文字对比度。
+private val LightCardColor = Color(0xFFF0F6EE)
+private val LightHighlightColor = Color(0xFFCBE8CE)
+private val LightExpenseContainer = Color(0xFFFFEDEA)
+private val LightIncomeContainer = Color(0xFFE5F4E7)
+private val LightTransferContainer = Color(0xFFE6F0FC)
+private val LightExpenseAmount = Color(0xFFB3261E)
+private val LightIncomeAmount = Color(0xFF216E2D)
+private val LightTransferAmount = Color(0xFF185A97)
+private val LightWarningAmount = Color(0xFF8A4B08)
+
+/** 卡片容器色：浅色使用柔和浅绿底，深色使用主题深色容器。 */
 @Composable fun cardColor(): Color =
-    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.surfaceContainerLow else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.surfaceContainerLow else LightCardColor
 
 /** 主卡片（本月支出 / 净资产）背景色。 */
 @Composable fun highlightCardColor(): Color =
-    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.primaryContainer else LightHighlightColor
 
 /** 主卡片内容色。 */
 @Composable fun highlightCardContentColor(): Color =
-    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.onPrimaryContainer else Color(0xFF103B16)
 
-/** 支出语义色（仅深色模式使用彩色；浅色回退默认文字色）。 */
+/** 支出语义色。 */
 @Composable fun expenseAmountColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFFFF8A80) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFFFF8A80) else LightExpenseAmount
 
 /** 支出容器色。 */
 @Composable fun expenseContainerColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF3A2020) else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) Color(0xFF3A2020) else LightExpenseContainer
 
 /** 收入语义色。 */
 @Composable fun incomeAmountColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF81C784) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFF81C784) else LightIncomeAmount
 
 /** 收入容器色。 */
 @Composable fun incomeContainerColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF1B3520) else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) Color(0xFF1B3520) else LightIncomeContainer
 
 /** 转账语义色。 */
 @Composable fun transferAmountColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF90CAF9) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFF90CAF9) else LightTransferAmount
 
 /** 转账容器色。 */
 @Composable fun transferContainerColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF1A2B3D) else MaterialTheme.colorScheme.surface
+    if (LocalLedgerDarkTheme.current) Color(0xFF1A2B3D) else LightTransferContainer
 
 /** 警示（预算 80~100%）。 */
 @Composable fun warningColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFFFFB74D) else MaterialTheme.colorScheme.onSurface
+    if (LocalLedgerDarkTheme.current) Color(0xFFFFB74D) else LightWarningAmount
 
 /** 金额颜色：深色 = 支出红 / 收入绿 / 转账蓝；浅色 = 默认文字色（旧版样式）。 */
 @Composable
@@ -72,24 +83,19 @@ fun amountColor(type: TransactionType): Color = when (type) {
     TransactionType.TRANSFER -> transferAmountColor()
 }
 
-/** 余额颜色：深色 = 正绿负红；浅色 = 默认文字色。 */
+/** 余额颜色：正数使用收入色，负数使用支出色。 */
 @Composable
 fun balanceColor(balance: Long): Color =
-    if (LocalLedgerDarkTheme.current) {
-        if (balance >= 0) Color(0xFF81C784) else Color(0xFFFF8A80)
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    if (balance >= 0) incomeAmountColor() else expenseAmountColor()
 
-/** 预算进度颜色：深色 = <80% 绿 / 80~100% 橙 / 超支红；浅色 = 主色（旧版样式）。 */
+/** 预算进度颜色：<80% 绿 / 80~100% 橙 / 超支红。 */
 @Composable
 fun budgetColor(permille: Int?, fallback: Color): Color {
-    if (!LocalLedgerDarkTheme.current) return fallback
     return when {
         permille == null -> fallback
-        permille < 800 -> Color(0xFF81C784)
-        permille < 1000 -> Color(0xFFFFB74D)
-        else -> Color(0xFFFF8A80)
+        permille < 800 -> incomeAmountColor()
+        permille < 1000 -> warningColor()
+        else -> expenseAmountColor()
     }
 }
 
@@ -119,6 +125,23 @@ fun categoryColor(visualKey: String): Color {
         Color.hsv(hue.toFloat(), 0.30f, 0.38f)
     } else {
         Color.hsv(hue.toFloat(), 0.30f, 0.94f)
+    }
+}
+
+/** 分类列表的低强度底色；颜色与分类圆标同色相，便于快速扫读。 */
+@Composable
+fun categoryContainerColor(visualKey: String): Color {
+    return categoryColor(visualKey).copy(alpha = if (LocalLedgerDarkTheme.current) 0.72f else 0.26f)
+}
+
+/** 图表使用更高对比度的分类色，和列表中的分类色保持同一色相。 */
+@Composable
+fun categoryChartColor(visualKey: String): Color {
+    val hue = Math.floorMod(visualKey.hashCode(), 360)
+    return if (LocalLedgerDarkTheme.current) {
+        Color.hsv(hue.toFloat(), 0.62f, 0.88f)
+    } else {
+        Color.hsv(hue.toFloat(), 0.68f, 0.70f)
     }
 }
 
@@ -154,7 +177,17 @@ fun accountTypeLabel(type: AccountType): String = when (type) {
 @Composable
 fun accountColor(type: AccountType): Color {
     if (!LocalLedgerDarkTheme.current) {
-        return MaterialTheme.colorScheme.surfaceVariant
+        return when (type) {
+            AccountType.CASH -> Color(0xFFDDF2DF)
+            AccountType.BANK -> Color(0xFFDCEBFA)
+            AccountType.ALIPAY -> Color(0xFFDCE8FF)
+            AccountType.WECHAT -> Color(0xFFDDF4E8)
+            AccountType.CREDIT_CARD -> Color(0xFFF0E0F3)
+            AccountType.SAVINGS -> Color(0xFFFFEDD0)
+            AccountType.INVESTMENT -> Color(0xFFD8F0EC)
+            AccountType.LOAN -> Color(0xFFFFE4E1)
+            AccountType.OTHER -> Color(0xFFE8EAED)
+        }
     }
     return when (type) {
         AccountType.CASH -> Color(0xFF81C784)

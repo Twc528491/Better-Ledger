@@ -11,7 +11,7 @@
 | 应用名 | 个人账本 | 取自 UI.md 首页示例 |
 | minSdk / targetSdk / compileSdk | 26 / 36 / 36 | minSdk 26 为直接使用 java.time；文档未规定 minSdk |
 | 数据库文件名 | `ledger.db`，应用私有存储 | |
-| 当前版本 | `0.2.0-test`（beta） | 第四阶段验收版本；当前以 debug 签名构建，供测试使用 |
+| 当前版本 | `0.2.1`（beta） | 信息密度、浅色配色和导航修订版；当前以 debug 签名构建，供测试使用 |
 
 ## 数据与业务
 

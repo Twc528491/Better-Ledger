@@ -37,6 +37,9 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.repository.BudgetProgress
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.categoryChartColor
+import com.personal.ledger.ui.common.categoryContainerColor
+import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.expenseAmountColor
 import com.personal.ledger.ui.common.expenseContainerColor
 import com.personal.ledger.ui.common.incomeAmountColor
@@ -96,14 +99,14 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 .padding(padding),
         ) {
             item {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                     // 支出主卡片
                     Surface(
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(20.dp),
                         color = expenseContainerColor(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
                             Text("支出", style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 Money.formatWithCurrency(state.expense, state.baseCurrency),
@@ -113,14 +116,14 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             )
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = incomeContainerColor(),
                             modifier = Modifier.weight(1f),
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                                 Text("收入", style = MaterialTheme.typography.bodyMedium)
                                 Text(
                                     Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income, explicitPlus = true),
@@ -131,11 +134,11 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             }
                         }
                         Surface(
-                            shape = RoundedCornerShape(18.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = if (state.income - state.expense >= 0) transferContainerColor() else expenseContainerColor(),
                             modifier = Modifier.weight(1f),
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                                 Text("结余", style = MaterialTheme.typography.bodyMedium)
                                 Text(
                                     Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
@@ -162,7 +165,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                     EmptyState(emoji = "🍩", title = "本月暂无支出", subtitle = "记一笔后这里会出现分类占比")
                 } else {
                     val slices = state.expenseByCategory.mapIndexed { i, stat ->
-                        ChartSlice(stat.category.name, stat.amount, paletteFor(i))
+                        ChartSlice(stat.category.name, stat.amount, categoryChartColor(stat.category.id))
                     }
                     RingChartWithLegend(
                         slices = slices,
@@ -228,29 +231,41 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
 
 @Composable
 private fun CategoryStatRow(stat: CategoryStat, currency: String) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp, vertical = 3.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = categoryContainerColor(stat.category.id),
     ) {
-        CategoryBadge(name = stat.category.name, type = stat.category.type, visualKey = stat.category.id)
-        Column(modifier = Modifier.padding(start = 12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(stat.category.name, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "${Money.formatWithCurrency(stat.amount, currency)}  ${(stat.fraction * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodyMedium,
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CategoryBadge(
+                name = stat.category.name,
+                type = stat.category.type,
+                sizeDp = 30,
+                visualKey = stat.category.id,
+            )
+            Column(modifier = Modifier.padding(start = 10.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(stat.category.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(
+                        "${Money.formatWithCurrency(stat.amount, currency)}  ${(stat.fraction * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                Spacer(Modifier.height(3.dp))
+                LinearProgressIndicator(
+                    progress = { stat.fraction },
+                    color = categoryChartColor(stat.category.id),
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp),
                 )
             }
-            Spacer(Modifier.height(4.dp))
-            LinearProgressIndicator(
-                progress = { stat.fraction },
-                color = expenseAmountColor(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp),
-            )
         }
     }
 }
@@ -258,23 +273,31 @@ private fun CategoryStatRow(stat: CategoryStat, currency: String) {
 @Composable
 private fun BudgetRow(b: BudgetProgress, categoryName: String?, currency: String) {
     val pct = b.permille?.div(10) ?: 0
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(categoryName ?: "总预算", style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "${Money.formatWithCurrency(b.spent, currency)} / ${Money.formatWithCurrency(b.budget.amount, currency)}  $pct%",
-                style = MaterialTheme.typography.bodyMedium,
-                color = budgetColor(b.permille, MaterialTheme.colorScheme.onSurface),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 3.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = b.budget.categoryId?.let { categoryContainerColor(it) } ?: cardColor(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(categoryName ?: "总预算", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(
+                    "${Money.formatWithCurrency(b.spent, currency)} / ${Money.formatWithCurrency(b.budget.amount, currency)}  $pct%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = budgetColor(b.permille, MaterialTheme.colorScheme.onSurface),
+                )
+            }
+            Spacer(Modifier.height(3.dp))
+            LinearProgressIndicator(
+                progress = { ((b.permille ?: 0).coerceAtMost(1000)) / 1000f },
+                color = budgetColor(b.permille, MaterialTheme.colorScheme.primary),
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(5.dp),
             )
         }
-        Spacer(Modifier.height(4.dp))
-        LinearProgressIndicator(
-            progress = { ((b.permille ?: 0).coerceAtMost(1000)) / 1000f },
-            color = budgetColor(b.permille, MaterialTheme.colorScheme.primary),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp),
-        )
     }
-    HorizontalDivider()
 }

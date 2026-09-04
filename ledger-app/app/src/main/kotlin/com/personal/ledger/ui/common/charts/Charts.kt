@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,9 +25,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.util.Money
 import java.time.YearMonth
 
@@ -99,32 +103,56 @@ fun RingChartWithLegend(
     currency: String = "CNY",
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(132.dp), contentAlignment = Alignment.Center) {
-            RingChart(
-                slices = slices,
-                total = total,
-                centerLabel = centerLabel,
-                currency = currency,
-                modifier = Modifier.fillMaxSize(),
-            )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(centerLabel, style = MaterialTheme.typography.labelMedium)
-                Text(Money.formatWithCurrency(total, currency), style = MaterialTheme.typography.labelLarge)
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = cardColor(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.size(132.dp), contentAlignment = Alignment.Center) {
+                RingChart(
+                    slices = slices,
+                    total = total,
+                    centerLabel = centerLabel,
+                    currency = currency,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(centerLabel, style = MaterialTheme.typography.labelMedium)
+                    Text(Money.formatWithCurrency(total, currency), style = MaterialTheme.typography.labelLarge)
+                }
             }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column {
-            slices.forEach { slice ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                    Canvas(modifier = Modifier.size(10.dp)) {
-                        drawCircle(color = slice.color)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                slices.forEach { slice ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 1.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = slice.color.copy(alpha = 0.14f),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        ) {
+                            Canvas(modifier = Modifier.size(10.dp)) {
+                                drawCircle(color = slice.color)
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "${slice.label}  ${Money.formatWithCurrency(slice.value, currency)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "${slice.label}  ${Money.formatWithCurrency(slice.value, currency)}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                 }
             }
         }
@@ -140,62 +168,68 @@ fun TrendBarChart(
     modifier: Modifier = Modifier,
 ) {
     val maxValue = (incomes + expenses).maxOrNull() ?: 0L
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            Text("● 收入", color = Color(0xFF4CAF50), style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.width(12.dp))
-            Text("● 支出", color = Color(0xFFF44336), style = MaterialTheme.typography.labelSmall)
-        }
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .semantics {
-                    contentDescription = months.indices.joinToString(", ") { index ->
-                        "${months[index].monthValue}月收入${Money.formatMinor(incomes[index])}，支出${Money.formatMinor(expenses[index])}"
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = cardColor(),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Text("● 收入", color = Color(0xFF4CAF50), style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.width(12.dp))
+                Text("● 支出", color = Color(0xFFF44336), style = MaterialTheme.typography.labelSmall)
+            }
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .semantics {
+                        contentDescription = months.indices.joinToString(", ") { index ->
+                            "${months[index].monthValue}月收入${Money.formatMinor(incomes[index])}，支出${Money.formatMinor(expenses[index])}"
+                        }
+                    },
+            ) {
+                if (months.isEmpty() || maxValue <= 0) return@Canvas
+                val groupCount = months.size
+                val groupWidth = size.width / groupCount
+                val barWidth = groupWidth * 0.28f
+                val baseline = size.height * 0.92f
+                months.forEachIndexed { i, ym ->
+                    val centerX = groupWidth * i + groupWidth / 2
+                    val incH = (incomes[i].toFloat() / maxValue) * size.height * 0.85f
+                    val expH = (expenses[i].toFloat() / maxValue) * size.height * 0.85f
+                    // 收入柱（左）
+                    if (incomes[i] > 0) {
+                        drawRect(
+                            color = Color(0xFF4CAF50),
+                            topLeft = Offset(centerX - barWidth - barWidth / 2, baseline - incH),
+                            size = Size(barWidth, incH),
+                        )
                     }
-                },
-        ) {
-            if (months.isEmpty() || maxValue <= 0) return@Canvas
-            val groupCount = months.size
-            val groupWidth = size.width / groupCount
-            val barWidth = groupWidth * 0.28f
-            val baseline = size.height * 0.92f
-            months.forEachIndexed { i, ym ->
-                val centerX = groupWidth * i + groupWidth / 2
-                val incH = (incomes[i].toFloat() / maxValue) * size.height * 0.85f
-                val expH = (expenses[i].toFloat() / maxValue) * size.height * 0.85f
-                // 收入柱（左）
-                if (incomes[i] > 0) {
-                    drawRect(
-                        color = Color(0xFF4CAF50),
-                        topLeft = Offset(centerX - barWidth - barWidth / 2, baseline - incH),
-                        size = Size(barWidth, incH),
-                    )
-                }
-                // 支出柱（右）
-                if (expenses[i] > 0) {
-                    drawRect(
-                        color = Color(0xFFF44336),
-                        topLeft = Offset(centerX + barWidth / 2, baseline - expH),
-                        size = Size(barWidth, expH),
-                    )
+                    // 支出柱（右）
+                    if (expenses[i] > 0) {
+                        drawRect(
+                            color = Color(0xFFF44336),
+                            topLeft = Offset(centerX + barWidth / 2, baseline - expH),
+                            size = Size(barWidth, expH),
+                        )
+                    }
                 }
             }
-        }
-        // X 轴月份标签
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
-            months.forEach { ym ->
-                Text(
-                    "${ym.monthValue}月",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            // X 轴月份标签
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceAround,
+            ) {
+                months.forEach { ym ->
+                    Text(
+                        "${ym.monthValue}月",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
     }

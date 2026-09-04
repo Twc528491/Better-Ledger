@@ -84,6 +84,21 @@ private val rightTabs = listOf(
 
 private val tabRoutes = leftTabs.map { it.route } + rightTabs.map { it.route }
 
+/**
+ * 根标签统一导航。首页优先直接回退到现有实例，避免从“最近交易 → 查看全部”
+ * 进入账单页后，再点首页时被重复的已保存标签栈吞掉。
+ */
+fun androidx.navigation.NavHostController.navigateToRootTab(route: String) {
+    if (route == Routes.HOME && popBackStack(Routes.HOME, inclusive = false)) return
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
 @Composable
 fun LedgerApp(container: AppContainer) {
     val navController = rememberNavController()
@@ -176,13 +191,7 @@ private fun androidx.compose.foundation.layout.RowScope.TabItemView(
         selected = currentRoute == tab.route,
         onClick = {
             hapticLight()
-            navController.navigate(tab.route) {
-                popUpTo(navController.graph.findStartDestination().id) {
-                    saveState = true
-                }
-                launchSingleTop = true
-                restoreState = true
-            }
+            navController.navigateToRootTab(tab.route)
         },
         icon = { Icon(tab.icon, contentDescription = tab.label) },
         label = { Text(tab.label) },

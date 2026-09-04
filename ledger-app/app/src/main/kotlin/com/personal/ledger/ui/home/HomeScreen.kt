@@ -53,7 +53,9 @@ import com.personal.ledger.ui.common.incomeAmountColor
 import com.personal.ledger.ui.common.transferAmountColor
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.common.amountColor
+import com.personal.ledger.ui.common.balanceColor
 import com.personal.ledger.ui.common.budgetColor
+import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.highlightCardColor
 import com.personal.ledger.ui.common.highlightCardContentColor
 import com.personal.ledger.ui.common.LedgerCard
@@ -118,19 +120,19 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         ) {
             // 本月支出主卡片（金额最高视觉优先级）
             item {
                 Surface(
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(20.dp),
                     color = highlightCardColor(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                         Text("${state.monthLabel}支出", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         Text(
                             Money.formatWithCurrency(state.expense, state.baseCurrency),
                             style = MaterialTheme.typography.headlineLarge,
@@ -143,9 +145,18 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
 
             // 收入 / 结余放在同一低层级容器，减少首页卡片堆叠。
             item {
-                LedgerCard {
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = cardColor(),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("收入", style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income, explicitPlus = true),
@@ -154,13 +165,13 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                 color = incomeAmountColor(),
                             )
                         }
-                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text("结余", style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 Money.symbolFor(state.baseCurrency) + Money.formatSignedMinor(state.income - state.expense, explicitPlus = true),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = if (state.income - state.expense >= 0) transferAmountColor() else expenseAmountColor(),
+                                color = balanceColor(state.income - state.expense),
                             )
                         }
                     }
@@ -231,10 +242,10 @@ private fun BudgetSection(
 ) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = cardColor(),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             if (progress == null) {
                 Text("本月未设置总预算", style = MaterialTheme.typography.bodyMedium)
             } else {
@@ -252,14 +263,14 @@ private fun BudgetSection(
                         color = budgetColor(progress.permille, MaterialTheme.colorScheme.onSurface),
                     )
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
                     progress = { ((progress.permille ?: 0).coerceAtMost(1000)) / 1000f },
                     color = budgetColor(progress.permille, MaterialTheme.colorScheme.primary),
                     trackColor = MaterialTheme.colorScheme.surfaceVariant,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(10.dp),
+                        .height(8.dp),
                 )
             }
         }
@@ -278,7 +289,7 @@ private fun TransactionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -293,17 +304,22 @@ private fun TransactionRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (tx.type == TransactionType.TRANSFER) {
                 androidx.compose.foundation.layout.Box(
-                    modifier = Modifier
-                        .size(36.dp)
+                        modifier = Modifier
+                        .size(32.dp)
                         .background(transferContainerColor(), androidx.compose.foundation.shape.CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text("🔁")
                 }
             } else {
-                CategoryBadge(name = categoryName ?: "其他", type = type, visualKey = tx.categoryId ?: categoryName.orEmpty())
+                CategoryBadge(
+                    name = categoryName ?: "其他",
+                    type = type,
+                    sizeDp = 32,
+                    visualKey = tx.categoryId ?: categoryName.orEmpty(),
+                )
             }
-            Column(modifier = Modifier.padding(start = 12.dp)) {
+            Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(
                     titleOf(tx, categoryNames, merchantNames),
                     style = MaterialTheme.typography.bodyLarge,

@@ -205,7 +205,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 Text(
@@ -496,7 +496,7 @@ private fun TransactionItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -504,11 +504,11 @@ private fun TransactionItem(
             if (tx.type == TransactionType.TRANSFER) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(30.dp)
                         .background(transferContainerColor(), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("🔁")
+                    Text("🔁", style = MaterialTheme.typography.labelLarge)
                 }
             } else {
                 val categoryName = categoryNames[tx.categoryId] ?: "其他"
@@ -519,13 +519,16 @@ private fun TransactionItem(
                     } else {
                         com.personal.ledger.domain.model.CategoryType.INCOME
                     },
+                    sizeDp = 30,
                     visualKey = tx.categoryId ?: categoryName,
                 )
             }
-            Column(modifier = Modifier.padding(start = 12.dp)) {
+            Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(
                     titleOf(tx, categoryNames, merchantNameOf),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
                 )
                 val tags = (tagIdsOf[tx.id].orEmpty()).mapNotNull { tagNames[it] }
                 val tagText = if (tags.isEmpty()) "" else " · ${tags.joinToString("|")}"
@@ -536,24 +539,33 @@ private fun TransactionItem(
                 }
                 Text(
                     "${timeOfDay(tx.transactionTime)} · $subtitle$tagText",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
                 )
             }
         }
-        Column(horizontalAlignment = Alignment.End) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
             Text(
                 Money.symbolFor(currency) + when (tx.type) {
                     TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
                     TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
                     TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
                 },
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
                 color = amountColor(tx.type),
             )
             var menuExpanded by remember { mutableStateOf(false) }
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
+            Box(
+                modifier = Modifier
+                    .size(30.dp)
+                    .clickable { menuExpanded = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作", modifier = Modifier.size(18.dp))
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(
