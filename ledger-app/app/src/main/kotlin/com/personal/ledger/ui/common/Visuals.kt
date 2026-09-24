@@ -1,15 +1,63 @@
 package com.personal.ledger.ui.common
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.BusinessCenter
+import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.ChildCare
+import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.CurrencyExchange
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.ElectricalServices
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Redeem
+import androidx.compose.material.icons.filled.RequestQuote
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Smartphone
+import androidx.compose.material.icons.filled.Spa
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.twotone.BakeryDining
+import androidx.compose.material.icons.twotone.DirectionsBus
+import androidx.compose.material.icons.twotone.Eco
+import androidx.compose.material.icons.twotone.Fastfood
+import androidx.compose.material.icons.twotone.Home
+import androidx.compose.material.icons.twotone.HomeRepairService
+import androidx.compose.material.icons.twotone.LocalCafe
+import androidx.compose.material.icons.twotone.LocalGroceryStore
+import androidx.compose.material.icons.twotone.LocalHospital
+import androidx.compose.material.icons.twotone.LocalShipping
+import androidx.compose.material.icons.twotone.Paid
+import androidx.compose.material.icons.twotone.SmokingRooms
+import androidx.compose.material.icons.twotone.Subscriptions
+import androidx.compose.material.icons.twotone.VolunteerActivism
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.personal.ledger.domain.model.AccountType
@@ -18,7 +66,7 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.ui.theme.LocalLedgerDarkTheme
 
 /**
- * UI 视觉语义（配色 / 图标 / 分类 emoji），按主题分支：
+ * UI 视觉语义（配色 / 分类与账户图标），按主题分支：
  * - 浅色模式：使用低饱和浅色容器 + 深色文字，避免所有卡片都退化为白色；
  * - 深色模式：使用同一色相的深色容器 + 亮色文字。
  * 收入 / 支出 / 负债除颜色外始终配合 + / - 号（UI.md 第 9 节）。
@@ -75,7 +123,7 @@ private val LightWarningAmount = Color(0xFF8A4B08)
 @Composable fun warningColor(): Color =
     if (LocalLedgerDarkTheme.current) Color(0xFFFFB74D) else LightWarningAmount
 
-/** 金额颜色：深色 = 支出红 / 收入绿 / 转账蓝；浅色 = 默认文字色（旧版样式）。 */
+/** 金额颜色：浅色和深色均按支出红 / 收入绿 / 转账蓝区分。 */
 @Composable
 fun amountColor(type: TransactionType): Color = when (type) {
     TransactionType.EXPENSE -> expenseAmountColor()
@@ -117,6 +165,125 @@ object CategoryVisuals {
         listOf("工资", "薪", "奖金", "收入", "报销", "兼职") to "💰",
         listOf("礼", "红包", "赠", "利息", "股息") to "🎁",
     )
+
+    private val iconKeyByName = mapOf(
+        "餐饮" to "food",
+        "交通" to "transit",
+        "购物" to "shopping",
+        "居住" to "home",
+        "娱乐" to "movie",
+        "医疗" to "medical",
+        "其他" to "other",
+        "工资" to "salary",
+        "其他收入" to "other_income",
+        "日用" to "daily",
+        "服饰" to "clothing",
+        "通讯" to "phone",
+        "教育" to "education",
+        "运动" to "fitness",
+        "旅行" to "travel",
+        "宠物" to "pets",
+        "人情" to "gift",
+        "汽车" to "car",
+        "数码" to "devices",
+        "育儿" to "childcare",
+        "办公" to "office",
+        "水电" to "electric",
+        "美容" to "spa",
+        "保险" to "insurance",
+        "维修" to "repair",
+        "税费" to "tax",
+        "订阅" to "subscription",
+        "生鲜" to "fresh",
+        "零食" to "snack",
+        "咖啡" to "coffee",
+        "家政" to "housekeeping",
+        "快递" to "delivery",
+        "捐赠" to "donation",
+        "烟酒" to "tobacco",
+        "奖金" to "bonus",
+        "兼职" to "work",
+        "经营" to "business",
+        "理财" to "invest",
+        "报销" to "reimburse",
+        "礼金" to "present",
+        "退款" to "refund",
+    )
+
+    private val iconKeywords = listOf(
+        listOf("订阅", "会员", "月费") to "subscription",
+        listOf("生鲜", "蔬菜", "水果") to "fresh",
+        listOf("零食", "甜品", "蛋糕") to "snack",
+        listOf("咖啡", "奶茶", "茶饮") to "coffee",
+        listOf("家政", "保洁", "钟点工") to "housekeeping",
+        listOf("快递", "邮寄", "包裹") to "delivery",
+        listOf("捐赠", "慈善", "公益") to "donation",
+        listOf("烟酒", "香烟", "酒水") to "tobacco",
+        listOf("餐", "饭", "食", "外卖", "早餐", "午餐", "晚餐") to "food",
+        listOf("交通", "公交", "地铁", "打车", "出租", "加油", "停车", "出行") to "transit",
+        listOf("购物", "买", "超市", "商场") to "shopping",
+        listOf("租房", "住房", "家居", "居家", "水电") to "home",
+        listOf("娱乐", "游戏", "电影", "音乐") to "movie",
+        listOf("医", "药", "医院", "健康", "保健") to "medical",
+        listOf("工资", "薪", "奖金", "报销") to "salary",
+        listOf("礼", "红包", "赠", "人情") to "gift",
+    )
+
+    /** 稳定、纯字符串映射，供图标显示和映射测试共用。 */
+    fun iconKeyFor(name: String, type: CategoryType): String {
+        val normalized = name.trim()
+        iconKeyByName[normalized]?.let { return it }
+        iconKeywords.firstOrNull { (keywords, _) ->
+            keywords.any { normalized.contains(it) }
+        }?.second?.let { return it }
+        return if (type == CategoryType.INCOME) "other_income" else "other"
+    }
+
+    fun iconFor(name: String, type: CategoryType): ImageVector =
+        when (iconKeyFor(name, type)) {
+            "food" -> Icons.TwoTone.Fastfood
+            "transit" -> Icons.TwoTone.DirectionsBus
+            "shopping" -> Icons.TwoTone.LocalGroceryStore
+            "home" -> Icons.TwoTone.Home
+            "movie" -> Icons.Filled.Movie
+            "medical" -> Icons.TwoTone.LocalHospital
+            "other" -> Icons.Filled.Inventory2
+            "salary" -> Icons.TwoTone.Paid
+            "other_income" -> Icons.Filled.AccountBalanceWallet
+            "daily" -> Icons.Filled.CleaningServices
+            "clothing" -> Icons.Filled.Checkroom
+            "phone" -> Icons.Filled.Smartphone
+            "education" -> Icons.Filled.School
+            "fitness" -> Icons.Filled.FitnessCenter
+            "travel" -> Icons.Filled.Flight
+            "pets" -> Icons.Filled.Pets
+            "gift" -> Icons.Filled.CardGiftcard
+            "car" -> Icons.Filled.DirectionsCar
+            "devices" -> Icons.Filled.Devices
+            "childcare" -> Icons.Filled.ChildCare
+            "office" -> Icons.Filled.BusinessCenter
+            "electric" -> Icons.Filled.ElectricalServices
+            "spa" -> Icons.Filled.Spa
+            "insurance" -> Icons.Filled.VerifiedUser
+            "repair" -> Icons.Filled.Build
+            "tax" -> Icons.Filled.RequestQuote
+            "subscription" -> Icons.TwoTone.Subscriptions
+            "fresh" -> Icons.TwoTone.Eco
+            "snack" -> Icons.TwoTone.BakeryDining
+            "coffee" -> Icons.TwoTone.LocalCafe
+            "housekeeping" -> Icons.TwoTone.HomeRepairService
+            "delivery" -> Icons.TwoTone.LocalShipping
+            "donation" -> Icons.TwoTone.VolunteerActivism
+            "tobacco" -> Icons.TwoTone.SmokingRooms
+            "bonus" -> Icons.Filled.EmojiEvents
+            "work" -> Icons.Filled.Work
+            "business" -> Icons.Filled.Storefront
+            "invest" -> Icons.AutoMirrored.Filled.TrendingUp
+            "reimburse" -> Icons.AutoMirrored.Filled.ReceiptLong
+            "present" -> Icons.Filled.Redeem
+            "refund" -> Icons.Filled.CurrencyExchange
+            else -> Icons.Filled.Inventory2
+        }
 
     @Suppress("UNUSED_PARAMETER")
     fun emojiFor(name: String, type: CategoryType, visualKey: String = name): String {
@@ -233,7 +400,7 @@ fun EmojiBadge(
     }
 }
 
-/** 分类圆标（emoji + 稳定分类色）。 */
+/** 分类圆标：明确的 Material 轮廓、同色系渐变和轻微边缘层次。 */
 @Composable
 fun CategoryBadge(
     name: String,
@@ -242,12 +409,25 @@ fun CategoryBadge(
     sizeDp: Int = 36,
     visualKey: String = name,
 ) {
-    EmojiBadge(
-        emoji = CategoryVisuals.emojiFor(name, type, visualKey),
-        background = categoryColor(visualKey),
-        modifier = modifier,
-        sizeDp = sizeDp,
-    )
+    val base = categoryColor(visualKey)
+    val dark = LocalLedgerDarkTheme.current
+    val top = lerp(base, Color.White, if (dark) 0.14f else 0.30f)
+    val bottom = lerp(base, Color.Black, if (dark) 0.09f else 0.06f)
+    Box(
+        modifier = modifier
+            .size(sizeDp.dp)
+            .shadow(if (sizeDp >= 32) 2.dp else 0.dp, CircleShape)
+            .background(Brush.verticalGradient(listOf(top, bottom)), CircleShape)
+            .border(1.dp, (if (dark) Color.White else Color.Black).copy(alpha = 0.10f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = CategoryVisuals.iconFor(name, type),
+            contentDescription = name + "分类图标",
+            tint = if (dark) Color.White else Color(0xFF243229),
+            modifier = Modifier.size((sizeDp * 0.67f).coerceAtLeast(18f).coerceAtMost(sizeDp - 4f).dp),
+        )
+    }
 }
 
 /** 账户圆标。 */

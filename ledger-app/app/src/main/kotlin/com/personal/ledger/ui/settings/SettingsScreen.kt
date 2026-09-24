@@ -110,6 +110,23 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
+                                    navController.navigate(Routes.RECURRING_CHARGES)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text("🗓️ 定时扣款", style = MaterialTheme.typography.bodyLarge)
+                                Text("按周期在本地账本生成支出记录", style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("进入", color = MaterialTheme.colorScheme.primary)
+                        }
+                        HorizontalDivider()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
                                     hapticNavigation()
                                     showThemeDialog = true
                                 }

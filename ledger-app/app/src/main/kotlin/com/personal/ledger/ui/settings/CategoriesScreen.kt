@@ -66,6 +66,8 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     var actionCategory by remember { mutableStateOf<Category?>(null) }
     var deleteCandidate by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showSupplementDialog by remember { mutableStateOf(false) }
+    var supplementMessage by remember { mutableStateOf<String?>(null) }
     val hapticLight = rememberHapticLight()
     val hapticLongPress = rememberHapticLongPress()
     val hapticNavigation = rememberHapticNavigation()
@@ -123,6 +125,23 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                     label = { Text("收入") },
                 )
             }
+            TextButton(
+                onClick = {
+                    supplementMessage = null
+                    showSupplementDialog = true
+                },
+                modifier = Modifier.padding(start = 8.dp),
+            ) {
+                Text("补充常用分类")
+            }
+            supplementMessage?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                )
+            }
 
             // 平铺展示：一级分类后紧跟其二级分类
             val display = remember(activeCategories) {
@@ -167,6 +186,38 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                 }
             }
         }
+    }
+
+    if (showSupplementDialog) {
+        AlertDialog(
+            onDismissRequest = { showSupplementDialog = false },
+            title = { Text("补充常用分类") },
+            text = {
+                Text("只添加账本中尚未存在的常用分类。已归档或已改名的分类会保留，不会恢复或覆盖。")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.supplementCommonCategories { result ->
+                        result.onSuccess { count ->
+                            supplementMessage = if (count == 0) {
+                                "常用分类已齐全"
+                            } else {
+                                "已补充 " + count + " 个常用分类"
+                            }
+                            showSupplementDialog = false
+                        }.onFailure {
+                            supplementMessage = it.message ?: "补充失败"
+                            showSupplementDialog = false
+                        }
+                    }
+                }) {
+                    Text("补充")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSupplementDialog = false }) { Text("取消") }
+            },
+        )
     }
 
     if (showAddDialog) {

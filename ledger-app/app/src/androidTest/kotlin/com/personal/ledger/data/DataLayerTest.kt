@@ -5,9 +5,12 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.personal.ledger.data.local.database.AppDatabase
+import com.personal.ledger.data.local.entity.CategoryEntity
+import com.personal.ledger.data.local.entity.LedgerEntity
 import com.personal.ledger.data.repository.AccountRepository
 import com.personal.ledger.data.repository.BudgetRepository
 import com.personal.ledger.data.repository.CategoryRepository
+import com.personal.ledger.data.repository.DefaultSeed
 import com.personal.ledger.data.repository.LedgerRepository
 import com.personal.ledger.data.repository.MerchantRepository
 import com.personal.ledger.data.repository.TagRepository
@@ -22,12 +25,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.time.YearMonth
+import java.util.UUID
 
 /**
  * 数据层端到端测试（仪器测试，在真机 / 模拟器上运行 Room + Repository）。
@@ -59,7 +64,7 @@ class DataLayerTest {
         categoryRepo = CategoryRepository(db)
         txRepo = TransactionRepository(db)
         budgetRepo = BudgetRepository(db, categoryRepo)
-        merchantRepo = MerchantRepository(db.merchantDao())
+        merchantRepo = MerchantRepository(db)
         tagRepo = TagRepository(db.tagDao())
     }
 
@@ -80,10 +85,21 @@ class DataLayerTest {
         assertEquals(1, ledgers.size)
         assertEquals("个人账本", ledgers[0].name)
         assertEquals("CNY", ledgers[0].baseCurrency)
-        // 默认分类：7 支出 + 2 收入
-        assertEquals(9, db.categoryDao().getAll().size)
-        assertEquals(7, db.categoryDao().getByLedgerAndType(ledgers[0].id, CategoryType.EXPENSE).size)
-        assertEquals(2, db.categoryDao().getByLedgerAndType(ledgers[0].id, CategoryType.INCOME).size)
+        // 固定种子规模，防止新增类别漏接到新账本初始化。
+        assertEquals(32, DefaultSeed.EXPENSE_CATEGORIES.size)
+        assertEquals(9, DefaultSeed.INCOME_CATEGORIES.size)
+        assertEquals(
+            DefaultSeed.EXPENSE_CATEGORIES.size + DefaultSeed.INCOME_CATEGORIES.size,
+            db.categoryDao().getAll().size,
+        )
+        assertEquals(
+            DefaultSeed.EXPENSE_CATEGORIES.size,
+            db.categoryDao().getByLedgerAndType(ledgers[0].id, CategoryType.EXPENSE).size,
+        )
+        assertEquals(
+            DefaultSeed.INCOME_CATEGORIES.size,
+            db.categoryDao().getByLedgerAndType(ledgers[0].id, CategoryType.INCOME).size,
+        )
         // 种子现金账户
         assertEquals(1, db.accountDao().getAll().size)
         assertEquals(ledgers[0].id, settings.currentLedgerId.first())
@@ -345,7 +361,76 @@ class DataLayerTest {
         assertNotNull(current)
         assertEquals(second.id, current!!.id)
         // 新账本同样有种子分类与账户
-        assertEquals(9, db.categoryDao().getByLedger(second.id).size)
+        assertEquals(
+            DefaultSeed.EXPENSE_CATEGORIES.size + DefaultSeed.INCOME_CATEGORIES.size,
+            db.categoryDao().getByLedger(second.id).size,
+        )
         assertEquals(1, db.accountDao().getByLedger(second.id).size)
+    }
+
+    @Test
+    fun supplement_old_categories_without_reviving_deleted_or_renamed_entries() = runTest {
+        val ledgerId = UUID.randomUUID().toString()
+        val now = TimeUtils.now()
+        db.ledgerDao().insert(
+            LedgerEntity(
+                id = ledgerId,
+                name = "旧账本",
+                baseCurrency = "CNY",
+                createdAt = now,
+                updatedAt = now,
+                isArchived = false,
+            ),
+        )
+        listOf("餐饮", "交通", "购物", "居住", "娱乐", "医疗", "其他").forEachIndexed { index, name ->
+            db.categoryDao().insert(
+                CategoryEntity(
+                    id = UUID.randomUUID().toString(),
+                    ledgerId = ledgerId,
+                    name = name,
+                    type = CategoryType.EXPENSE,
+                    parentId = null,
+                    sortOrder = index,
+                    isArchived = false,
+                ),
+            )
+        }
+        listOf("工资", "其他收入").forEachIndexed { index, name ->
+            db.categoryDao().insert(
+                CategoryEntity(
+                    id = UUID.randomUUID().toString(),
+                    ledgerId = ledgerId,
+                    name = name,
+                    type = CategoryType.INCOME,
+                    parentId = null,
+                    sortOrder = index,
+                    isArchived = false,
+                ),
+            )
+        }
+
+        val oldCategories = categoryRepo.getByLedger(ledgerId)
+        val renamed = oldCategories.first { it.name == "餐饮" }
+        val deletedLegacy = oldCategories.first { it.name == "交通" }
+        categoryRepo.rename(renamed.id, "家常菜").getOrThrow()
+        categoryRepo.delete(deletedLegacy.id).getOrThrow()
+
+        val deletedAddition = categoryRepo.addCategory(
+            ledgerId,
+            "日用",
+            CategoryType.EXPENSE,
+        ).getOrThrow()
+        categoryRepo.delete(deletedAddition.id).getOrThrow()
+
+        assertTrue(categoryRepo.supplementCommonCategories(ledgerId).getOrThrow() > 0)
+        val supplemented = categoryRepo.getByLedger(ledgerId)
+        assertEquals("家常菜", supplemented.first { it.id == renamed.id }.name)
+        assertFalse(supplemented.any { it.name == "餐饮" && !it.isArchived })
+        assertTrue(supplemented.first { it.id == deletedLegacy.id }.isArchived)
+        assertFalse(supplemented.any { it.name == "交通" && !it.isArchived })
+        assertTrue(supplemented.first { it.id == deletedAddition.id }.isArchived)
+        assertFalse(supplemented.any { it.name == "日用" && !it.isArchived })
+        assertTrue(supplemented.any { it.name == "服饰" && !it.isArchived })
+        assertEquals(0, categoryRepo.supplementCommonCategories(ledgerId).getOrThrow())
     }
 }

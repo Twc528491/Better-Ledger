@@ -8,6 +8,8 @@ import com.personal.ledger.data.repository.CategoryRepository
 import com.personal.ledger.data.repository.LedgerRepository
 import com.personal.ledger.data.repository.TransactionRepository
 import com.personal.ledger.domain.calc.BudgetCalculator
+import com.personal.ledger.domain.calc.DailyExpenseCalculator
+import com.personal.ledger.domain.calc.DailyExpenseTotal
 import com.personal.ledger.domain.calc.MonthTrendCalculator
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.TransactionType
@@ -36,6 +38,7 @@ data class StatisticsUiState(
     val expense: Long = 0L,
     val expenseByCategory: List<CategoryStat> = emptyList(),
     val trend: List<MonthTrendCalculator.MonthTotals> = emptyList(),
+    val dailyExpense: List<DailyExpenseTotal> = emptyList(),
     val budgets: List<BudgetProgress> = emptyList(),
     val categoryNames: Map<String, String> = emptyMap(),
 )
@@ -95,6 +98,12 @@ class StatisticsViewModel(
                         end = ym,
                         count = 6,
                     )
+                    val dailyExpense = DailyExpenseCalculator.forMonth(
+                        transactions = monthTx.map {
+                            DailyExpenseCalculator.TxInput(it.type, it.amount, it.transactionTime)
+                        },
+                        month = ym,
+                    )
                     // 与预算页使用同一套父分类汇总规则：父分类预算包含所有子分类支出。
                     val rolledUpExpense = BudgetCalculator.rollUpToParents(
                         categories.associate { it.id to it.parentId },
@@ -116,6 +125,7 @@ class StatisticsViewModel(
                         expense = expense,
                         expenseByCategory = stats,
                         trend = trend,
+                        dailyExpense = dailyExpense,
                         budgets = budgetProgress,
                         categoryNames = categories.associate { it.id to it.name },
                     )

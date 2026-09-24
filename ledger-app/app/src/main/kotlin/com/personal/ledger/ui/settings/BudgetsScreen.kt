@@ -41,6 +41,7 @@ import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Budget
 import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
@@ -64,6 +65,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
     val hapticLight = rememberHapticLight()
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
+    val hapticDelete = rememberHapticDelete()
     val hapticReject = rememberHapticReject()
 
     val categoryNames = categories.associate { it.id to it.name }
@@ -201,7 +203,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             onDelete = {
                 vm.deleteBudget(null) { result ->
                     result.onSuccess {
-                        hapticConfirm()
+                        hapticDelete()
                         editingTotal = false
                     }.onFailure { hapticReject() }
                 }
@@ -226,10 +228,10 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 onDelete = {
-                    vm.deleteBudget(catId) { result ->
-                        result.onSuccess {
-                            hapticConfirm()
-                            editingCategoryId = null
+                vm.deleteBudget(catId) { result ->
+                    result.onSuccess {
+                        hapticDelete()
+                        editingCategoryId = null
                         }.onFailure { hapticReject() }
                     }
                 },

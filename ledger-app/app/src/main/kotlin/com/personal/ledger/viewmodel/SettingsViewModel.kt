@@ -118,6 +118,17 @@ class CategoriesViewModel(
         }
     }
 
+    fun supplementCommonCategories(onDone: (Result<Int>) -> Unit) {
+        viewModelScope.launch {
+            val ledger = ledgerRepository.currentLedger.first()
+            if (ledger == null) {
+                onDone(Result.failure(IllegalStateException("当前账本不可用")))
+            } else {
+                onDone(categoryRepository.supplementCommonCategories(ledger.id))
+            }
+        }
+    }
+
     fun setArchived(id: String, archived: Boolean, onDone: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
             onDone(categoryRepository.setArchived(id, archived))

@@ -140,6 +140,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     shape = RoundedCornerShape(20.dp),
                     color = highlightCardColor(),
                     modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 0.dp,
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                         Text("${state.monthLabel}支出", style = MaterialTheme.typography.bodyMedium)
@@ -160,6 +161,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     shape = RoundedCornerShape(18.dp),
                     color = cardColor(),
                     modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 0.dp,
                 ) {
                     Row(
                         modifier = Modifier
@@ -224,8 +226,9 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 item {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
+                        color = cardColor(),
                         modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 0.dp,
                     ) {
                         Column {
                             state.recent.forEachIndexed { index, tx ->
@@ -269,6 +272,7 @@ private fun BudgetSection(
         shape = RoundedCornerShape(20.dp),
         color = cardColor(),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        tonalElevation = 0.dp,
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
             if (progress == null) {

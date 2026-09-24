@@ -10,6 +10,7 @@ import com.personal.ledger.data.settings.ThemeMode
 import com.personal.ledger.navigation.LedgerApp
 import com.personal.ledger.ui.security.SecurityLock
 import com.personal.ledger.ui.theme.LedgerTheme
+import com.personal.ledger.worker.RecurringChargeScheduler
 
 class MainActivity : FragmentActivity() {
 
@@ -30,6 +31,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
+        RecurringChargeScheduler.enqueueCatchUp(this)
         securityLock.checkAndPromptIfNeeded()
     }
 

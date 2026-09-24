@@ -2,6 +2,8 @@ package com.personal.ledger.navigation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -41,6 +43,7 @@ import com.personal.ledger.ui.settings.BudgetsScreen
 import com.personal.ledger.ui.settings.DataScreen
 import com.personal.ledger.ui.settings.MerchantsScreen
 import com.personal.ledger.ui.settings.SettingsScreen
+import com.personal.ledger.ui.settings.RecurringChargesScreen
 import com.personal.ledger.ui.settings.TagsScreen
 import com.personal.ledger.ui.statistics.StatisticsScreen
 import com.personal.ledger.ui.transaction.AddTransactionScreen
@@ -61,6 +64,7 @@ object Routes {
     const val DATA = "data"
     const val MERCHANTS = "merchants"
     const val TAGS = "tags"
+    const val RECURRING_CHARGES = "recurring_charges"
     const val ACCOUNT_DETAIL = "account/{accountId}"
 
     fun add(txId: String? = null) = if (txId == null) "add?txId=" else "add?txId=$txId"
@@ -116,6 +120,8 @@ fun LedgerApp(container: AppContainer) {
     }
 
     Scaffold(
+        // 各页 TopAppBar 处理状态栏；根导航栏处理 tab 页底部手势区域。
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (isTabRoute) {
                 NavigationBar {
@@ -156,13 +162,14 @@ fun LedgerApp(container: AppContainer) {
         NavHost(
             navController = navController,
             startDestination = Routes.HOME,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding),
         ) {
             composable(Routes.HOME) { HomeScreen(container, navController) }
             composable(Routes.TRANSACTIONS) { TransactionsScreen(container, navController) }
             composable(Routes.STATISTICS) { StatisticsScreen(container, navController) }
             composable(Routes.ACCOUNTS) { AccountsScreen(container, navController) }
             composable(Routes.SETTINGS) { SettingsScreen(container, navController) }
+            composable(Routes.RECURRING_CHARGES) { RecurringChargesScreen(container, navController) }
             composable(Routes.BOOKKEEPING_SETTINGS) { BookkeepingSettingsScreen(container, navController) }
             composable(Routes.ADD) { entry ->
                 val txId = entry.arguments?.getString("txId")?.ifEmpty { null }

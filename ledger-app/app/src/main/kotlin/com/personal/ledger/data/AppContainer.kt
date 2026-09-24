@@ -7,6 +7,7 @@ import com.personal.ledger.data.repository.AccountRepository
 import com.personal.ledger.data.repository.BudgetRepository
 import com.personal.ledger.data.repository.CategoryRepository
 import com.personal.ledger.data.repository.LedgerRepository
+import com.personal.ledger.data.repository.RecurringChargeRepository
 import com.personal.ledger.data.repository.MerchantRepository
 import com.personal.ledger.data.repository.TagRepository
 import com.personal.ledger.data.repository.TransactionRepository
@@ -22,10 +23,11 @@ class AppContainer(context: Context) {
     val settings: SettingsRepository = SettingsRepository(context)
 
     val categoryRepository = CategoryRepository(database)
-    val merchantRepository = MerchantRepository(database.merchantDao())
+    val merchantRepository = MerchantRepository(database)
     val tagRepository = TagRepository(database.tagDao())
     val accountRepository = AccountRepository(database.accountDao(), database.transactionDao())
     val transactionRepository = TransactionRepository(database)
+    val recurringChargeRepository = RecurringChargeRepository(database, transactionRepository)
     val budgetRepository = BudgetRepository(
         database = database,
         categoryRepository = categoryRepository,

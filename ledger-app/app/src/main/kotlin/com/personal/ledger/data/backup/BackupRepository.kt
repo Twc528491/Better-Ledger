@@ -9,6 +9,8 @@ import androidx.room.withTransaction
 import com.personal.ledger.BuildConfig
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.database.DATABASE_VERSION
+import com.personal.ledger.data.local.database.RecurringDatabaseGate
+import com.personal.ledger.data.repository.toDomain
 import com.personal.ledger.data.settings.SettingsRepository
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.Money
@@ -16,6 +18,7 @@ import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.math.BigDecimal
@@ -56,10 +59,13 @@ class BackupRepository(
                 accounts = database.accountDao().getAll().map { it.toDto() },
                 categories = database.categoryDao().getAll().map { it.toDto() },
                 merchants = database.merchantDao().getAll().map { it.toDto() },
+                merchantCategories = database.merchantCategoryDao().getAll().map { it.toDto() },
                 tags = database.tagDao().getAll().map { it.toDto() },
                 transactions = database.transactionDao().getAll().map { it.toDto() },
                 transactionTags = database.transactionTagDao().getAll().map { it.toDto() },
                 budgets = database.budgetDao().getAll().map { it.toDto() },
+                recurringCharges = database.recurringChargeDao().getAllCharges().map { it.toDto() },
+                recurringOccurrences = database.recurringChargeDao().getAllOccurrences().map { it.toDto() },
             )
         }
         val file = BackupFile(
@@ -140,28 +146,45 @@ class BackupRepository(
     suspend fun restoreJson(bytes: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val backup = json.decodeFromString(BackupFile.serializer(), bytes.toString(Charsets.UTF_8))
-            if (backup.backupFormatVersion > BackupConstants.FORMAT_VERSION) {
-                throw IllegalStateException("备份格式版本过高（${backup.backupFormatVersion}）")
+            if (backup.backupFormatVersion !in 1..BackupConstants.FORMAT_VERSION) {
+                throw IllegalStateException("不支持的备份格式版本（${backup.backupFormatVersion}）")
             }
-            backupBeforeRestoreOrThrow()
-            database.withTransaction {
-                database.transactionTagDao().deleteAll()
-                database.transactionDao().deleteAll()
-                database.budgetDao().deleteAll()
-                database.merchantDao().deleteAll()
-                database.tagDao().deleteAll()
-                database.categoryDao().deleteAll()
-                database.accountDao().deleteAll()
-                database.ledgerDao().deleteAll()
+            validateRecurringBackup(backup.data)
+            val merchantCategories = if (backup.backupFormatVersion < 3) {
+                deriveLegacyMerchantCategories(backup.data)
+            } else {
+                backup.data.merchantCategories
+            }
+            validateMerchantCategories(backup.data, merchantCategories)
+            RecurringDatabaseGate.mutex.withLock {
+                backupBeforeRestoreOrThrow()
+                database.withTransaction {
+                    database.recurringChargeDao().deleteAllOccurrences()
+                    database.recurringChargeDao().deleteAllCharges()
+                    database.transactionTagDao().deleteAll()
+                    database.transactionDao().deleteAll()
+                    database.budgetDao().deleteAll()
+                    database.merchantCategoryDao().deleteAll()
+                    database.merchantDao().deleteAll()
+                    database.tagDao().deleteAll()
+                    database.categoryDao().deleteAll()
+                    database.accountDao().deleteAll()
+                    database.ledgerDao().deleteAll()
 
-                backup.data.ledgers.forEach { database.ledgerDao().insert(it.toEntity()) }
-                backup.data.accounts.forEach { database.accountDao().insert(it.toEntity()) }
-                backup.data.categories.forEach { database.categoryDao().insert(it.toEntity()) }
-                backup.data.merchants.forEach { database.merchantDao().insert(it.toEntity()) }
-                backup.data.tags.forEach { database.tagDao().insert(it.toEntity()) }
-                backup.data.transactions.forEach { database.transactionDao().insert(it.toEntity()) }
-                backup.data.transactionTags.forEach { database.transactionTagDao().insertAll(listOf(it.toEntity())) }
-                backup.data.budgets.forEach { database.budgetDao().insert(it.toEntity()) }
+                    backup.data.ledgers.forEach { database.ledgerDao().insert(it.toEntity()) }
+                    backup.data.accounts.forEach { database.accountDao().insert(it.toEntity()) }
+                    backup.data.categories.forEach { database.categoryDao().insert(it.toEntity()) }
+                    backup.data.merchants.forEach { database.merchantDao().insert(it.toEntity()) }
+                    merchantCategories.forEach { database.merchantCategoryDao().insert(it.toEntity()) }
+                    backup.data.tags.forEach { database.tagDao().insert(it.toEntity()) }
+                    backup.data.transactions.forEach { database.transactionDao().insert(it.toEntity()) }
+                    backup.data.transactionTags.forEach { database.transactionTagDao().insertAll(listOf(it.toEntity())) }
+                    backup.data.budgets.forEach { database.budgetDao().insert(it.toEntity()) }
+                    backup.data.recurringCharges.forEach { database.recurringChargeDao().insert(it.toEntity()) }
+                    backup.data.recurringOccurrences.forEach {
+                        database.recurringChargeDao().insertOccurrence(it.toEntity())
+                    }
+                }
             }
         }
     }
@@ -175,27 +198,29 @@ class BackupRepository(
                     candidate.outputStream().use { output -> input.copyTo(output) }
                 } ?: throw IllegalStateException("无法读取备份文件")
                 validateSqliteBackup(candidate)
-                backupBeforeRestoreOrThrow()
+                RecurringDatabaseGate.mutex.withLock {
+                    backupBeforeRestoreOrThrow()
 
-                val dbFile = context.getDatabasePath("ledger.db")
-                val staged = File(dbFile.parentFile, "${dbFile.name}.restore-new")
-                val rollback = File(dbFile.parentFile, "${dbFile.name}.restore-old")
-                candidate.copyTo(staged, overwrite = true)
+                    val dbFile = context.getDatabasePath("ledger.db")
+                    val staged = File(dbFile.parentFile, "${dbFile.name}.restore-new")
+                    val rollback = File(dbFile.parentFile, "${dbFile.name}.restore-old")
+                    candidate.copyTo(staged, overwrite = true)
 
-                AppDatabase.closeInstance()
-                rollback.delete()
-                if (dbFile.exists()) moveReplacing(dbFile, rollback)
-                try {
-                    moveReplacing(staged, dbFile)
-                    File(dbFile.path + "-wal").delete()
-                    File(dbFile.path + "-shm").delete()
+                    AppDatabase.closeInstance()
                     rollback.delete()
-                } catch (e: Exception) {
-                    dbFile.delete()
-                    if (rollback.exists()) moveReplacing(rollback, dbFile)
-                    throw e
-                } finally {
-                    staged.delete()
+                    if (dbFile.exists()) moveReplacing(dbFile, rollback)
+                    try {
+                        moveReplacing(staged, dbFile)
+                        File(dbFile.path + "-wal").delete()
+                        File(dbFile.path + "-shm").delete()
+                        rollback.delete()
+                    } catch (e: Exception) {
+                        dbFile.delete()
+                        if (rollback.exists()) moveReplacing(rollback, dbFile)
+                        throw e
+                    } finally {
+                        staged.delete()
+                    }
                 }
             } finally {
                 candidate.delete()
@@ -276,8 +301,96 @@ class BackupRepository(
                 "transaction", "transaction_tag", "budget",
             )
             if (!tables.containsAll(required)) throw IllegalStateException("SQLite 备份缺少必要数据表")
+            if (version >= 2 && !tables.containsAll(setOf("recurring_charge", "recurring_occurrence"))) {
+                throw IllegalStateException("SQLite v2 备份缺少定时扣款数据表")
+            }
+            if (version >= 3 && "merchant_category" !in tables) {
+                throw IllegalStateException("SQLite v3 备份缺少商家分类关联表")
+            }
         } finally {
             sqlite.close()
+        }
+    }
+
+    private fun validateRecurringBackup(data: BackupData) {
+        val charges = data.recurringCharges.map { it.toEntity() }
+        val chargeIds = charges.map { it.id }.toSet()
+        if (chargeIds.size != charges.size) throw IllegalStateException("定时扣款 ID 重复")
+        val ledgers = data.ledgers.associateBy { it.id }
+        val accounts = data.accounts.associateBy { it.id }
+        val categories = data.categories.associateBy { it.id }
+        val transactionIds = data.transactions.map { it.id }.toSet()
+        if (transactionIds.size != data.transactions.size) throw IllegalStateException("交易 ID 重复")
+        charges.forEach { charge ->
+            val domain = try {
+                charge.toDomain()
+            } catch (_: Exception) {
+                throw IllegalStateException("定时扣款规则包含无效频率、日期或时区")
+            }
+            if (charge.amount <= 0) throw IllegalStateException("定时扣款金额必须大于 0")
+            if (charge.minuteOfDay !in 0..1439) throw IllegalStateException("定时扣款时间无效")
+            if (charge.nextOccurrenceIndex < 0) throw IllegalStateException("定时扣款周期位置无效")
+            val expected = try {
+                com.personal.ledger.domain.calc.RecurringSchedule.dueAt(
+                    domain.startDate,
+                    domain.minuteOfDay,
+                    domain.zoneId,
+                    domain.frequency,
+                    domain.nextOccurrenceIndex,
+                )
+            } catch (_: Exception) {
+                throw IllegalStateException("定时扣款计划日期超出可用范围")
+            }
+            if (expected != charge.nextDueAt) throw IllegalStateException("定时扣款计划日期与周期位置不一致")
+            val ledger = ledgers[charge.ledgerId]
+                ?: throw IllegalStateException("定时扣款所关联的账本不存在")
+            val account = accounts[charge.accountId]
+                ?: throw IllegalStateException("定时扣款所关联的账户不存在")
+            val category = categories[charge.categoryId]
+                ?: throw IllegalStateException("定时扣款所关联的分类不存在")
+            if (account.ledgerId != charge.ledgerId || account.currency != ledger.baseCurrency) {
+                throw IllegalStateException("定时扣款账户与账本不匹配")
+            }
+            if (charge.currency != ledger.baseCurrency) throw IllegalStateException("定时扣款币种与账本不匹配")
+            if (category.ledgerId != charge.ledgerId || category.type != "EXPENSE") {
+                throw IllegalStateException("定时扣款必须使用同账本的支出分类")
+            }
+        }
+        val occurrenceKeys = mutableSetOf<Pair<String, Long>>()
+        val occurrenceTransactionIds = mutableSetOf<String>()
+        data.recurringOccurrences.forEach { occurrence ->
+            if (occurrence.ruleId !in chargeIds) throw IllegalStateException("定时扣款执行记录缺少所属规则")
+            if (occurrence.transactionId !in transactionIds) throw IllegalStateException("定时扣款执行记录缺少交易")
+            val charge = charges.first { it.id == occurrence.ruleId }
+            val transaction = data.transactions.first { it.id == occurrence.transactionId }
+            if (transaction.ledgerId != charge.ledgerId) {
+                throw IllegalStateException("定时扣款执行交易与规则账本不匹配")
+            }
+            if (!occurrenceKeys.add(occurrence.ruleId to occurrence.dueAt)) {
+                throw IllegalStateException("定时扣款执行记录重复")
+            }
+            if (!occurrenceTransactionIds.add(occurrence.transactionId)) {
+                throw IllegalStateException("定时扣款执行交易重复")
+            }
+        }
+    }
+
+    private fun validateMerchantCategories(data: BackupData, links: List<MerchantCategoryDto>) {
+        val merchants = data.merchants.associateBy { it.id }
+        val categories = data.categories.associateBy { it.id }
+        if (links.map { it.merchantId to it.categoryId }.toSet().size != links.size) {
+            throw IllegalStateException("商家分类关联重复")
+        }
+        links.forEach { link ->
+            val merchant = merchants[link.merchantId]
+                ?: throw IllegalStateException("商家分类关联缺少商家")
+            val category = categories[link.categoryId]
+                ?: throw IllegalStateException("商家分类关联缺少分类")
+            if (merchant.ledgerId != category.ledgerId || category.parentId != null ||
+                category.type !in setOf("EXPENSE", "INCOME")
+            ) {
+                throw IllegalStateException("商家分类关联必须指向同账本一级分类")
+            }
         }
     }
 

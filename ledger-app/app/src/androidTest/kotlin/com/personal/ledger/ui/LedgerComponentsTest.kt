@@ -8,6 +8,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.personal.ledger.data.settings.ThemeMode
+import com.personal.ledger.domain.model.CategoryType
+import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.LedgerSectionHeader
 import com.personal.ledger.ui.common.charts.ChartSlice
 import com.personal.ledger.ui.common.charts.RingChartWithLegend
@@ -48,7 +50,19 @@ class LedgerComponentsTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("支出，餐饮¥25.36")
-            .assertContentDescriptionEquals("支出，餐饮¥25.36")
+        composeRule.onNodeWithContentDescription("支出，餐饮，¥25.36，100%")
+            .assertContentDescriptionEquals("支出，餐饮，¥25.36，100%")
+    }
+
+    @Test
+    fun categoryBadge_exposesCategoryNameForAccessibility() {
+        composeRule.setContent {
+            LedgerTheme(mode = ThemeMode.LIGHT) {
+                CategoryBadge("咖啡", CategoryType.EXPENSE)
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("咖啡分类图标")
+            .assertContentDescriptionEquals("咖啡分类图标")
     }
 }

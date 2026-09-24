@@ -23,6 +23,56 @@ class CategoryRepository(private val database: AppDatabase) {
     suspend fun getById(id: String): Category? = categoryDao.getById(id)?.toDomain()
 
     /**
+     * 给旧账本补充常用分类。只加旧版种子清单之外的选项；
+     * 会跳过已有的同名（包括已归档）分类和已存在的稳定种子 ID。
+     */
+    suspend fun supplementCommonCategories(ledgerId: String): Result<Int> {
+        return try {
+            val insertedCount = database.withTransaction {
+                val existing = categoryDao.getByLedger(ledgerId)
+                var expenseSort = existing
+                    .filter { it.type == CategoryType.EXPENSE && it.parentId == null }
+                    .maxOfOrNull { it.sortOrder }?.plus(1) ?: 0
+                var incomeSort = existing
+                    .filter { it.type == CategoryType.INCOME && it.parentId == null }
+                    .maxOfOrNull { it.sortOrder }?.plus(1) ?: 0
+                var inserted = 0
+
+                val additions = DefaultSeed.SUPPLEMENT_EXPENSE_CATEGORIES.map {
+                    Triple(CategoryType.EXPENSE, it, expenseSort++)
+                } + DefaultSeed.SUPPLEMENT_INCOME_CATEGORIES.map {
+                    Triple(CategoryType.INCOME, it, incomeSort++)
+                }
+
+                additions.forEach { (type, name, sortOrder) ->
+                    val id = DefaultSeed.categoryId(ledgerId, type, name)
+                    val alreadyPresent = existing.any {
+                        it.id == id || (it.type == type && it.parentId == null && it.name == name)
+                    }
+                    if (!alreadyPresent) {
+                        categoryDao.insert(
+                            CategoryEntity(
+                                id = id,
+                                ledgerId = ledgerId,
+                                name = name,
+                                type = type,
+                                parentId = null,
+                                sortOrder = sortOrder,
+                                isArchived = false,
+                            ),
+                        )
+                        inserted += 1
+                    }
+                }
+                inserted
+            }
+            Result.success(insertedCount)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
      * 新建分类。约束（DATA_MODEL.md）：
      * - 最多两级；二级分类 parentId 必须指向同账本一级分类，且父子 type 一致；
      * - 同账本同类型一级分类名称唯一，同一父分类下二级分类名称唯一；

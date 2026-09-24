@@ -17,10 +17,24 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
-/** 新账本预置的默认分类（决策 7：少量、全部可编辑可归档；清单实现前单独确定，当前为初版提案）。 */
+/** 新账本预置的默认分类；既有账本只通过用户主动触发的补充操作添加新增项。 */
 object DefaultSeed {
-    val EXPENSE_CATEGORIES = listOf("餐饮", "交通", "购物", "居住", "娱乐", "医疗", "其他")
-    val INCOME_CATEGORIES = listOf("工资", "其他收入")
+    val SUPPLEMENT_EXPENSE_CATEGORIES = listOf(
+        "日用", "服饰", "通讯", "教育", "运动", "旅行", "宠物", "人情", "汽车", "数码",
+        "育儿", "办公", "水电", "美容", "保险", "维修", "税费",
+        "订阅", "生鲜", "零食", "咖啡", "家政", "快递", "捐赠", "烟酒",
+    )
+    val SUPPLEMENT_INCOME_CATEGORIES = listOf("奖金", "兼职", "经营", "理财", "报销", "礼金", "退款")
+    val EXPENSE_CATEGORIES = listOf("餐饮", "交通", "购物", "居住", "娱乐", "医疗") +
+        SUPPLEMENT_EXPENSE_CATEGORIES + "其他"
+    val INCOME_CATEGORIES = listOf("工资") + SUPPLEMENT_INCOME_CATEGORIES + "其他收入"
+
+    /** 为预置分类生成可重复的账本内 ID，方便识别改名或已归档的旧选项。 */
+    fun categoryId(ledgerId: String, type: CategoryType, name: String): String =
+        UUID.nameUUIDFromBytes(
+            ("default-category\u0000" + ledgerId + "\u0000" + type.name + "\u0000" + name)
+                .toByteArray(Charsets.UTF_8),
+        ).toString()
 }
 
 class LedgerRepository(
@@ -93,7 +107,7 @@ class LedgerRepository(
         DefaultSeed.EXPENSE_CATEGORIES.forEachIndexed { i, name ->
             categoryDao.insert(
                 CategoryEntity(
-                    id = UUID.randomUUID().toString(),
+                    id = DefaultSeed.categoryId(ledger.id, CategoryType.EXPENSE, name),
                     ledgerId = ledger.id,
                     name = name,
                     type = CategoryType.EXPENSE,
@@ -106,7 +120,7 @@ class LedgerRepository(
         DefaultSeed.INCOME_CATEGORIES.forEachIndexed { i, name ->
             categoryDao.insert(
                 CategoryEntity(
-                    id = UUID.randomUUID().toString(),
+                    id = DefaultSeed.categoryId(ledger.id, CategoryType.INCOME, name),
                     ledgerId = ledger.id,
                     name = name,
                     type = CategoryType.INCOME,

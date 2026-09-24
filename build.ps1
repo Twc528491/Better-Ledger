@@ -23,7 +23,7 @@ if (-not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
     exit 1
 }
 
-$tasks = $Task -split '\s+' | Where-Object { $_ }
+$tasks = @($Task -split '\s+' | Where-Object { $_ })
 & "$root\.tools\gradle-8.13\bin\gradle.bat" -p "$root\ledger-app" @tasks --console=plain
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Gradle build failed"
