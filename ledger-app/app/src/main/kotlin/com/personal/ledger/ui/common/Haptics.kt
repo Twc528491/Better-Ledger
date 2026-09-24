@@ -59,6 +59,23 @@ fun rememberHapticStrong(): () -> Unit {
     }
 }
 
+/** 保存交易：一次强确认触感，遵循系统开关并在不支持时回落到系统按钮反馈。 */
+@Composable
+fun rememberHapticSave(): () -> Unit {
+    val context = LocalContext.current
+    val view = LocalView.current
+    return remember(context, view) {
+        {
+            performPredefinedHaptic(
+                context,
+                view,
+                VibrationEffect.EFFECT_HEAVY_CLICK,
+                HapticFeedbackConstants.CONFIRM,
+            )
+        }
+    }
+}
+
 /** 最终删除确认：使用 Android 公开的双击预设，避免伪造或反射“删除 App”私有效果。 */
 @Composable
 fun rememberHapticDelete(): () -> Unit {

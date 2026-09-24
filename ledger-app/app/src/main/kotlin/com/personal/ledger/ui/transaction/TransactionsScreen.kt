@@ -203,16 +203,29 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     modifier = Modifier.padding(16.dp),
                 )
             } else {
-                val categoryMap = state.categories.associate { it.id to it.name }
-                val accountMap = state.accounts.associate { it.id to it.name }
-                val tagMap = state.tags.associate { it.id to it.name }
-                val grouped = state.transactions
-                    .groupBy { TimeUtils.localDateOf(it.transactionTime) }
-                    .toSortedMap(compareByDescending { it })
+                val categoryMap = remember(state.categories) { state.categories.associate { it.id to it.name } }
+                val accountMap = remember(state.accounts) { state.accounts.associate { it.id to it.name } }
+                val tagMap = remember(state.tags) { state.tags.associate { it.id to it.name } }
+                val grouped = remember(state.transactions) {
+                    state.transactions.groupBy { TimeUtils.localDateOf(it.transactionTime) }
+                        .toSortedMap(compareByDescending { it })
+                }
+                val dayExpenses = remember(grouped) {
+                    grouped.mapValues { (_, list) ->
+                        list.asSequence().filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+                    }
+                }
+                val dayLabels = remember(grouped) {
+                    grouped.keys.associateWith { date ->
+                        TimeUtils.formatMonthDay(
+                            date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
+                        )
+                    }
+                }
                 LazyColumn {
                     grouped.forEach { (date, list) ->
-                        val dayExpense = list.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-                        item(key = "header-$date") {
+                        val dayExpense = dayExpenses[date] ?: 0L
+                        item(key = "header-$date", contentType = "day-header") {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -220,9 +233,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 horizontalArrangement = Arrangement.SpaceBetween,
                             ) {
                                 Text(
-                                    TimeUtils.formatMonthDay(
-                                        date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
-                                    ),
+                                    dayLabels[date].orEmpty(),
                                     style = MaterialTheme.typography.titleSmall,
                                 )
                                 if (dayExpense > 0) {
@@ -233,7 +244,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 }
                             }
                         }
-                        items(list, key = { it.id }) { tx ->
+                        items(list, key = { it.id }, contentType = { "transaction" }) { tx ->
                             TransactionItem(
                                 tx = tx,
                                 categoryNames = categoryMap,

@@ -17,6 +17,7 @@ import com.personal.ledger.domain.model.Tag
 import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.ui.transaction.CategorySelection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -92,7 +93,9 @@ class AddTransactionViewModel(
             val merchants = merchantRepository.getByLedger(ledger.id)
                 .filter { !it.isArchived || it.id == editing?.merchantId }
             val merchantOptions = editing?.categoryId?.let {
-                merchantRepository.getByCategory(ledger.id, it)
+                CategorySelection.merchantRootId(categories, it)?.let { rootId ->
+                    merchantRepository.getByCategory(ledger.id, rootId)
+                }.orEmpty()
             } ?: if (editing?.type == TransactionType.TRANSFER)
                 merchants.filter { !it.isArchived } else emptyList()
             val tags = tagRepository.getByLedger(ledger.id)
@@ -188,6 +191,8 @@ class AddTransactionViewModel(
     fun setCategoryId(id: String?) {
         val before = _uiState.value
         if (before.categoryId == id) return
+        val categories = before.expenseCategories + before.incomeCategories
+        val merchantCategoryId = CategorySelection.merchantRootId(categories, id)
         val generation = ++merchantRequestGeneration
         _uiState.value = before.copy(
             categoryId = id, merchantOptions = emptyList(), merchantNotice = null,
@@ -196,7 +201,8 @@ class AddTransactionViewModel(
         val ledgerId = before.ledgerId ?: return
         viewModelScope.launch {
           try {
-            val options = if (id == null) emptyList() else merchantRepository.getByCategory(ledgerId, id)
+            val options = if (merchantCategoryId == null) emptyList()
+                else merchantRepository.getByCategory(ledgerId, merchantCategoryId)
             val current = _uiState.value
             if (current.categoryId != id || current.ledgerId != ledgerId ||
                 generation != merchantRequestGeneration) return@launch
@@ -241,8 +247,10 @@ class AddTransactionViewModel(
             return
         }
         viewModelScope.launch {
+            val categories = start.expenseCategories + start.incomeCategories
+            val rootId = CategorySelection.merchantRootId(categories, start.categoryId)
             merchantRepository.addMerchant(ledgerId, name,
-                start.categoryId?.let { setOf(it) } ?: emptySet())
+                rootId?.let { setOf(it) } ?: emptySet())
                 .onSuccess { m ->
                     val current = _uiState.value
                     if (current.ledgerId == ledgerId) {

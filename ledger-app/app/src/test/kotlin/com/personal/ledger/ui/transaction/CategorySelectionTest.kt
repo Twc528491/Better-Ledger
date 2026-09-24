@@ -23,4 +23,15 @@ class CategorySelectionTest {
         assertEquals("餐饮 / 面食", CategorySelection.label(categories, persistedId))
         assertEquals("noodles", persistedId)
     }
+
+    @Test fun `choosing a root clears child while merchant scope resolves to the root`() {
+        val categories = listOf(
+            category("food", "餐饮"), category("noodles", "面食", "food"),
+            category("coffee", "咖啡", "food"), category("old", "旧面食", "food", archived = true),
+        )
+        assertEquals(listOf("noodles", "coffee"), CategorySelection.children(categories, "food").map { it.id })
+        assertEquals("food", CategorySelection.merchantRootId(categories, "food"))
+        assertEquals("food", CategorySelection.merchantRootId(categories, "noodles"))
+        assertEquals("food", CategorySelection.selectedRootId(categories, "noodles"))
+    }
 }
