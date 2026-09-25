@@ -31,7 +31,9 @@ class MainActivity : FragmentActivity() {
 
     override fun onStart() {
         super.onStart()
-        RecurringChargeScheduler.enqueueCatchUp(this)
+        (application as LedgerApplication).launchBackground {
+            RecurringChargeScheduler.enqueueCatchUp(applicationContext)
+        }
         securityLock.checkAndPromptIfNeeded()
     }
 

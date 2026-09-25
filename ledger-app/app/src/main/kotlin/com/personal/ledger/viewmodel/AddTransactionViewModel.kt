@@ -239,6 +239,10 @@ class AddTransactionViewModel(
         )
     }
 
+    fun setSelectedTagIds(ids: Set<String>) {
+        _uiState.value = _uiState.value.copy(selectedTagIds = ids)
+    }
+
     fun addMerchant(name: String, onDone: (Result<Unit>) -> Unit) {
         val start = _uiState.value
         val ledgerId = start.ledgerId
@@ -280,7 +284,6 @@ class AddTransactionViewModel(
                     if (current.ledgerId == ledgerId) {
                         _uiState.value = current.copy(
                             tags = current.tags + t,
-                            selectedTagIds = current.selectedTagIds + t.id,
                         )
                     }
                     onDone(Result.success(Unit))

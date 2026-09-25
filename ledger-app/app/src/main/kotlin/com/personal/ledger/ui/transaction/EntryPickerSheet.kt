@@ -2,13 +2,14 @@ package com.personal.ledger.ui.transaction
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,12 +17,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -37,11 +35,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 
 internal data class EntryPickerOption(
     val id: String,
@@ -61,7 +64,7 @@ internal fun EntryPickerSheet(
     subtitle: String? = null,
     hint: String? = null,
     multiSelect: Boolean = false,
-    onDone: (() -> Unit)? = null,
+    onDone: ((Set<String>) -> Unit)? = null,
     clearLabel: String? = null,
     onClear: (() -> Unit)? = null,
     addLabel: String? = null,
@@ -72,149 +75,260 @@ internal fun EntryPickerSheet(
     var newName by remember { mutableStateOf("") }
     var addError by remember { mutableStateOf<String?>(null) }
     var isAdding by remember { mutableStateOf(false) }
-    val filtered = remember(options, query) {
-        if (query.isBlank()) options else options.filter {
+    var stagedIds by remember(title) { mutableStateOf(options.filter { it.selected }.map { it.id }.toSet()) }
+    val visibleOptions = remember(options, stagedIds, multiSelect) {
+        if (multiSelect) options.map { it.copy(selected = it.id in stagedIds) } else options
+    }
+    val filtered = remember(visibleOptions, query) {
+        if (query.isBlank()) visibleOptions else visibleOptions.filter {
             it.title.contains(query.trim(), ignoreCase = true) ||
                 it.detail.orEmpty().contains(query.trim(), ignoreCase = true)
         }
     }
+    val focusManager = LocalFocusManager.current
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().imePadding()
-                .padding(horizontal = 18.dp).padding(bottom = 20.dp),
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val preferredHeight = (maxHeight * 0.62f).coerceAtMost(560.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(min = preferredHeight, max = maxHeight)
+                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                subtitle?.let {
+                    Text(it, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 3.dp))
+                }
+                hint?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 8.dp))
+                }
+                Spacer(Modifier.height(10.dp))
+                if (options.size > 8) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("搜索") },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (clearLabel != null && onClear != null) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (visibleOptions.none { it.selected }) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                            .clickable(onClick = onClear),
+                    ) {
+                        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("○", fontSize = 22.sp, modifier = Modifier.size(38.dp))
+                            Text(clearLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                            RadioButton(selected = visibleOptions.none { it.selected }, onClick = null)
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                }
+                Box(Modifier.weight(1f).fillMaxWidth().heightIn(min = 110.dp)) {
+                    when {
+                        filtered.isEmpty() -> Text(
+                            if (options.isEmpty()) "暂无可选内容" else "没有匹配的内容",
+                            modifier = Modifier.align(Alignment.Center),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        filtered.size <= 5 -> Column(
+                            modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            filtered.forEach { option ->
+                                EntryChoiceRow(option, multiSelect) {
+                                    if (multiSelect) stagedIds = if (option.id in stagedIds)
+                                        stagedIds - option.id else stagedIds + option.id
+                                    else onPick(option.id)
+                                }
+                            }
+                        }
+                        else -> LazyColumn(
+                            modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            items(filtered, key = { it.id }, contentType = { "entry-choice" }) { option ->
+                                EntryChoiceRow(option, multiSelect) {
+                                    if (multiSelect) stagedIds = if (option.id in stagedIds)
+                                        stagedIds - option.id else stagedIds + option.id
+                                    else onPick(option.id)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (onAdd != null && addLabel != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = newName,
+                            onValueChange = { newName = it; addError = null },
+                            modifier = Modifier.weight(1f),
+                            enabled = !isAdding,
+                            singleLine = true,
+                            label = { Text("名称") },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                        )
+                        Button(
+                            enabled = !isAdding && newName.isNotBlank(),
+                            onClick = {
+                                focusManager.clearFocus()
+                                isAdding = true
+                                onAdd(newName.trim()) { result ->
+                                    isAdding = false
+                                    result.onSuccess {
+                                        newName = ""
+                                        if (closeOnAddSuccess) onDismiss()
+                                    }.onFailure { addError = it.message ?: "新建失败，请重试" }
+                                }
+                            },
+                            modifier = Modifier.heightIn(min = 48.dp),
+                        ) { Text(if (isAdding) "创建中…" else addLabel) }
+                    }
+                    addError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { focusManager.clearFocus(); onDismiss() },
+                        modifier = Modifier.heightIn(min = 48.dp)) { Text("取消") }
+                    if (multiSelect) {
+                        Button(onClick = { focusManager.clearFocus(); onDone?.invoke(stagedIds) },
+                            modifier = Modifier.heightIn(min = 48.dp)) { Text("完成") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EntryChoiceRow(option: EntryPickerOption, multiSelect: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (option.selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
+            .selectable(
+                selected = option.selected,
+                role = if (multiSelect) Role.Checkbox else Role.RadioButton,
+                onClick = onClick,
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            subtitle?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium,
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(38.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) { Text(option.emoji, fontSize = 19.sp) }
+            }
+            Column(Modifier.weight(1f).padding(start = 11.dp, end = 8.dp)) {
+                Text(option.title, style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                option.detail?.let {
+                    Text(it, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (multiSelect) Checkbox(checked = option.selected, onCheckedChange = null)
+            else RadioButton(selected = option.selected, onClick = null)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun NoteEditorSheet(
+    initialNote: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var note by remember(initialNote) { mutableStateOf(initialNote) }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val close = {
+        focusManager.clearFocus()
+        keyboardController?.hide()
+        onDismiss()
+    }
+    ModalBottomSheet(
+        onDismissRequest = close,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val preferredHeight = (maxHeight * 0.62f).coerceAtMost(560.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(min = preferredHeight, max = maxHeight)
+                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
+            ) {
+                Text("备注", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text("为这笔账单添加说明", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 3.dp))
-            }
-            hint?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 8.dp))
-            }
-            Spacer(Modifier.height(10.dp))
-            if (options.size > 8) {
+                Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
+                    value = note,
+                    onValueChange = { note = it },
+                    modifier = Modifier.weight(1f).fillMaxWidth().heightIn(min = 140.dp, max = 300.dp),
+                    minLines = 3,
+                    maxLines = 8,
+                    label = { Text("备注内容") },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    }),
+                )
+                Spacer(Modifier.height(12.dp))
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("搜索") },
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            if (clearLabel != null && onClear != null) {
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (options.none { it.selected }) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
-                        .clickable(onClick = onClear),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("○", fontSize = 22.sp, modifier = Modifier.size(38.dp))
-                        Text(clearLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                        RadioButton(selected = options.none { it.selected }, onClick = null)
+                    TextButton(onClick = close, modifier = Modifier.heightIn(min = 48.dp)) {
+                        Text("取消")
                     }
+                    Button(
+                        onClick = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                            onConfirm(note)
+                        },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) { Text("完成") }
                 }
-                Spacer(Modifier.height(4.dp))
-            }
-            if (filtered.isEmpty()) {
-                Text(
-                    if (options.isEmpty()) "暂无可选内容" else "没有匹配的内容",
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp, max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    items(filtered, key = { it.id }, contentType = { "entry-choice" }) { option ->
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (option.selected) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceContainerLow,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                                .selectable(
-                                    selected = option.selected,
-                                    role = if (multiSelect) Role.Checkbox else Role.RadioButton,
-                                    onClick = { onPick(option.id) },
-                                ),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    modifier = Modifier.size(38.dp),
-                                ) {
-                                    androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
-                                        Text(option.emoji, fontSize = 19.sp)
-                                    }
-                                }
-                                Column(Modifier.weight(1f).padding(start = 11.dp, end = 8.dp)) {
-                                    Text(option.title, style = MaterialTheme.typography.bodyLarge,
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    option.detail?.let {
-                                        Text(it, style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                                if (multiSelect) {
-                                    Checkbox(checked = option.selected, onCheckedChange = null)
-                                } else {
-                                    RadioButton(selected = option.selected, onClick = null)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (onAdd != null && addLabel != null) {
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it; addError = null },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isAdding,
-                    singleLine = true,
-                    label = { Text("名称") },
-                )
-                addError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 4.dp))
-                }
-                Button(
-                    enabled = !isAdding && newName.isNotBlank(),
-                    onClick = {
-                        isAdding = true
-                        onAdd(newName.trim()) { result ->
-                            isAdding = false
-                            result.onSuccess {
-                                newName = ""
-                                if (closeOnAddSuccess) onDismiss()
-                            }
-                                .onFailure { addError = it.message ?: "新建失败，请重试" }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(top = 4.dp),
-                ) { Text(if (isAdding) "创建中…" else addLabel) }
-            }
-            if (multiSelect) {
-                Button(onClick = { onDone?.invoke() }, modifier = Modifier.fillMaxWidth()
-                    .heightIn(min = 48.dp).padding(top = 4.dp)) { Text("完成") }
             }
         }
     }

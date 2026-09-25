@@ -1,6 +1,17 @@
 package com.personal.ledger.ui.transaction
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.clickable
@@ -11,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,8 +33,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -87,7 +101,7 @@ import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun AddTransactionScreen(container: AppContainer, navController: NavHostController, txId: String?) {
     val vm: AddTransactionViewModel = viewModel {
@@ -108,13 +122,16 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     var showMerchantPicker by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
     var showNoteEditor by remember { mutableStateOf(false) }
+    var expandedRootId by remember(state.type) { mutableStateOf<String?>(null) }
     val pagerScope = rememberCoroutineScope()
     val hapticSave = rememberHapticSave()
     val fontScale = LocalDensity.current.fontScale
+    val density = LocalDensity.current
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     val keyboardKeyHeight = if (screenHeightDp < 720 || fontScale > 1.3f) 48.dp else 52.dp
     val anyEditor = showDatePicker || showAccountPicker ||
         showMerchantPicker || showTagPicker || showNoteEditor
+    val systemImeVisible = WindowInsets.ime.getBottom(density) > 0
     LaunchedEffect(txId) { vm.load(txId) }
 
     LaunchedEffect(state.saved) {
@@ -138,19 +155,26 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             )
         },
         bottomBar = {
-            if (!anyEditor) AmountKeyboard(
-                saving = state.isSaving || state.isResolvingMerchant,
-                keyHeight = keyboardKeyHeight,
-                onKey = { vm.setAmountText(AmountEntry.press(state.amountText, it)) },
-                onSave = {
-                    if (!vm.uiState.value.isSaving && !vm.uiState.value.saved &&
-                        !vm.uiState.value.isResolvingMerchant
-                    ) {
-                        hapticSave()
-                        vm.save()
-                    }
-                },
-            )
+            AnimatedVisibility(
+                visible = !anyEditor && !systemImeVisible,
+                modifier = Modifier.fillMaxWidth(),
+                enter = expandVertically(animationSpec = tween(200)) + fadeIn(tween(180)),
+                exit = shrinkVertically(animationSpec = tween(200)) + fadeOut(tween(180)),
+            ) {
+                AmountKeyboard(
+                    saving = state.isSaving || state.isResolvingMerchant,
+                    keyHeight = keyboardKeyHeight,
+                    onKey = { vm.setAmountText(AmountEntry.press(state.amountText, it)) },
+                    onSave = {
+                        if (!vm.uiState.value.isSaving && !vm.uiState.value.saved &&
+                            !vm.uiState.value.isResolvingMerchant
+                        ) {
+                            hapticSave()
+                            vm.save()
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
@@ -159,7 +183,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
           val compactCategory = maxHeight < 390.dp || fontScale > 1.4f
           Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp).padding(top = 4.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp),
           ) {
             // 类型分段选择（全宽）
@@ -217,92 +241,122 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 val pageSize = categoryRows * categoryColumns
                 val pageCount = maxOf(1, (roots.size + pageSize - 1) / pageSize)
                 val pagerState = rememberPagerState(pageCount = { pageCount })
+                val childGridState = rememberLazyGridState()
                 val shownPage = pagerState.currentPage.coerceIn(0, pageCount - 1)
+                LaunchedEffect(state.type) { pagerState.scrollToPage(0) }
+                val categoryGridHeight = (if (compactCategory) 58.dp else 64.dp) * categoryRows +
+                    4.dp * (categoryRows - 1)
+                val selectedRoot = categories.firstOrNull { it.id == expandedRootId }
+                LaunchedEffect(categories, state.categoryId, expandedRootId) {
+                    if (expandedRootId == null && state.categoryId != null) {
+                        val selected = categories.firstOrNull { it.id == state.categoryId }
+                        if (selected?.parentId != null) expandedRootId = selected.parentId
+                    }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("分类", style = MaterialTheme.typography.titleSmall)
-                        Text(CategorySelection.label(categories, state.categoryId),
-                            style = MaterialTheme.typography.labelMedium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    IconButton(
-                        onClick = { if (shownPage > 0) pagerScope.launch {
-                            pagerState.animateScrollToPage(shownPage - 1)
-                        } },
-                        enabled = shownPage > 0,
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一页分类")
-                    }
-                    Text((shownPage + 1).toString() + "/" + pageCount,
-                        style = MaterialTheme.typography.labelMedium)
-                    IconButton(
-                        onClick = { if (shownPage + 1 < pageCount) pagerScope.launch {
-                            pagerState.animateScrollToPage(shownPage + 1)
-                        } },
-                        enabled = shownPage + 1 < pageCount,
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一页分类")
+                    if (expandedRootId != null && selectedRoot != null) {
+                        SelectedRootChip(selectedRoot) {
+                            expandedRootId = null
+                            vm.setCategoryId(null)
+                        }
+                    } else {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("分类", style = MaterialTheme.typography.titleSmall)
+                            Text(CategorySelection.label(categories, state.categoryId),
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        IconButton(
+                            onClick = { if (shownPage > 0) pagerScope.launch {
+                                pagerState.animateScrollToPage(shownPage - 1)
+                            } },
+                            enabled = shownPage > 0,
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一页分类")
+                        }
+                        Text((shownPage + 1).toString() + "/" + pageCount,
+                            style = MaterialTheme.typography.labelMedium)
+                        IconButton(
+                            onClick = { if (shownPage + 1 < pageCount) pagerScope.launch {
+                                pagerState.animateScrollToPage(shownPage + 1)
+                            } },
+                            enabled = shownPage + 1 < pageCount,
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一页分类")
+                        }
                     }
                 }
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier.fillMaxWidth().height(
-                        (if (compactCategory) 58.dp else 64.dp) * categoryRows +
-                            4.dp * (categoryRows - 1)),
-                ) { pageIndex ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        roots.drop(pageIndex * pageSize).take(pageSize).chunked(categoryColumns).forEach { row ->
-                            Row(modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                row.forEach { category ->
-                                    CategoryTile(category, selectedRootId == category.id, compactCategory,
-                                        Modifier.weight(1f)) { vm.setCategoryId(category.id) }
+                AnimatedContent(
+                    targetState = expandedRootId,
+                    modifier = Modifier.fillMaxWidth().height(categoryGridHeight),
+                    transitionSpec = {
+                        (fadeIn(tween(190)) + slideInVertically(tween(190)) { it / 10 }) togetherWith
+                            (fadeOut(tween(150)) + slideOutVertically(tween(150)) { -it / 10 })
+                    },
+                    label = "category-level",
+                ) { rootId ->
+                    if (rootId == null) {
+                        if (roots.isEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("暂无可用分类", style = MaterialTheme.typography.bodyMedium)
+                                TextButton(onClick = { navController.navigate(Routes.CATEGORIES) }) {
+                                    Text("前往分类管理")
                                 }
-                                repeat(categoryColumns - row.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        } else {
+                            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { pageIndex ->
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    roots.drop(pageIndex * pageSize).take(pageSize).chunked(categoryColumns).forEach { row ->
+                                        Row(modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            row.forEach { category ->
+                                                CategoryTile(category, selectedRootId == category.id, compactCategory,
+                                                    Modifier.weight(1f)) {
+                                                    val activeChildren = CategorySelection.children(categories, category.id)
+                                                    val selectedArchivedChild = categories.any {
+                                                        it.parentId == category.id && it.id == state.categoryId && it.isArchived
+                                                    }
+                                                    if (activeChildren.isNotEmpty() || selectedArchivedChild) {
+                                                        vm.setCategoryId(category.id)
+                                                        expandedRootId = category.id
+                                                    } else {
+                                                        vm.setCategoryId(if (state.categoryId == category.id) null else category.id)
+                                                    }
+                                                }
+                                            }
+                                            repeat(categoryColumns - row.size) { Spacer(Modifier.weight(1f)) }
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-                if (roots.isEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("暂无可用分类", style = MaterialTheme.typography.bodyMedium)
-                        TextButton(onClick = { navController.navigate(Routes.CATEGORIES) }) {
-                            Text("前往分类管理")
-                        }
-                    }
-                }
-                val selectedRoot = roots.firstOrNull { it.id == selectedRootId }
-                val children = selectedRootId?.let { CategorySelection.children(categories, it) }.orEmpty()
-                if (selectedRoot != null && children.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = categoryContainerColor(selectedRoot.id),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Column(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
-                            Text("${selectedRoot.name} · 二级分类",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(Modifier.height(4.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                item(key = "direct-${selectedRoot.id}") {
-                                    CategoryChoiceChip(
-                                        label = "直接记入${selectedRoot.name}",
-                                        category = selectedRoot,
-                                        selected = state.categoryId == selectedRoot.id,
-                                        onClick = { vm.setCategoryId(selectedRoot.id) },
-                                    )
+                    } else {
+                        val root = categories.firstOrNull { it.id == rootId }
+                        if (root == null) {
+                            Box(Modifier.fillMaxSize())
+                        } else {
+                            val archivedSelectedChild = categories.firstOrNull {
+                                it.id == state.categoryId && it.parentId == root.id && it.isArchived
+                            }
+                            val childItems = (CategorySelection.children(categories, root.id) +
+                                listOfNotNull(archivedSelectedChild)).distinctBy { it.id }
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(categoryColumns),
+                                state = childGridState,
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                item(key = "direct-${root.id}", contentType = "category") {
+                                    CategoryTile(root, state.categoryId == root.id, compactCategory,
+                                        Modifier.fillMaxWidth()) { vm.setCategoryId(root.id) }
                                 }
-                                items(children, key = { it.id }) { child ->
-                                    CategoryChoiceChip(
-                                        label = child.name,
-                                        category = child,
-                                        selected = state.categoryId == child.id,
-                                        onClick = { vm.setCategoryId(child.id) },
-                                    )
+                                items(childItems, key = { it.id }, contentType = { "category" }) { child ->
+                                    CategoryTile(child, state.categoryId == child.id, compactCategory,
+                                        Modifier.fillMaxWidth()) { vm.setCategoryId(child.id) }
                                 }
                             }
                         }
@@ -454,25 +508,19 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             options = state.tags.map { tag ->
                 EntryPickerOption(tag.id, tag.name, emoji = "🏷️", selected = tag.id in state.selectedTagIds)
             },
-            onPick = { vm.toggleTag(it) },
+            onPick = {},
             multiSelect = true,
-            onDone = { showTagPicker = false },
+            onDone = { ids -> vm.setSelectedTagIds(ids); showTagPicker = false },
             addLabel = "新建标签",
             onAdd = { name, done -> vm.addTag(name, done) },
             onDismiss = { showTagPicker = false },
         )
     }
     if (showNoteEditor) {
-        var note by remember { mutableStateOf(state.note) }
-        AlertDialog(
-            onDismissRequest = { showNoteEditor = false },
-            title = { Text("备注") },
-            text = { OutlinedTextField(note, { note = it }, modifier = Modifier.fillMaxWidth(),
-                minLines = 3, maxLines = 6, label = { Text("备注内容") }) },
-            confirmButton = { TextButton(onClick = { vm.setNote(note); showNoteEditor = false }) {
-                Text("完成")
-            } },
-            dismissButton = { TextButton(onClick = { showNoteEditor = false }) { Text("取消") } },
+        NoteEditorSheet(
+            initialNote = state.note,
+            onDismiss = { showNoteEditor = false },
+            onConfirm = { note -> vm.setNote(note); showNoteEditor = false },
         )
     }
 }
@@ -541,6 +589,31 @@ private fun CategoryChoiceChip(
             CategoryBadge(category.name, category.type, sizeDp = 24, visualKey = category.id)
             Text(label, modifier = Modifier.padding(start = 6.dp).widthIn(max = 180.dp),
                 style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun SelectedRootChip(category: Category, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CategoryBadge(category.name, category.type, sizeDp = 32, visualKey = category.id)
+            Column(Modifier.weight(1f).padding(start = 9.dp)) {
+                Text(category.name, style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("点击一级返回", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回一级分类",
+                modifier = Modifier.size(20.dp))
         }
     }
 }

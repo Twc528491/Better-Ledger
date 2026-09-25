@@ -5,13 +5,14 @@ import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -66,9 +67,9 @@ internal fun DateWheelSheet(
     val lastDay = DatePickerSelection.monthLength(year, month)
     val safeDay = day.coerceAtMost(lastDay)
     val selectedDate = remember(year, month, safeDay) { LocalDate.of(year, month, safeDay) }
-    val years = remember(initialDate) {
-        val first = minOf(1900, initialDate.year - 80).coerceAtLeast(1)
-        val last = maxOf(2100, initialDate.year + 80)
+    val years = remember(initialDate, today) {
+        val first = minOf(1900, initialDate.year - 80, today.year - 80).coerceAtLeast(1)
+        val last = maxOf(2100, initialDate.year + 80, today.year + 80)
         first..last
     }
     val anyScrolling = yearScrolling || monthScrolling || dayScrolling
@@ -77,67 +78,70 @@ internal fun DateWheelSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().imePadding().padding(horizontal = 18.dp)
-                .padding(bottom = 20.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val preferredHeight = (maxHeight * 0.62f).coerceAtMost(560.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth().heightIn(min = preferredHeight, max = maxHeight)
+                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
             ) {
-                Column {
-                    Text("选择日期", style = MaterialTheme.typography.titleLarge)
-                    Text(selectedDate.toString(), style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column {
+                        Text("选择日期", style = MaterialTheme.typography.titleLarge)
+                        Text(selectedDate.toString(), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = {
+                        year = today.year
+                        month = today.monthValue
+                        day = today.dayOfMonth
+                        scrollRequest++
+                    }) { Text("今天") }
                 }
-                TextButton(onClick = {
-                    year = today.year
-                    month = today.monthValue
-                    day = today.dayOfMonth
-                    scrollRequest++
-                }) { Text("今天") }
-            }
-            Spacer(Modifier.height(12.dp))
-            key(scrollRequest) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DateWheelColumn(
-                        label = "年", modifier = Modifier.weight(1.2f),
-                        itemCount = years.count(), initialIndex = year - years.first,
-                        indexValue = { years.first + it }, selectedValue = year,
-                        onValue = { year = it; day = DatePickerSelection.clampDay(day, it, month) },
-                        onScrolling = { yearScrolling = it },
-                    )
-                    DateWheelColumn(
-                        label = "月", modifier = Modifier.weight(1f),
-                        itemCount = 12, initialIndex = month - 1,
-                        indexValue = { it + 1 }, selectedValue = month,
-                        onValue = { month = it; day = DatePickerSelection.clampDay(day, year, it) },
-                        onScrolling = { monthScrolling = it },
-                    )
-                    DateWheelColumn(
-                        label = "日", modifier = Modifier.weight(1f),
-                        itemCount = lastDay, initialIndex = safeDay - 1,
-                        indexValue = { it + 1 }, selectedValue = safeDay,
-                        onValue = { day = it },
-                        onScrolling = { dayScrolling = it },
-                    )
+                Spacer(Modifier.height(12.dp))
+                key(scrollRequest) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DateWheelColumn(
+                            label = "年", modifier = Modifier.weight(1.2f),
+                            itemCount = years.count(), initialIndex = year - years.first,
+                            indexValue = { years.first + it }, selectedValue = year,
+                            onValue = { year = it; day = DatePickerSelection.clampDay(day, it, month) },
+                            onScrolling = { yearScrolling = it },
+                        )
+                        DateWheelColumn(
+                            label = "月", modifier = Modifier.weight(1f),
+                            itemCount = 12, initialIndex = month - 1,
+                            indexValue = { it + 1 }, selectedValue = month,
+                            onValue = { month = it; day = DatePickerSelection.clampDay(day, year, it) },
+                            onScrolling = { monthScrolling = it },
+                        )
+                        DateWheelColumn(
+                            label = "日", modifier = Modifier.weight(1f),
+                            itemCount = lastDay, initialIndex = safeDay - 1,
+                            indexValue = { it + 1 }, selectedValue = safeDay,
+                            onValue = { day = it },
+                            onScrolling = { dayScrolling = it },
+                        )
+                    }
                 }
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.height(48.dp)) { Text("取消") }
-                Button(
-                    enabled = !anyScrolling,
-                    onClick = {
-                        onConfirm(DatePickerSelection.withPickedDate(initialTime, selectedDate, zone))
-                    },
-                    modifier = Modifier.height(48.dp),
-                ) { Text("确定") }
+                Spacer(Modifier.weight(1f).height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.height(48.dp)) { Text("取消") }
+                    Button(
+                        enabled = !anyScrolling,
+                        onClick = {
+                            onConfirm(DatePickerSelection.withPickedDate(initialTime, selectedDate, zone))
+                        },
+                        modifier = Modifier.height(48.dp),
+                    ) { Text("确定") }
+                }
             }
         }
     }

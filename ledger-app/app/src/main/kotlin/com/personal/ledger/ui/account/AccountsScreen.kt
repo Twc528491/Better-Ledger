@@ -95,7 +95,9 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 16.dp, top = 20.dp, end = 16.dp, bottom = 16.dp,
+            ),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {

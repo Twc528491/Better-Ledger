@@ -140,7 +140,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
             )
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(top = 4.dp)) {
             // 搜索行
             if (searchOpen) {
                 OutlinedTextField(
@@ -515,6 +515,26 @@ private fun TransactionItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val title = remember(tx, categoryNames, merchantNameOf) { titleOf(tx, categoryNames, merchantNameOf) }
+    val time = remember(tx.transactionTime) { timeOfDay(tx.transactionTime) }
+    val tags = remember(tx.id, tagIdsOf[tx.id], tagNames) {
+        (tagIdsOf[tx.id].orEmpty()).mapNotNull { tagNames[it] }
+    }
+    val tagText = remember(tags) { if (tags.isEmpty()) "" else " · ${tags.joinToString("|")}" }
+    val subtitle = remember(tx, categoryNames, accountNames) {
+        if (tx.type == TransactionType.TRANSFER) {
+            "${accountNames[tx.accountId] ?: ""} → ${tx.targetAccountId?.let { accountNames[it] } ?: ""}"
+        } else {
+            "${categoryNames[tx.categoryId] ?: ""} · ${accountNames[tx.accountId] ?: ""}"
+        }
+    }
+    val amountText = remember(tx.amount, tx.type, currency) {
+        Money.symbolFor(currency) + when (tx.type) {
+            TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
+            TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
+            TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -552,31 +572,20 @@ private fun TransactionItem(
             }
             Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(
-                    titleOf(tx, categoryNames, merchantNameOf),
+                    title,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                 )
-                val tags = (tagIdsOf[tx.id].orEmpty()).mapNotNull { tagNames[it] }
-                val tagText = if (tags.isEmpty()) "" else " · ${tags.joinToString("|")}"
-                val subtitle = if (tx.type == TransactionType.TRANSFER) {
-                    "${accountNames[tx.accountId] ?: ""} → ${tx.targetAccountId?.let { accountNames[it] } ?: ""}"
-                } else {
-                    "${categoryNames[tx.categoryId] ?: ""} · ${accountNames[tx.accountId] ?: ""}"
-                }
                 Text(
-                    "${timeOfDay(tx.transactionTime)} · $subtitle$tagText",
+                    "$time · $subtitle$tagText",
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                 )
             }
         }
         Text(
-            Money.symbolFor(currency) + when (tx.type) {
-                TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-                TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
-            },
+            amountText,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
             color = amountColor(tx.type),

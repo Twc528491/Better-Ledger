@@ -15,11 +15,13 @@ import com.personal.ledger.domain.model.Tag
 import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.domain.model.TransactionType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -136,6 +138,7 @@ class TransactionsViewModel(
                 }
             }
         }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TransactionsUiState())
 
     private fun String.matches(tx: Transaction, merchantNameOf: Map<String, String>): Boolean {

@@ -139,7 +139,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 .padding(padding),
         ) {
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = highlightCardColor(),

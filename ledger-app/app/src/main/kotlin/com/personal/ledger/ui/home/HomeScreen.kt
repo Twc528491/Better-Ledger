@@ -132,7 +132,9 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 .fillMaxSize()
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 16.dp, top = 12.dp, end = 16.dp, bottom = 8.dp,
+            ),
         ) {
             // 本月支出主卡片（金额最高视觉优先级）
             item {
@@ -316,6 +318,18 @@ private fun TransactionRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val title = remember(tx, categoryNames, merchantNames) { titleOf(tx, categoryNames, merchantNames) }
+    val categoryName = remember(tx.categoryId, categoryNames) { categoryNames[tx.categoryId] }
+    val subtitle = remember(tx, categoryNames, accountNames) {
+        "${categoryNames[tx.categoryId] ?: "转账"} · ${accountNames[tx.accountId] ?: ""}"
+    }
+    val amountText = remember(tx.amount, tx.type) {
+        when (tx.type) {
+            TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
+            TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
+            TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
+        }
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -328,7 +342,6 @@ private fun TransactionRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val categoryName = categoryNames[tx.categoryId]
         val type = if (tx.type == TransactionType.TRANSFER) {
             com.personal.ledger.domain.model.CategoryType.EXPENSE // 转账用占位，不显示分类色
         } else {
@@ -356,22 +369,18 @@ private fun TransactionRow(
             }
             Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(
-                    titleOf(tx, categoryNames, merchantNames),
+                    title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                 )
                 Text(
-                    "${categoryName ?: "转账"} · ${accountNames[tx.accountId] ?: ""}",
+                    subtitle,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
         Text(
-            when (tx.type) {
-                TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-                TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
-            },
+            amountText,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = amountColor(tx.type),
