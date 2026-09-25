@@ -208,6 +208,14 @@ object CategoryVisuals {
         "报销" to "reimburse",
         "礼金" to "present",
         "退款" to "refund",
+        "租金" to "rent",
+        "分红" to "dividend",
+        "利息" to "interest",
+        "补贴" to "subsidy",
+        "奖学金" to "scholarship",
+        "稿费" to "royalty",
+        "佣金" to "commission",
+        "二手出售" to "secondhand",
     )
 
     private val iconKeywords = listOf(
@@ -282,6 +290,14 @@ object CategoryVisuals {
             "reimburse" -> Icons.AutoMirrored.Filled.ReceiptLong
             "present" -> Icons.Filled.Redeem
             "refund" -> Icons.Filled.CurrencyExchange
+            "rent" -> Icons.TwoTone.Home
+            "dividend" -> Icons.AutoMirrored.Filled.TrendingUp
+            "interest" -> Icons.TwoTone.Paid
+            "subsidy" -> Icons.Filled.RequestQuote
+            "scholarship" -> Icons.Filled.School
+            "royalty" -> Icons.AutoMirrored.Filled.ReceiptLong
+            "commission" -> Icons.Filled.BusinessCenter
+            "secondhand" -> Icons.Filled.CurrencyExchange
             else -> Icons.Filled.Inventory2
         }
 

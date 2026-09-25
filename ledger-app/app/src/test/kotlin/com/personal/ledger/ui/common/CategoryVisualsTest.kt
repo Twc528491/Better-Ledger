@@ -10,7 +10,7 @@ class CategoryVisualsTest {
     @Test
     fun seededCategoriesUseDistinctMeaningfulIconKeys() {
         assertEquals(32, DefaultSeed.EXPENSE_CATEGORIES.size)
-        assertEquals(9, DefaultSeed.INCOME_CATEGORIES.size)
+        assertEquals(17, DefaultSeed.INCOME_CATEGORIES.size)
         val expenseKeys = DefaultSeed.EXPENSE_CATEGORIES.map {
             CategoryVisuals.iconKeyFor(it, CategoryType.EXPENSE)
         }

@@ -92,10 +92,11 @@ internal fun EntryPickerSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val preferredHeight = (maxHeight * 0.62f).coerceAtMost(560.dp)
+            val maxSheetHeight = maxHeight * 0.75f
+            val maxListHeight = (maxHeight * 0.55f).coerceAtMost(320.dp)
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(min = preferredHeight, max = maxHeight)
-                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)
+                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 16.dp),
             ) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 subtitle?.let {
@@ -137,7 +138,7 @@ internal fun EntryPickerSheet(
                     }
                     Spacer(Modifier.height(4.dp))
                 }
-                Box(Modifier.weight(1f).fillMaxWidth().heightIn(min = 110.dp)) {
+                Box(Modifier.fillMaxWidth().heightIn(max = maxListHeight)) {
                     when {
                         filtered.isEmpty() -> Text(
                             if (options.isEmpty()) "暂无可选内容" else "没有匹配的内容",
@@ -146,7 +147,7 @@ internal fun EntryPickerSheet(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                         filtered.size <= 5 -> Column(
-                            modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             filtered.forEach { option ->
@@ -158,7 +159,7 @@ internal fun EntryPickerSheet(
                             }
                         }
                         else -> LazyColumn(
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                            modifier = Modifier.fillMaxWidth().heightIn(max = maxListHeight),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             items(filtered, key = { it.id }, contentType = { "entry-choice" }) { option ->
@@ -284,10 +285,10 @@ internal fun NoteEditorSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val preferredHeight = (maxHeight * 0.62f).coerceAtMost(560.dp)
+            val maxSheetHeight = maxHeight * 0.75f
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(min = preferredHeight, max = maxHeight)
-                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 24.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)
+                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 16.dp),
             ) {
                 Text("备注", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text("为这笔账单添加说明", style = MaterialTheme.typography.bodyMedium,
@@ -297,9 +298,9 @@ internal fun NoteEditorSheet(
                 OutlinedTextField(
                     value = note,
                     onValueChange = { note = it },
-                    modifier = Modifier.weight(1f).fillMaxWidth().heightIn(min = 140.dp, max = 300.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 180.dp),
                     minLines = 3,
-                    maxLines = 8,
+                    maxLines = 5,
                     label = { Text("备注内容") },
                     keyboardOptions = KeyboardOptions(
                         capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,

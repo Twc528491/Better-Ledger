@@ -24,7 +24,10 @@ object DefaultSeed {
         "育儿", "办公", "水电", "美容", "保险", "维修", "税费",
         "订阅", "生鲜", "零食", "咖啡", "家政", "快递", "捐赠", "烟酒",
     )
-    val SUPPLEMENT_INCOME_CATEGORIES = listOf("奖金", "兼职", "经营", "理财", "报销", "礼金", "退款")
+    val SUPPLEMENT_INCOME_CATEGORIES = listOf(
+        "奖金", "兼职", "经营", "理财", "报销", "礼金", "退款",
+        "租金", "分红", "利息", "补贴", "奖学金", "稿费", "佣金", "二手出售",
+    )
     val EXPENSE_CATEGORIES = listOf("餐饮", "交通", "购物", "居住", "娱乐", "医疗") +
         SUPPLEMENT_EXPENSE_CATEGORIES + "其他"
     val INCOME_CATEGORIES = listOf("工资") + SUPPLEMENT_INCOME_CATEGORIES + "其他收入"

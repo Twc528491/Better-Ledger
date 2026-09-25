@@ -472,6 +472,9 @@ private fun MonthPickerDialog(
         },
         text = {
             Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { onPick(YearMonth.now()) }) { Text("本月") }
+                }
                 (1..12).chunked(3).forEach { rowMonths ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -480,16 +483,12 @@ private fun MonthPickerDialog(
                         rowMonths.forEach { m ->
                             val ym = YearMonth.of(year, m)
                             val selected = ym == current
-                            TextButton(
+                            FilterChip(
+                                selected = selected,
                                 onClick = { onPick(ym) },
-                                modifier = Modifier.weight(1f),
-                            ) {
-                                Text(
-                                    "${m}月",
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
+                                label = { Text("${m}月", fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
+                                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+                            )
                         }
                     }
                 }

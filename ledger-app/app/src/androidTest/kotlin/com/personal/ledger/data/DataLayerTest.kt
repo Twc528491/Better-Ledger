@@ -87,7 +87,7 @@ class DataLayerTest {
         assertEquals("CNY", ledgers[0].baseCurrency)
         // 固定种子规模，防止新增类别漏接到新账本初始化。
         assertEquals(32, DefaultSeed.EXPENSE_CATEGORIES.size)
-        assertEquals(9, DefaultSeed.INCOME_CATEGORIES.size)
+        assertEquals(17, DefaultSeed.INCOME_CATEGORIES.size)
         assertEquals(
             DefaultSeed.EXPENSE_CATEGORIES.size + DefaultSeed.INCOME_CATEGORIES.size,
             db.categoryDao().getAll().size,

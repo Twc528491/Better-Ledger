@@ -32,7 +32,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -258,10 +257,21 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (expandedRootId != null && selectedRoot != null) {
-                        SelectedRootChip(selectedRoot) {
-                            expandedRootId = null
-                            vm.setCategoryId(null)
+                        IconButton(
+                            onClick = { expandedRootId = null },
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回一级分类")
                         }
+                        Text("一级分类", style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold)
+                        Text("›", modifier = Modifier.padding(horizontal = 6.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        CategoryBadge(selectedRoot.name, selectedRoot.type,
+                            sizeDp = 28, visualKey = selectedRoot.id)
+                        Text(selectedRoot.name, modifier = Modifier.padding(start = 6.dp).weight(1f),
+                            style = MaterialTheme.typography.titleSmall, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
                     } else {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("分类", style = MaterialTheme.typography.titleSmall)
@@ -320,10 +330,9 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                                         it.parentId == category.id && it.id == state.categoryId && it.isArchived
                                                     }
                                                     if (activeChildren.isNotEmpty() || selectedArchivedChild) {
-                                                        vm.setCategoryId(category.id)
                                                         expandedRootId = category.id
                                                     } else {
-                                                        vm.setCategoryId(if (state.categoryId == category.id) null else category.id)
+                                                        vm.setCategoryId(category.id)
                                                     }
                                                 }
                                             }
@@ -429,7 +438,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     }
 
     if (showDatePicker) {
-        DateWheelSheet(
+        DateCalendarDialog(
             initialTime = state.time,
             onDismiss = { showDatePicker = false },
             onConfirm = { time -> vm.setTime(time); showDatePicker = false },
@@ -564,56 +573,6 @@ private fun CategoryTile(
             Text(category.name, style = MaterialTheme.typography.labelMedium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center)
-        }
-    }
-}
-
-@Composable
-private fun CategoryChoiceChip(
-    label: String,
-    category: Category,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surface,
-        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-        modifier = Modifier.heightIn(min = 44.dp).selectable(selected = selected, onClick = onClick),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CategoryBadge(category.name, category.type, sizeDp = 24, visualKey = category.id)
-            Text(label, modifier = Modifier.padding(start = 6.dp).widthIn(max = 180.dp),
-                style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun SelectedRootChip(category: Category, onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.primaryContainer,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onClick),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            CategoryBadge(category.name, category.type, sizeDp = 32, visualKey = category.id)
-            Column(Modifier.weight(1f).padding(start = 9.dp)) {
-                Text(category.name, style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("点击一级返回", style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回一级分类",
-                modifier = Modifier.size(20.dp))
         }
     }
 }
