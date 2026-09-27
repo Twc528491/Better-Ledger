@@ -7,24 +7,27 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -54,7 +58,14 @@ import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.RecurrenceFrequency
 import com.personal.ledger.domain.model.RecurringCharge
+import com.personal.ledger.ui.common.CategoryBadge
+import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.MoneyText
+import com.personal.ledger.ui.common.cardColor
+import com.personal.ledger.ui.common.insetColor
 import com.personal.ledger.ui.common.rememberHapticDelete
+import com.personal.ledger.ui.theme.LedgerNumerals
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.RecurringChargesViewModel
 import java.time.Instant
@@ -107,26 +118,32 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 16.dp, top = 16.dp, end = 16.dp, bottom = 112.dp,
+                start = LedgerSpacing.md, top = LedgerSpacing.xs, end = LedgerSpacing.md, bottom = 112.dp,
             ),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(LedgerSpacing.sm),
         ) {
             item {
                 Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    shape = MaterialTheme.shapes.large,
+                    color = insetColor(),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Text("只在本地账本生成普通支出记录，不会向商家或银行实际付款。", style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            "开始日期早于现在时会补记已到期扣款；每次最多补 200 笔。后台执行受系统省电和调度影响，打开应用时也会检查补记。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Row(modifier = Modifier.padding(LedgerSpacing.md)) {
+                        Icon(
+                            Icons.Outlined.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
                         )
+                        Spacer(Modifier.width(LedgerSpacing.sm))
+                        Column(verticalArrangement = Arrangement.spacedBy(LedgerSpacing.xxs)) {
+                            Text("只在本地账本生成普通支出记录，不会向商家或银行实际付款。", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "开始日期早于现在时会补记已到期扣款；每次最多补 200 笔。后台执行受系统省电和调度影响，打开应用时也会检查补记。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
@@ -140,13 +157,19 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                 }
             }
             if (state.ledger == null) {
-                item { Text("当前没有可用账本。") }
-            } else if (state.charges.isEmpty()) {
                 item {
                     Text(
-                        "还没有定时扣款。添加后可设置金额、账户、支出分类、开始日期和重复周期。",
+                        "当前没有可用账本。",
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (state.charges.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Outlined.EventRepeat,
+                        title = "还没有定时扣款",
+                        subtitle = "添加后可设置金额、账户、支出分类、开始日期和重复周期。",
                     )
                 }
             } else {
@@ -245,32 +268,49 @@ private fun RecurringChargeCard(
     onDelete: () -> Unit,
 ) {
     Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.large,
+        color = cardColor(),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(
-                    charge.name,
-                    modifier = Modifier.weight(1f).padding(end = 8.dp),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    Money.formatWithCurrency(charge.amount, charge.currency),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Ellipsis,
+        Column(
+            modifier = Modifier.padding(start = LedgerSpacing.md, end = LedgerSpacing.md, top = 14.dp, bottom = LedgerSpacing.xxs),
+            verticalArrangement = Arrangement.spacedBy(LedgerSpacing.xxs),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (category != null) {
+                    CategoryBadge(
+                        name = category.name,
+                        type = category.type,
+                        sizeDp = 36,
+                        visualKey = category.id,
+                    )
+                    Spacer(Modifier.width(LedgerSpacing.sm))
+                }
+                Column(modifier = Modifier.weight(1f).padding(end = LedgerSpacing.xs)) {
+                    Text(
+                        charge.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (charge.isPaused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        "${frequencyLabel(charge.frequency)} · ${account?.name ?: "账户不可用"} · ${category?.name ?: "分类不可用"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                MoneyText(
+                    text = Money.formatWithCurrency(charge.amount, charge.currency),
+                    color = if (charge.isPaused) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 )
             }
-            Text(
-                "${frequencyLabel(charge.frequency)} · ${account?.name ?: "账户不可用"} · ${category?.name ?: "分类不可用"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Spacer(Modifier.height(LedgerSpacing.xxs))
             when {
                 charge.lastError != null -> {
                     Text(
@@ -280,19 +320,26 @@ private fun RecurringChargeCard(
                     )
                     TextButton(onClick = onRetry) { Text("重新检查") }
                 }
-                charge.isPaused -> Text("已暂停", style = MaterialTheme.typography.bodySmall)
+                charge.isPaused -> Text(
+                    "已暂停",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 else -> {
                     val formatter = remember(charge.zoneId) {
                         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(charge.zoneId)
                     }
                     Text(
                         "下次：${formatter.format(Instant.ofEpochMilli(charge.nextDueAt))}（${charge.zoneId.id}）",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = LedgerNumerals.of(MaterialTheme.typography.bodySmall),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-            HorizontalDivider()
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xxs),
+            ) {
                 TextButton(onClick = onEdit) { Text("编辑") }
                 TextButton(onClick = onPauseToggle) {
                     Text(if (charge.isPaused) "恢复" else "暂停")

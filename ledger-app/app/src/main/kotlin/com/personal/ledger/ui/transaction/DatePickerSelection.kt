@@ -22,6 +22,12 @@ internal object DatePickerSelection {
         return date.atTime(time).atZone(zone).toInstant().toEpochMilli()
     }
 
+    private val weekdayLabels = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+    /** 滚轮顶部的完整日期，如“2026年9月27日 周日”。 */
+    fun longLabel(date: LocalDate): String =
+        "${date.year}年${date.monthValue}月${date.dayOfMonth}日 ${weekdayLabels[date.dayOfWeek.value - 1]}"
+
     fun monthLength(year: Int, month: Int): Int = YearMonth.of(year, month).lengthOfMonth()
 
     fun clampDay(day: Int, year: Int, month: Int): Int =

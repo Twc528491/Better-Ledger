@@ -38,7 +38,10 @@ class MerchantRepository(private val database: AppDatabase) {
     suspend fun getCategoryIdsByMerchant(merchantId: String): Set<String> =
         linkDao.getByMerchant(merchantId).map { it.categoryId }.toSet()
 
-    /** 商家允许同名（UI 避免误重复创建）。 */
+    /**
+     * 新建商家。数据模型允许同名，但同账本内已存在未删除的同名商家（忽略大小写与空白）时，
+     * 直接复用该商家并补充分类关联，避免在不同分类下误建出重复商家。
+     */
     suspend fun addMerchant(
         ledgerId: String,
         name: String,
@@ -49,16 +52,18 @@ class MerchantRepository(private val database: AppDatabase) {
         return try {
             val entity = database.withTransaction {
                 val roots = categoryIds.map { activeRoot(it, ledgerId) }.toSet()
-                val created = MerchantEntity(
-                    id = UUID.randomUUID().toString(),
-                    ledgerId = ledgerId,
-                    name = trimmed,
-                    createdAt = TimeUtils.now(),
-                    isArchived = false,
-                )
-                merchantDao.insert(created)
-                roots.forEach { linkDao.insert(MerchantCategoryEntity(created.id, it)) }
-                created
+                val key = nameKey(trimmed)
+                val target = merchantDao.getByLedger(ledgerId)
+                    .firstOrNull { !it.isArchived && nameKey(it.name) == key }
+                    ?: MerchantEntity(
+                        id = UUID.randomUUID().toString(),
+                        ledgerId = ledgerId,
+                        name = trimmed,
+                        createdAt = TimeUtils.now(),
+                        isArchived = false,
+                    ).also { merchantDao.insert(it) }
+                roots.forEach { linkDao.insert(MerchantCategoryEntity(target.id, it)) }
+                target
             }
             Result.success(entity.toDomain())
         } catch (e: Exception) {
@@ -142,4 +147,9 @@ class MerchantRepository(private val database: AppDatabase) {
 
     /** 删除商家采用软归档，避免破坏历史交易中的 merchantId 引用。 */
     suspend fun delete(id: String): Result<Unit> = setArchived(id, archived = true)
+
+    companion object {
+        /** 商家名称比较键：去首尾空白、合并中间空白、忽略大小写。 */
+        fun nameKey(name: String): String = name.trim().replace(Regex("\\s+"), " ").lowercase()
+    }
 }

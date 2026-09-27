@@ -1,4 +1,4 @@
-# Android 记账 App 构建脚本
+﻿# Android 记账 App 构建脚本
 # 用法:
 #   powershell -ExecutionPolicy Bypass -File build.ps1                      # 默认 assembleDebug + 单元测试
 #   powershell -ExecutionPolicy Bypass -File build.ps1 -Task "assembleRelease"

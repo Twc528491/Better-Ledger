@@ -32,6 +32,13 @@ fun rememberHapticConfirm(): () -> Unit {
     return remember { {} }
 }
 
+/** 滚轮刻度：系统 CLOCK_TICK，极轻且遵循系统触感开关，仅用于日期滚轮换值。 */
+@Composable
+fun rememberHapticTick(): () -> Unit {
+    val view = LocalView.current
+    return remember(view) { { view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) } }
+}
+
 /** 账单长按使用：两下短促触感；不支持组合时回落到系统强点击。 */
 @Composable
 fun rememberHapticLongPress(): () -> Unit {

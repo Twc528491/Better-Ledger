@@ -26,10 +26,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +45,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.SyncAlt
+import com.personal.ledger.ui.common.cardColor
+import com.personal.ledger.ui.common.expenseAmountColor
+import com.personal.ledger.ui.common.incomeAmountColor
+import com.personal.ledger.ui.common.transferAmountColor
+import com.personal.ledger.ui.common.signedMoney
+import com.personal.ledger.ui.theme.LedgerNumerals
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -95,18 +106,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable {
-                            hapticLight()
-                            showMonthPicker = true
-                        },
-                    ) {
-                        Text(state.monthLabel, style = MaterialTheme.typography.titleLarge)
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = "选择月份")
-                    }
-                },
+                title = { Text("账单") },
                 actions = {
                     IconButton(onClick = {
                         hapticLight()
@@ -140,7 +140,24 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
             )
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(top = 4.dp)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                MonthSwitcher(
+                    label = state.monthLabel,
+                    onPrevious = {
+                        hapticLight()
+                        vm.setMonth(state.selectedMonth.minusMonths(1))
+                    },
+                    onNext = {
+                        hapticLight()
+                        vm.setMonth(state.selectedMonth.plusMonths(1))
+                    },
+                    onOpenPicker = {
+                        hapticLight()
+                        showMonthPicker = true
+                    },
+                )
+            }
             // 搜索行
             if (searchOpen) {
                 OutlinedTextField(
@@ -185,15 +202,12 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text("支出 ${Money.formatWithCurrency(state.expenseTotal, state.baseCurrency)}", style = MaterialTheme.typography.bodySmall)
-                Text("收入 ${Money.formatWithCurrency(state.incomeTotal, state.baseCurrency)}", style = MaterialTheme.typography.bodySmall)
-            }
+            MonthSummary(
+                expense = state.expenseTotal,
+                income = state.incomeTotal,
+                currency = state.baseCurrency,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            )
 
             if (state.transactions.isEmpty()) {
                 EmptyState(
@@ -217,29 +231,30 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 }
                 val dayLabels = remember(grouped) {
                     grouped.keys.associateWith { date ->
-                        TimeUtils.formatMonthDay(
-                            date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(),
-                        )
+                        dayHeaderLabel(date)
                     }
                 }
-                LazyColumn {
+                LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
                     grouped.forEach { (date, list) ->
                         val dayExpense = dayExpenses[date] ?: 0L
                         item(key = "header-$date", contentType = "day-header") {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
                                     dayLabels[date].orEmpty(),
-                                    style = MaterialTheme.typography.titleSmall,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 if (dayExpense > 0) {
                                     Text(
-                                        "-${Money.formatMinor(dayExpense)}",
-                                        style = MaterialTheme.typography.titleSmall,
+                                        "支出 ${Money.formatMinor(dayExpense)}",
+                                        style = LedgerNumerals.of(MaterialTheme.typography.labelMedium),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                             }
@@ -262,7 +277,6 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                     deleteCandidate = tx
                                 },
                             )
-                            HorizontalDivider()
                         }
                     }
                 }
@@ -271,7 +285,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
     }
 
     if (showMonthPicker) {
-        MonthPickerDialog(
+        MonthPickerSheet(
             current = state.selectedMonth,
             onPick = { ym ->
                 hapticLight()
@@ -442,63 +456,167 @@ private fun typeLabel(t: TransactionType): String = when (t) {
     TransactionType.TRANSFER -> "转账"
 }
 
-/** 月份选择对话框：年箭头 + 12 月网格。 */
+private val weekdayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
+
+private fun dayHeaderLabel(date: java.time.LocalDate): String {
+    val today = java.time.LocalDate.now()
+    val suffix = when (date) {
+        today -> "今天"
+        today.minusDays(1) -> "昨天"
+        else -> weekdayNames[date.dayOfWeek.value - 1]
+    }
+    return "${date.monthValue}月${date.dayOfMonth}日  $suffix"
+}
+
+/** 顶栏月份切换：左右箭头直接切月，点击中间月份打开月份面板。 */
 @Composable
-private fun MonthPickerDialog(
+private fun MonthSwitcher(
+    label: String,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onOpenPicker: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPrevious) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月")
+        }
+        Row(
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClickLabel = "选择月份", onClick = onOpenPicker)
+                .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = LedgerNumerals.of(MaterialTheme.typography.titleLarge))
+            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
+        }
+        IconButton(onClick = onNext) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月")
+        }
+    }
+}
+
+/** 当月汇总：支出 / 收入 / 结余三栏，数字等宽。 */
+@Composable
+private fun MonthSummary(expense: Long, income: Long, currency: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(cardColor(), MaterialTheme.shapes.large)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        SummaryCell("支出", Money.formatWithCurrency(expense, currency), expenseAmountColor(), Modifier.weight(1f))
+        SummaryCell("收入", Money.formatWithCurrency(income, currency), incomeAmountColor(), Modifier.weight(1f))
+        val balance = income - expense
+        SummaryCell(
+            "结余",
+            signedMoney(balance, currency, explicitPlus = false),
+            MaterialTheme.colorScheme.onSurface,
+            Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun SummaryCell(
+    label: String,
+    value: String,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier,
+) {
+    Column(modifier) {
+        Text(label, style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = LedgerNumerals.of(MaterialTheme.typography.titleMedium), color = color,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
+}
+
+/** 月份面板：年份左右切换 + 3×4 大尺寸月份格；当前月描边，已选月实心。 */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MonthPickerSheet(
     current: YearMonth,
     onPick: (YearMonth) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var year by remember { mutableStateOf(current.year) }
-    val hapticLight = rememberHapticLight()
-    AlertDialog(
+    val thisMonth = remember { YearMonth.now() }
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                TextButton(onClick = {
-                    hapticLight()
-                    year--
-                }) { Text("‹") }
-                Text("${year}年", style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = {
-                    hapticLight()
-                    year++
-                }) { Text("›") }
-            }
-        },
-        text = {
-            Column {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { onPick(YearMonth.now()) }) { Text("本月") }
+                IconButton(onClick = { year-- }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一年")
                 }
+                Text(
+                    "${year}年",
+                    style = LedgerNumerals.of(MaterialTheme.typography.titleLarge),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { year++ }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一年")
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 (1..12).chunked(3).forEach { rowMonths ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowMonths.forEach { m ->
                             val ym = YearMonth.of(year, m)
                             val selected = ym == current
-                            FilterChip(
-                                selected = selected,
-                                onClick = { onPick(ym) },
-                                label = { Text("${m}月", fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
-                                modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
-                            )
+                            val isThisMonth = ym == thisMonth
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp)
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceContainer,
+                                    )
+                                    .then(
+                                        if (isThisMonth && !selected) Modifier.border(
+                                            1.5.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium,
+                                        ) else Modifier,
+                                    )
+                                    .clickable(onClickLabel = "${year}年${m}月") { onPick(ym) },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    "${m}月",
+                                    style = LedgerNumerals.of(MaterialTheme.typography.titleSmall),
+                                    fontWeight = if (selected || isThisMonth) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = when {
+                                        selected -> MaterialTheme.colorScheme.onPrimary
+                                        isThisMonth -> MaterialTheme.colorScheme.primary
+                                        else -> MaterialTheme.colorScheme.onSurface
+                                    },
+                                )
+                            }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) { Text("取消") }
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { onPick(thisMonth) },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                ) { Text("回到本月") }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -528,10 +646,10 @@ private fun TransactionItem(
         }
     }
     val amountText = remember(tx.amount, tx.type, currency) {
-        Money.symbolFor(currency) + when (tx.type) {
-            TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-            TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-            TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
+        when (tx.type) {
+            TransactionType.EXPENSE -> signedMoney(-tx.amount, currency)
+            TransactionType.INCOME -> signedMoney(tx.amount, currency)
+            TransactionType.TRANSFER -> signedMoney(tx.amount, currency, explicitPlus = false)
         }
     }
     Row(
@@ -542,7 +660,8 @@ private fun TransactionItem(
                 onLongClick = onLongClick,
                 hapticFeedbackEnabled = false,
             )
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .heightIn(min = 60.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -550,11 +669,12 @@ private fun TransactionItem(
             if (tx.type == TransactionType.TRANSFER) {
                 Box(
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(38.dp)
                         .background(transferContainerColor(), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("🔁", style = MaterialTheme.typography.labelLarge)
+                    Icon(Icons.Filled.SyncAlt, contentDescription = "转账",
+                        tint = transferAmountColor(), modifier = Modifier.size(20.dp))
                 }
             } else {
                 val categoryName = categoryNames[tx.categoryId] ?: "其他"
@@ -565,28 +685,31 @@ private fun TransactionItem(
                     } else {
                         com.personal.ledger.domain.model.CategoryType.INCOME
                     },
-                    sizeDp = 30,
+                    sizeDp = 38,
                     visualKey = tx.categoryId ?: categoryName,
                 )
             }
-            Column(modifier = Modifier.padding(start = 10.dp)) {
+            Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp)) {
                 Text(
                     title,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 Text(
                     "$time · $subtitle$tagText",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
         }
         Text(
             amountText,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold,
+            style = LedgerNumerals.of(MaterialTheme.typography.titleMedium),
+            fontWeight = FontWeight.SemiBold,
             color = amountColor(tx.type),
         )
     }

@@ -4,14 +4,14 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -45,6 +45,8 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.ui.common.CategoryBadge
+import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticLight
@@ -105,8 +107,11 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = LedgerSpacing.md, end = LedgerSpacing.xs, top = LedgerSpacing.xxs, bottom = LedgerSpacing.xxs),
+                horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 FilterChip(
                     selected = state.type == CategoryType.EXPENSE,
@@ -124,65 +129,83 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                     },
                     label = { Text("收入") },
                 )
-            }
-            TextButton(
-                onClick = {
-                    supplementMessage = null
-                    showSupplementDialog = true
-                },
-                modifier = Modifier.padding(start = 8.dp),
-            ) {
-                Text("补充常用分类")
+                Spacer(Modifier.weight(1f))
+                TextButton(
+                    onClick = {
+                        supplementMessage = null
+                        showSupplementDialog = true
+                    },
+                ) {
+                    Text("补充常用分类")
+                }
             }
             supplementMessage?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+                    modifier = Modifier.padding(horizontal = LedgerSpacing.md, vertical = 2.dp),
                 )
             }
 
-            // 平铺展示：一级分类后紧跟其二级分类
-            val display = remember(activeCategories) {
-                buildList {
-                    activeCategories.filter { it.parentId == null }.forEach { root ->
-                        add(root)
-                        activeCategories.filter { it.parentId == root.id }.forEach { add(it) }
-                    }
+            // 分组展示：每个一级分类与其二级分类组成一张卡片
+            val groups = remember(activeCategories) {
+                activeCategories.filter { it.parentId == null }.map { root ->
+                    root to activeCategories.filter { it.parentId == root.id }
                 }
             }
 
-            LazyColumn {
-                items(display, key = { it.id }) { cat ->
-                    val siblings = activeCategories.filter {
-                        it.parentId == cat.parentId
+            LazyColumn(
+                contentPadding = PaddingValues(
+                    start = LedgerSpacing.md,
+                    top = LedgerSpacing.xs,
+                    end = LedgerSpacing.md,
+                    bottom = LedgerSpacing.xl,
+                ),
+            ) {
+                groups.forEachIndexed { groupIndex, (root, children) ->
+                    val members = listOf(root) + children
+                    members.forEachIndexed { memberIndex, cat ->
+                        item(key = cat.id) {
+                            val siblings = activeCategories.filter {
+                                it.parentId == cat.parentId
+                            }
+                            val index = siblings.indexOfFirst { it.id == cat.id }
+                            LedgerGroupItem(
+                                index = memberIndex,
+                                count = members.size,
+                                modifier = if (memberIndex == 0 && groupIndex > 0) {
+                                    Modifier.padding(top = LedgerSpacing.sm)
+                                } else {
+                                    Modifier
+                                },
+                            ) {
+                                CategoryRow(
+                                    category = cat,
+                                    isSub = cat.parentId != null,
+                                    canMoveUp = index > 0,
+                                    canMoveDown = index >= 0 && index < siblings.lastIndex,
+                                    onMoveUp = {
+                                        hapticLight()
+                                        vm.move(cat.id, -1)
+                                    },
+                                    onMoveDown = {
+                                        hapticLight()
+                                        vm.move(cat.id, 1)
+                                    },
+                                    onLongClick = {
+                                        hapticLongPress()
+                                        actionCategory = cat
+                                    },
+                                    onAddChild = if (cat.parentId == null && !cat.isArchived) ({
+                                        hapticNavigation()
+                                        addParentId = cat.id
+                                        showAddDialog = true
+                                    }) else null,
+                                )
+                            }
+                        }
                     }
-                    val index = siblings.indexOfFirst { it.id == cat.id }
-                    CategoryRow(
-                        category = cat,
-                        isSub = cat.parentId != null,
-                        canMoveUp = index > 0,
-                        canMoveDown = index >= 0 && index < siblings.lastIndex,
-                        onMoveUp = {
-                            hapticLight()
-                            vm.move(cat.id, -1)
-                        },
-                        onMoveDown = {
-                            hapticLight()
-                            vm.move(cat.id, 1)
-                        },
-                        onLongClick = {
-                            hapticLongPress()
-                            actionCategory = cat
-                        },
-                        onAddChild = if (cat.parentId == null && !cat.isArchived) ({
-                            hapticNavigation()
-                            addParentId = cat.id
-                            showAddDialog = true
-                        }) else null,
-                    )
-                    HorizontalDivider()
                 }
             }
         }
@@ -375,35 +398,46 @@ private fun CategoryRow(
                 onLongClick = onLongClick,
                 hapticFeedbackEnabled = false,
             )
-            .padding(start = if (isSub) 36.dp else 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            .heightIn(min = if (isSub) 52.dp else 60.dp)
+            .padding(start = if (isSub) 28.dp else LedgerSpacing.md, end = LedgerSpacing.xxs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CategoryBadge(
             name = category.name,
             type = category.type,
             visualKey = category.id,
-            sizeDp = if (isSub) 32 else 38,
+            sizeDp = if (isSub) 32 else 40,
         )
-        Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                category.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isSub) FontWeight.Normal else FontWeight.SemiBold,
-            )
-            Text(
-                if (isSub) "二级分类" else "一级分类",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
+        Text(
+            category.name,
+            modifier = Modifier.weight(1f).padding(start = LedgerSpacing.sm),
+            style = if (isSub) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isSub) FontWeight.Normal else FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        val actionTint = MaterialTheme.colorScheme.onSurfaceVariant
         IconButton(onClick = onMoveUp, enabled = canMoveUp) {
-            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "上移${category.name}")
+            Icon(
+                Icons.Filled.KeyboardArrowUp,
+                contentDescription = "上移${category.name}",
+                tint = if (canMoveUp) actionTint else actionTint.copy(alpha = 0.3f),
+            )
         }
         IconButton(onClick = onMoveDown, enabled = canMoveDown) {
-            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下移${category.name}")
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = "下移${category.name}",
+                tint = if (canMoveDown) actionTint else actionTint.copy(alpha = 0.3f),
+            )
         }
         if (onAddChild != null) {
             IconButton(onClick = onAddChild) {
-                Icon(Icons.Filled.Add, contentDescription = "为${category.name}添加二级分类")
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = "为${category.name}添加二级分类",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }

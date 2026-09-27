@@ -3,6 +3,7 @@ package com.personal.ledger.ui.account
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,19 +12,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,7 +43,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -52,9 +52,19 @@ import com.personal.ledger.domain.calc.BalanceCalculator
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
-import com.personal.ledger.ui.common.AccountVisuals
+import com.personal.ledger.ui.common.AccountBadge
 import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.LedgerCard
+import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.common.LedgerSectionHeader
+import com.personal.ledger.ui.common.MoneyText
 import com.personal.ledger.ui.common.accountTypeLabel
+import com.personal.ledger.ui.common.amountColor
+import com.personal.ledger.ui.common.cardColor
+import com.personal.ledger.ui.common.expenseAmountColor
+import com.personal.ledger.ui.common.signedMoney
+import com.personal.ledger.ui.theme.LedgerNumerals
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
@@ -113,58 +123,99 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
             )
         },
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        val currency = acc?.currency ?: "CNY"
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(
+                start = LedgerSpacing.md,
+                top = LedgerSpacing.xs,
+                end = LedgerSpacing.md,
+                bottom = LedgerSpacing.xl,
+            ),
+        ) {
             item {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("当前余额", style = MaterialTheme.typography.bodyMedium)
+                LedgerCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AccountBadge(type = acc?.type ?: AccountType.OTHER, sizeDp = 40)
+                        Column(modifier = Modifier.padding(start = LedgerSpacing.sm)) {
+                            Text(
+                                "当前余额",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            MoneyText(
+                                text = signedMoney(balance, currency, explicitPlus = false),
+                                color = if (balance < 0) expenseAmountColor() else MaterialTheme.colorScheme.onSurface,
+                                prominent = true,
+                            )
+                        }
+                    }
                     Text(
-                        Money.formatWithCurrency(balance, acc?.currency ?: "CNY"),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "类型：${accountTypeLabel(acc?.type ?: AccountType.OTHER)} · 初始余额：${Money.formatWithCurrency(acc?.initialBalance ?: 0L, acc?.currency ?: "CNY")}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        "类型：${accountTypeLabel(acc?.type ?: AccountType.OTHER)} · 初始余额：${Money.formatWithCurrency(acc?.initialBalance ?: 0L, currency)}",
+                        style = LedgerNumerals.of(MaterialTheme.typography.bodySmall),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                HorizontalDivider()
+            }
+            item {
+                LedgerSectionHeader(
+                    title = "交易记录",
+                    modifier = Modifier.padding(start = LedgerSpacing.xxs, top = LedgerSpacing.lg, bottom = LedgerSpacing.xxs),
+                )
             }
             if (txs.isEmpty()) {
                 item {
-                    EmptyState(
-                        emoji = "🧾",
-                        title = "这个账户还没有交易",
-                        subtitle = "记账或转账后会显示在这里",
-                        modifier = Modifier.padding(16.dp),
-                    )
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = cardColor(),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        EmptyState(
+                            icon = Icons.AutoMirrored.Outlined.ReceiptLong,
+                            title = "这个账户还没有交易",
+                            subtitle = "记账或转账后会显示在这里",
+                        )
+                    }
                 }
             }
-            items(txs, key = { it.id }) { tx ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            hapticNavigation()
-                            navController.navigate(Routes.add(tx.id))
+            val count = txs.size
+            itemsIndexed(txs, key = { _, tx -> tx.id }) { index, tx ->
+                val outgoingTransfer = tx.type == TransactionType.TRANSFER && tx.accountId == accountId
+                LedgerGroupItem(index = index, count = count) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                hapticNavigation()
+                                navController.navigate(Routes.add(tx.id))
+                            }
+                            .heightIn(min = 56.dp)
+                            .padding(horizontal = LedgerSpacing.md, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = LedgerSpacing.sm)) {
+                            Text(
+                                tx.note ?: typeLabelOf(tx.type),
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                TimeUtils.formatMonthDay(tx.transactionTime),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column {
-                        Text(tx.note ?: typeLabelOf(tx.type), style = MaterialTheme.typography.bodyLarge)
-                        Text(TimeUtils.formatMonthDay(tx.transactionTime), style = MaterialTheme.typography.bodySmall)
+                        MoneyText(
+                            text = when (tx.type) {
+                                TransactionType.TRANSFER -> signedMoney(if (outgoingTransfer) -tx.amount else tx.amount, currency)
+                                TransactionType.EXPENSE -> signedMoney(-tx.amount, currency)
+                                TransactionType.INCOME -> signedMoney(tx.amount, currency)
+                            },
+                            color = amountColor(tx.type),
+                        )
                     }
-                    Text(
-                        Money.symbolFor(acc?.currency ?: "CNY") + when (tx.type) {
-                            TransactionType.TRANSFER -> if (tx.accountId == accountId) Money.formatSignedMinor(-tx.amount) else Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                            TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-                            TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                    )
                 }
-                HorizontalDivider()
             }
         }
     }
@@ -238,44 +289,25 @@ private fun EditAccountDialog(
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = initialText, onValueChange = { initialText = it }, label = { Text("初始余额") }, singleLine = true)
                 Spacer(Modifier.height(12.dp))
-                Text("类型", style = MaterialTheme.typography.titleSmall)
-                Spacer(Modifier.height(6.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AccountType.entries.chunked(3).forEach { rowTypes ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            rowTypes.forEach { t ->
-                                Surface(
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = if (type == t) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                                    border = if (type == t) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable {
-                                            hapticLight()
-                                            type = t
-                                        },
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(vertical = 8.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                    ) {
-                                        Text(
-                                            AccountVisuals.emojiFor(t),
-                                            fontSize = MaterialTheme.typography.titleLarge.fontSize,
-                                        )
-                                        Text(
-                                            accountTypeLabel(t),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            maxLines = 1,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                Text(
+                    "类型",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                AccountTypeGrid(
+                    selected = type,
+                    onSelect = { t ->
+                        hapticLight()
+                        type = t
+                    },
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text("初始时间", style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
                         hapticNavigation()
@@ -285,7 +317,11 @@ private fun EditAccountDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Text(if (archived) "已归档" else "归档账户", style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
                         hapticLight()

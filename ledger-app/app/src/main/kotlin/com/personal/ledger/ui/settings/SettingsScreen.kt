@@ -3,24 +3,26 @@ package com.personal.ledger.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,8 +42,12 @@ import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.settings.ThemeMode
 import com.personal.ledger.navigation.Routes
+import com.personal.ledger.ui.common.LedgerGroup
+import com.personal.ledger.ui.common.LedgerIconTile
+import com.personal.ledger.ui.common.LedgerListRow
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.viewmodel.SettingsViewModel
 
 /**
@@ -78,79 +84,70 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(
+                start = LedgerSpacing.md,
+                top = LedgerSpacing.xs,
+                end = LedgerSpacing.md,
+                bottom = LedgerSpacing.xl,
+            ),
+            verticalArrangement = Arrangement.spacedBy(LedgerSpacing.lg),
         ) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    hapticNavigation()
-                                    navController.navigate(Routes.BOOKKEEPING_SETTINGS)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column {
-                                Text("🧾 记账设置", style = MaterialTheme.typography.bodyLarge)
-                                Text("分类、商家、标签、预算与账本", style = MaterialTheme.typography.bodySmall)
-                            }
-                            Text("进入", color = MaterialTheme.colorScheme.primary)
-                        }
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    navController.navigate(Routes.RECURRING_CHARGES)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column {
-                                Text("🗓️ 定时扣款", style = MaterialTheme.typography.bodyLarge)
-                                Text("按周期在本地账本生成支出记录", style = MaterialTheme.typography.bodySmall)
-                            }
-                            Text("进入", color = MaterialTheme.colorScheme.primary)
-                        }
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    hapticNavigation()
-                                    showThemeDialog = true
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("🌓 深色模式", style = MaterialTheme.typography.bodyLarge)
-                            Text(themeLabel(state.themeMode), style = MaterialTheme.typography.bodyMedium)
-                        }
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("🔒 安全锁", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    "生物识别 / 设备凭据；冷启动和长时间离开后验证",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
+                LedgerGroup(title = "记账") {
+                    LedgerListRow(
+                        title = "记账设置",
+                        subtitle = "分类、商家、标签、预算与账本",
+                        leading = { LedgerIconTile(Icons.AutoMirrored.Outlined.ReceiptLong) },
+                        showChevron = true,
+                        onClick = {
+                            hapticNavigation()
+                            navController.navigate(Routes.BOOKKEEPING_SETTINGS)
+                        },
+                    )
+                    LedgerListRow(
+                        title = "定时扣款",
+                        subtitle = "按周期在本地账本生成支出记录",
+                        leading = { LedgerIconTile(Icons.Outlined.EventRepeat) },
+                        showChevron = true,
+                        onClick = {
+                            navController.navigate(Routes.RECURRING_CHARGES)
+                        },
+                    )
+                }
+            }
+
+            item {
+                LedgerGroup(title = "数据") {
+                    LedgerListRow(
+                        title = "数据管理",
+                        subtitle = "导出 / 恢复 / 自动备份",
+                        leading = { LedgerIconTile(Icons.Outlined.Storage) },
+                        showChevron = true,
+                        onClick = {
+                            hapticNavigation()
+                            navController.navigate(Routes.DATA)
+                        },
+                    )
+                }
+            }
+
+            item {
+                LedgerGroup(title = "应用") {
+                    LedgerListRow(
+                        title = "深色模式",
+                        leading = { LedgerIconTile(Icons.Outlined.DarkMode) },
+                        value = themeLabel(state.themeMode),
+                        showChevron = true,
+                        onClick = {
+                            hapticNavigation()
+                            showThemeDialog = true
+                        },
+                    )
+                    LedgerListRow(
+                        title = "安全锁",
+                        subtitle = "生物识别 / 设备凭据；冷启动和长时间离开后验证",
+                        leading = { LedgerIconTile(Icons.Outlined.Lock) },
+                        trailing = {
                             Switch(
                                 checked = state.securityLockEnabled,
                                 onCheckedChange = { enabled ->
@@ -169,47 +166,13 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                                     }
                                 },
                             )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    hapticNavigation()
-                                    navController.navigate(Routes.DATA)
-                                }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("💾 数据管理", style = MaterialTheme.typography.bodyLarge)
-                            Text("导出 / 恢复 / 自动备份", style = MaterialTheme.typography.bodyMedium)
-                        }
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                        ) {
-                            Text("ℹ️ 关于", style = MaterialTheme.typography.bodyLarge)
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                                Text(
-                                    "个人账本 v${com.personal.ledger.BuildConfig.VERSION_NAME}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                            }
-                        }
-                    }
+                        },
+                    )
+                    LedgerListRow(
+                        title = "关于",
+                        leading = { LedgerIconTile(Icons.Outlined.Info) },
+                        value = "个人账本 v${com.personal.ledger.BuildConfig.VERSION_NAME}",
+                    )
                 }
             }
         }

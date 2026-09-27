@@ -1,7 +1,6 @@
 package com.personal.ledger.ui.common
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -53,10 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -66,62 +62,60 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.ui.theme.LocalLedgerDarkTheme
 
 /**
- * UI 视觉语义（配色 / 分类与账户图标），按主题分支：
- * - 浅色模式：使用低饱和浅色容器 + 深色文字，避免所有卡片都退化为白色；
- * - 深色模式：使用同一色相的深色容器 + 亮色文字。
+ * UI 视觉语义（配色 / 分类与账户图标），按主题分支。
+ * 表面保持中性，语义色只落在金额、分类圆标和少量状态容器上。
  * 收入 / 支出 / 负债除颜色外始终配合 + / - 号（UI.md 第 9 节）。
  */
 
-// 浅色容器刻意沿用深色语义色相，但降低饱和度和亮度，保证文字对比度。
-private val LightCardColor = Color(0xFFF0F6EE)
-private val LightHighlightColor = Color(0xFFCBE8CE)
-private val LightExpenseContainer = Color(0xFFFFEDEA)
-private val LightIncomeContainer = Color(0xFFE5F4E7)
-private val LightTransferContainer = Color(0xFFE6F0FC)
-private val LightExpenseAmount = Color(0xFFB3261E)
-private val LightIncomeAmount = Color(0xFF216E2D)
-private val LightTransferAmount = Color(0xFF185A97)
-private val LightWarningAmount = Color(0xFF8A4B08)
+private val LightExpenseContainer = Color(0xFFFCEBE8)
+private val LightIncomeContainer = Color(0xFFE3F2E6)
+private val LightTransferContainer = Color(0xFFE5EDFA)
+private val LightExpenseAmount = Color(0xFFC0392B)
+private val LightIncomeAmount = Color(0xFF1E7B3A)
+private val LightTransferAmount = Color(0xFF2F5FA8)
+private val LightWarningAmount = Color(0xFF9A5B00)
 
-/** 卡片容器色：浅色使用柔和浅绿底，深色使用主题深色容器。 */
-@Composable fun cardColor(): Color =
-    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.surfaceContainerLow else LightCardColor
+/** 卡片容器色：浅色为纯白卡片落在暖灰底上，深色为略亮一级的表面。 */
+@Composable fun cardColor(): Color = MaterialTheme.colorScheme.surfaceContainerLow
 
-/** 主卡片（本月支出 / 净资产）背景色。 */
+/** 卡片内的次级分区 / 输入格底色。 */
+@Composable fun insetColor(): Color = MaterialTheme.colorScheme.surfaceContainer
+
+/** 主卡片（本月支出 / 净资产）背景色：品牌深青绿。 */
 @Composable fun highlightCardColor(): Color =
-    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.primaryContainer else LightHighlightColor
+    if (LocalLedgerDarkTheme.current) Color(0xFF1D4A41) else MaterialTheme.colorScheme.primary
 
 /** 主卡片内容色。 */
 @Composable fun highlightCardContentColor(): Color =
-    if (LocalLedgerDarkTheme.current) MaterialTheme.colorScheme.onPrimaryContainer else Color(0xFF103B16)
+    if (LocalLedgerDarkTheme.current) Color(0xFFE3F5EF) else Color.White
 
 /** 支出语义色。 */
 @Composable fun expenseAmountColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFFFF8A80) else LightExpenseAmount
+    if (LocalLedgerDarkTheme.current) Color(0xFFFF9A8E) else LightExpenseAmount
 
 /** 支出容器色。 */
 @Composable fun expenseContainerColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF3A2020) else LightExpenseContainer
+    if (LocalLedgerDarkTheme.current) Color(0xFF3A2320) else LightExpenseContainer
 
 /** 收入语义色。 */
 @Composable fun incomeAmountColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF81C784) else LightIncomeAmount
+    if (LocalLedgerDarkTheme.current) Color(0xFF86D39A) else LightIncomeAmount
 
 /** 收入容器色。 */
 @Composable fun incomeContainerColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF1B3520) else LightIncomeContainer
+    if (LocalLedgerDarkTheme.current) Color(0xFF1C3323) else LightIncomeContainer
 
 /** 转账语义色。 */
 @Composable fun transferAmountColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF90CAF9) else LightTransferAmount
+    if (LocalLedgerDarkTheme.current) Color(0xFF9DBDF5) else LightTransferAmount
 
 /** 转账容器色。 */
 @Composable fun transferContainerColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFF1A2B3D) else LightTransferContainer
+    if (LocalLedgerDarkTheme.current) Color(0xFF1D2A3D) else LightTransferContainer
 
 /** 警示（预算 80~100%）。 */
 @Composable fun warningColor(): Color =
-    if (LocalLedgerDarkTheme.current) Color(0xFFFFB74D) else LightWarningAmount
+    if (LocalLedgerDarkTheme.current) Color(0xFFFFC069) else LightWarningAmount
 
 /** 金额颜色：浅色和深色均按支出红 / 收入绿 / 转账蓝区分。 */
 @Composable
@@ -313,31 +307,49 @@ object CategoryVisuals {
     }
 }
 
-/** 按稳定标识取色；传分类 ID 后，重命名不会改变颜色。 */
+/**
+ * 分类色相表：挑选彼此区分明显、且在浅 / 深色下都不发灰发脏的色相。
+ * 按稳定标识（分类 ID）哈希取色，重命名不会改变颜色。
+ */
+private val CategoryHues = floatArrayOf(4f, 22f, 38f, 88f, 142f, 168f, 190f, 208f, 226f, 256f, 284f, 318f, 340f)
+
+private fun categoryHue(visualKey: String): Float =
+    CategoryHues[Math.floorMod(visualKey.hashCode(), CategoryHues.size)]
+
+/** 分类圆标底色：同色相的浅色调（深色模式为低亮度色调）。 */
 @Composable
 fun categoryColor(visualKey: String): Color {
-    val hue = Math.floorMod(visualKey.hashCode(), 360)
+    val hue = categoryHue(visualKey)
     return if (LocalLedgerDarkTheme.current) {
-        Color.hsv(hue.toFloat(), 0.30f, 0.38f)
+        Color.hsv(hue, 0.34f, 0.30f)
     } else {
-        Color.hsv(hue.toFloat(), 0.30f, 0.94f)
+        Color.hsv(hue, 0.12f, 0.97f)
+    }
+}
+
+/** 分类圆标图标色：与底色同色相、更高饱和，保证识别度。 */
+@Composable
+fun categoryIconColor(visualKey: String): Color {
+    val hue = categoryHue(visualKey)
+    return if (LocalLedgerDarkTheme.current) {
+        Color.hsv(hue, 0.40f, 0.95f)
+    } else {
+        Color.hsv(hue, 0.70f, 0.60f)
     }
 }
 
 /** 分类列表的低强度底色；颜色与分类圆标同色相，便于快速扫读。 */
 @Composable
-fun categoryContainerColor(visualKey: String): Color {
-    return categoryColor(visualKey).copy(alpha = if (LocalLedgerDarkTheme.current) 0.72f else 0.26f)
-}
+fun categoryContainerColor(visualKey: String): Color = categoryColor(visualKey)
 
 /** 图表使用更高对比度的分类色，和列表中的分类色保持同一色相。 */
 @Composable
 fun categoryChartColor(visualKey: String): Color {
-    val hue = Math.floorMod(visualKey.hashCode(), 360)
+    val hue = categoryHue(visualKey)
     return if (LocalLedgerDarkTheme.current) {
-        Color.hsv(hue.toFloat(), 0.62f, 0.88f)
+        Color.hsv(hue, 0.55f, 0.88f)
     } else {
-        Color.hsv(hue.toFloat(), 0.68f, 0.70f)
+        Color.hsv(hue, 0.62f, 0.74f)
     }
 }
 
@@ -386,15 +398,15 @@ fun accountColor(type: AccountType): Color {
         }
     }
     return when (type) {
-        AccountType.CASH -> Color(0xFF81C784)
-        AccountType.BANK -> Color(0xFF90CAF9)
-        AccountType.ALIPAY -> Color(0xFF6FA8FF)
-        AccountType.WECHAT -> Color(0xFF66E09A)
-        AccountType.CREDIT_CARD -> Color(0xFFCE93D8)
-        AccountType.SAVINGS -> Color(0xFFFFB74D)
-        AccountType.INVESTMENT -> Color(0xFF4DB6AC)
-        AccountType.LOAN -> Color(0xFFFF8A80)
-        AccountType.OTHER -> Color(0xFFBDBDBD)
+        AccountType.CASH -> Color(0xFF24402B)
+        AccountType.BANK -> Color(0xFF1F3550)
+        AccountType.ALIPAY -> Color(0xFF1E3358)
+        AccountType.WECHAT -> Color(0xFF1D3F2E)
+        AccountType.CREDIT_CARD -> Color(0xFF3B2842)
+        AccountType.SAVINGS -> Color(0xFF45341A)
+        AccountType.INVESTMENT -> Color(0xFF173C38)
+        AccountType.LOAN -> Color(0xFF45241F)
+        AccountType.OTHER -> Color(0xFF2E3230)
     }
 }
 
@@ -416,7 +428,7 @@ fun EmojiBadge(
     }
 }
 
-/** 分类圆标：明确的 Material 轮廓、同色系渐变和轻微边缘层次。 */
+/** 分类圆标：浅色调圆底 + 同色相 Material 图标，扁平、无阴影。 */
 @Composable
 fun CategoryBadge(
     name: String,
@@ -425,23 +437,17 @@ fun CategoryBadge(
     sizeDp: Int = 36,
     visualKey: String = name,
 ) {
-    val base = categoryColor(visualKey)
-    val dark = LocalLedgerDarkTheme.current
-    val top = lerp(base, Color.White, if (dark) 0.14f else 0.30f)
-    val bottom = lerp(base, Color.Black, if (dark) 0.09f else 0.06f)
     Box(
         modifier = modifier
             .size(sizeDp.dp)
-            .shadow(if (sizeDp >= 32) 2.dp else 0.dp, CircleShape)
-            .background(Brush.verticalGradient(listOf(top, bottom)), CircleShape)
-            .border(1.dp, (if (dark) Color.White else Color.Black).copy(alpha = 0.10f), CircleShape),
+            .background(categoryColor(visualKey), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = CategoryVisuals.iconFor(name, type),
             contentDescription = name + "分类图标",
-            tint = if (dark) Color.White else Color(0xFF243229),
-            modifier = Modifier.size((sizeDp * 0.67f).coerceAtLeast(18f).coerceAtMost(sizeDp - 4f).dp),
+            tint = categoryIconColor(visualKey),
+            modifier = Modifier.size((sizeDp * 0.56f).coerceAtLeast(16f).dp),
         )
     }
 }

@@ -1,24 +1,24 @@
 package com.personal.ledger.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,8 +26,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -37,6 +38,7 @@ import androidx.navigation.compose.rememberNavController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.ui.account.AccountDetailScreen
 import com.personal.ledger.ui.account.AccountsScreen
+import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticStrong
 import com.personal.ledger.ui.home.HomeScreen
@@ -127,39 +129,51 @@ fun LedgerApp(container: AppContainer) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (isTabRoute) {
-                NavigationBar {
-                    leftTabs.forEach { tab ->
-                        TabItemView(navController, tab, currentRoute, hapticNavigation)
-                    }
-                    // 中间重点按钮：记一笔
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = {
-                            hapticStrong()
-                            navController.navigate(Routes.add())
-                        },
-                        icon = {
-                            Box(
-                                modifier = Modifier
-                                    .offset(y = (-2).dp)
-                                    .size(58.dp)
-                                    .shadow(3.dp, CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary, CircleShape)
-                                    .border(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.24f), CircleShape),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    Icons.Filled.Add,
-                                    contentDescription = "记一笔",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(34.dp),
+                Column {
+                    // 白色导航栏与灰底内容之间用一条发丝线分隔，不用阴影。
+                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    NavigationBar(
+                        containerColor = cardColor(),
+                        tonalElevation = 0.dp,
+                    ) {
+                        leftTabs.forEach { tab ->
+                            TabItemView(navController, tab, currentRoute, hapticNavigation)
+                        }
+                        // 中间重点按钮：记一笔（实心品牌色圆角块，无阴影 / 描边；整个导航项为触控区域）
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = {
+                                hapticStrong()
+                                navController.navigate(Routes.add())
+                            },
+                            icon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 56.dp, height = 40.dp)
+                                        .background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Add,
+                                        contentDescription = "记一笔",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(28.dp),
+                                    )
+                                }
+                            },
+                            label = {
+                                Text(
+                                    "记一笔",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
                                 )
-                            }
-                        },
-                        label = { Text("记一笔", style = MaterialTheme.typography.labelLarge) },
-                    )
-                    rightTabs.forEach { tab ->
-                        TabItemView(navController, tab, currentRoute, hapticNavigation)
+                            },
+                            colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
+                        )
+                        rightTabs.forEach { tab ->
+                            TabItemView(navController, tab, currentRoute, hapticNavigation)
+                        }
                     }
                 }
             }
@@ -210,5 +224,12 @@ private fun androidx.compose.foundation.layout.RowScope.TabItemView(
         },
         icon = { Icon(tab.icon, contentDescription = tab.label) },
         label = { Text(tab.label) },
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = MaterialTheme.colorScheme.primary,
+            selectedTextColor = MaterialTheme.colorScheme.primary,
+            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
     )
 }

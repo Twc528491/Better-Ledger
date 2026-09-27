@@ -259,9 +259,11 @@ class AddTransactionViewModel(
                     val current = _uiState.value
                     if (current.ledgerId == ledgerId) {
                         val sameScope = current.type == start.type && current.categoryId == start.categoryId
+                        // 同名商家会被复用，追加前按 ID 去重，避免列表出现重复项。
                         _uiState.value = current.copy(
-                            merchants = current.merchants + m,
-                            merchantOptions = if (sameScope) current.merchantOptions + m else current.merchantOptions,
+                            merchants = (current.merchants + m).distinctBy { it.id },
+                            merchantOptions = if (sameScope) (current.merchantOptions + m).distinctBy { it.id }
+                                else current.merchantOptions,
                             merchantId = if (sameScope) m.id else current.merchantId,
                         )
                     }

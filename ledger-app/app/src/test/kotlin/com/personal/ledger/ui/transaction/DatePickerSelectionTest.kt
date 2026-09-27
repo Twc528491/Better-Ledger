@@ -31,4 +31,9 @@ class DatePickerSelectionTest {
             java.time.Instant.ofEpochMilli(DatePickerSelection.withPickedDate(old, selected, zone))
                 .atZone(zone).toLocalDateTime())
     }
+
+    @Test fun `long label shows chinese date and weekday`() {
+        assertEquals("2026年9月27日 周日", DatePickerSelection.longLabel(LocalDate.of(2026, 9, 27)))
+        assertEquals("2024年2月29日 周四", DatePickerSelection.longLabel(LocalDate.of(2024, 2, 29)))
+    }
 }

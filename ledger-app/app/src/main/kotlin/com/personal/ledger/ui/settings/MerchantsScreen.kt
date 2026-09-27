@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,13 +14,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +36,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +44,11 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Merchant
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
+import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.common.LedgerIconTile
+import com.personal.ledger.ui.common.LedgerListRow
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticLongPress
@@ -116,8 +122,8 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = LedgerSpacing.md, vertical = LedgerSpacing.xxs),
+                horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xs),
             ) {
                 FilterChip(selected = selectedFilter == null, onClick = { selectedFilter = null },
                     label = { Text("全部") })
@@ -130,33 +136,52 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
             if (visibleMerchants.isEmpty()) {
-                Text(
-                    when (selectedFilter) {
+                EmptyState(
+                    icon = Icons.Outlined.Storefront,
+                    title = when (selectedFilter) {
                         null -> "暂无商家，可点击右上角新建"
                         "unlinked" -> "暂无未关联商家"
                         else -> "该分类暂无商家，可新建或长按已有商家分配类别"
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(visibleMerchants, key = { it.id }) { merchant ->
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = LedgerSpacing.md,
+                    top = LedgerSpacing.xs,
+                    end = LedgerSpacing.md,
+                    bottom = LedgerSpacing.xl,
+                ),
+            ) {
+                if (visibleMerchants.isNotEmpty()) {
+                    item(key = "merchant_hint") {
+                        Text(
+                            "长按商家可分配分类、重命名或删除",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = LedgerSpacing.xxs, bottom = LedgerSpacing.xs),
+                        )
+                    }
+                }
+                val count = visibleMerchants.size
+                itemsIndexed(visibleMerchants, key = { _, merchant -> merchant.id }) { index, merchant ->
                     val labels = linksByMerchant[merchant.id].orEmpty().mapNotNull { id ->
                         categories.firstOrNull { it.id == id }?.let {
                             (if (it.type == CategoryType.EXPENSE) "支出·" else "收入·") +
                                 it.name + (if (it.isArchived) "（已停用）" else "")
                         }
                     }
-                    MerchantRow(
-                        merchant = merchant,
-                        subtitle = labels.joinToString("、").ifEmpty { "未关联分类" },
-                        onLongClick = {
-                            hapticLongPress()
-                            actionMerchant = merchant
-                        },
-                    )
-                    HorizontalDivider()
+                    LedgerGroupItem(index = index, count = count) {
+                        MerchantRow(
+                            merchant = merchant,
+                            subtitle = labels.joinToString("、").ifEmpty { "未关联分类" },
+                            onLongClick = {
+                                hapticLongPress()
+                                actionMerchant = merchant
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -360,24 +385,16 @@ private fun MerchantRow(
     subtitle: String,
     onLongClick: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = {},
-                onLongClick = onLongClick,
-                hapticFeedbackEnabled = false,
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(merchant.name, style = MaterialTheme.typography.bodyLarge)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-        }
-        Text("长按操作", style = MaterialTheme.typography.bodySmall)
-    }
+    LedgerListRow(
+        title = merchant.name,
+        subtitle = subtitle,
+        leading = { LedgerIconTile(Icons.Outlined.Storefront) },
+        modifier = Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = onLongClick,
+            hapticFeedbackEnabled = false,
+        ),
+    )
 }
 
 @Composable

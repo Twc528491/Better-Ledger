@@ -1,6 +1,7 @@
 package com.personal.ledger.ui.transaction
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,7 +17,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -96,7 +96,7 @@ internal fun EntryPickerSheet(
             val maxListHeight = (maxHeight * 0.55f).coerceAtMost(320.dp)
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)
-                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 16.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
             ) {
                 Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 subtitle?.let {
@@ -123,20 +123,25 @@ internal fun EntryPickerSheet(
                     Spacer(Modifier.height(8.dp))
                 }
                 if (clearLabel != null && onClear != null) {
+                    val noneSelected = visibleOptions.none { it.selected }
                     Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (visibleOptions.none { it.selected }) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerLow,
+                        shape = MaterialTheme.shapes.medium,
+                        color = if (noneSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainer,
                         modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
-                            .clickable(onClick = onClear),
+                            .selectable(selected = noneSelected, role = Role.RadioButton, onClick = onClear),
                     ) {
                         Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("○", fontSize = 22.sp, modifier = Modifier.size(38.dp))
-                            Text(clearLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                            RadioButton(selected = visibleOptions.none { it.selected }, onClick = null)
+                            Box(
+                                Modifier.size(36.dp).border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
+                            )
+                            Text(clearLabel, modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            RadioButton(selected = noneSelected, onClick = null)
                         }
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
                 Box(Modifier.fillMaxWidth().heightIn(max = maxListHeight)) {
                     when {
@@ -229,9 +234,9 @@ internal fun EntryPickerSheet(
 @Composable
 private fun EntryChoiceRow(option: EntryPickerOption, multiSelect: Boolean, onClick: () -> Unit) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = MaterialTheme.shapes.medium,
         color = if (option.selected) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerLow,
+            else MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)
             .selectable(
                 selected = option.selected,
@@ -240,18 +245,19 @@ private fun EntryChoiceRow(option: EntryPickerOption, multiSelect: Boolean, onCl
             ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                modifier = Modifier.size(38.dp),
+            Box(
+                Modifier.size(36.dp).background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(contentAlignment = Alignment.Center) { Text(option.emoji, fontSize = 19.sp) }
+                Text(option.emoji, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary)
             }
-            Column(Modifier.weight(1f).padding(start = 11.dp, end = 8.dp)) {
+            Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
                 Text(option.title, style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (option.selected) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 option.detail?.let {
                     Text(it, style = MaterialTheme.typography.labelSmall,
@@ -288,7 +294,7 @@ internal fun NoteEditorSheet(
             val maxSheetHeight = maxHeight * 0.75f
             Column(
                 modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)
-                    .padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 16.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
             ) {
                 Text("备注", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text("为这笔账单添加说明", style = MaterialTheme.typography.bodyMedium,

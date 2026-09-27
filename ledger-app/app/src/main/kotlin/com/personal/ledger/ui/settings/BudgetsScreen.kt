@@ -1,16 +1,17 @@
 package com.personal.ledger.ui.settings
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -18,12 +19,12 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,6 +41,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Budget
+import com.personal.ledger.domain.model.CategoryType
+import com.personal.ledger.ui.common.CategoryBadge
+import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.common.LedgerListRow
+import com.personal.ledger.ui.common.LedgerSectionHeader
+import com.personal.ledger.ui.common.MoneyText
+import com.personal.ledger.ui.common.cardColor
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticLight
@@ -99,56 +108,103 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             )
         },
     ) { padding ->
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
+        val expenseCategories = categories.filter { it.type == CategoryType.EXPENSE }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(
+                start = LedgerSpacing.md,
+                top = LedgerSpacing.xs,
+                end = LedgerSpacing.md,
+                bottom = LedgerSpacing.xl,
+            ),
+        ) {
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            hapticNavigation()
-                            editingTotal = true
-                        }
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                val total = state.budgets.firstOrNull { it.categoryId == null }
+                Surface(
+                    onClick = {
+                        hapticNavigation()
+                        editingTotal = true
+                    },
+                    shape = MaterialTheme.shapes.large,
+                    color = cardColor(),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("月总预算", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        state.budgets.firstOrNull { it.categoryId == null }
-                            ?.let { Money.formatWithSymbol(it.amount) } ?: "未设置",
-                        style = MaterialTheme.typography.titleMedium,
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = LedgerSpacing.md, vertical = LedgerSpacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "月总预算",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (total != null) {
+                                MoneyText(text = Money.formatWithSymbol(total.amount), prominent = true)
+                            } else {
+                                Text(
+                                    "未设置",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                        )
+                    }
                 }
-                HorizontalDivider()
             }
-            items(
-                categories.filter { it.type == com.personal.ledger.domain.model.CategoryType.EXPENSE },
-                key = { it.id },
-            ) { cat ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
+            item {
+                LedgerSectionHeader(
+                    title = "分类预算",
+                    modifier = Modifier.padding(start = LedgerSpacing.xxs, top = LedgerSpacing.lg, bottom = LedgerSpacing.xxs),
+                )
+            }
+            val count = expenseCategories.size
+            itemsIndexed(expenseCategories, key = { _, cat -> cat.id }) { index, cat ->
+                val budget = state.budgets.firstOrNull { it.categoryId == cat.id }
+                LedgerGroupItem(index = index, count = count) {
+                    LedgerListRow(
+                        title = cat.name,
+                        leading = {
+                            CategoryBadge(
+                                name = cat.name,
+                                type = cat.type,
+                                sizeDp = 36,
+                                visualKey = cat.id,
+                            )
+                        },
+                        trailing = {
+                            if (budget != null) {
+                                MoneyText(text = Money.formatWithSymbol(budget.amount))
+                            } else {
+                                Text(
+                                    "未设置",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        },
+                        onClick = {
                             hapticNavigation()
                             editingCategoryId = cat.id
-                        }
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(cat.name, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        state.budgets.firstOrNull { it.categoryId == cat.id }
-                            ?.let { Money.formatWithSymbol(it.amount) } ?: "未设置",
-                        style = MaterialTheme.typography.titleMedium,
+                        },
                     )
                 }
-                HorizontalDivider()
             }
             item {
-                TextButton(onClick = {
-                    hapticNavigation()
-                    showCategoryPicker = true
-                }) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
+                TextButton(
+                    onClick = {
+                        hapticNavigation()
+                        showCategoryPicker = true
+                    },
+                    modifier = Modifier.padding(top = LedgerSpacing.xs),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(LedgerSpacing.xs))
                     Text("为分类设置预算")
                 }
             }

@@ -3,28 +3,26 @@ package com.personal.ledger.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Sell
+import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -35,14 +33,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.navigation.Routes
+import com.personal.ledger.ui.common.LedgerGroup
+import com.personal.ledger.ui.common.LedgerIconTile
+import com.personal.ledger.ui.common.LedgerListRow
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
@@ -87,54 +88,46 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(
+                start = LedgerSpacing.md,
+                top = LedgerSpacing.xs,
+                end = LedgerSpacing.md,
+                bottom = LedgerSpacing.xl,
+            ),
+            verticalArrangement = Arrangement.spacedBy(LedgerSpacing.lg),
         ) {
             item {
-                Text("记账项", style = MaterialTheme.typography.titleSmall)
-            }
-            item {
-                SettingsCard(emoji = "🏷️", title = "分类管理", subtitle = "收入 / 支出分类，最多两级", onClick = {
-                    hapticNavigation()
-                    navController.navigate(Routes.CATEGORIES)
-                })
-            }
-            item {
-                SettingsCard(emoji = "🏪", title = "商家管理", subtitle = "常去商家，记账快速选择", onClick = {
-                    hapticNavigation()
-                    navController.navigate(Routes.MERCHANTS)
-                })
-            }
-            item {
-                SettingsCard(emoji = "#️⃣", title = "标签管理", subtitle = "自定义标签，一笔可多个", onClick = {
-                    hapticNavigation()
-                    navController.navigate(Routes.TAGS)
-                })
-            }
-            item {
-                SettingsCard(emoji = "🎯", title = "预算设置", subtitle = "月总预算与分类预算", onClick = {
-                    hapticNavigation()
-                    navController.navigate(Routes.BUDGETS)
-                })
+                LedgerGroup(title = "记账项") {
+                    SettingsRow(Icons.Outlined.Category, "分类管理", "收入 / 支出分类，最多两级") {
+                        hapticNavigation()
+                        navController.navigate(Routes.CATEGORIES)
+                    }
+                    SettingsRow(Icons.Outlined.Storefront, "商家管理", "常去商家，记账快速选择") {
+                        hapticNavigation()
+                        navController.navigate(Routes.MERCHANTS)
+                    }
+                    SettingsRow(Icons.Outlined.Sell, "标签管理", "自定义标签，一笔可多个") {
+                        hapticNavigation()
+                        navController.navigate(Routes.TAGS)
+                    }
+                    SettingsRow(Icons.Outlined.Savings, "预算设置", "月总预算与分类预算") {
+                        hapticNavigation()
+                        navController.navigate(Routes.BUDGETS)
+                    }
+                }
             }
 
             item {
-                Text(
-                    "账本",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(top = 12.dp),
-                )
-            }
-            item {
-                SettingsCard(
-                    emoji = "📚",
-                    title = "账本管理",
-                    subtitle = "当前：${state.currentLedgerName}",
-                    onClick = {
+                LedgerGroup(title = "账本") {
+                    SettingsRow(
+                        icon = Icons.AutoMirrored.Outlined.MenuBook,
+                        title = "账本管理",
+                        subtitle = "当前：${state.currentLedgerName}",
+                    ) {
                         hapticNavigation()
                         showLedgerDialog = true
-                    },
-                )
+                    }
+                }
             }
         }
     }
@@ -233,42 +226,19 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     }
 }
 
-/** 带 emoji 图标与箭头的设置入口卡片。 */
+/** 设置入口行：浅色图标方块 + 标题 / 说明 + 箭头。 */
 @Composable
-private fun SettingsCard(
-    emoji: String,
+private fun SettingsRow(
+    icon: ImageVector,
     title: String,
     subtitle: String = "",
     onClick: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(emoji, fontSize = 26.sp)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 14.dp),
-            ) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                if (subtitle.isNotEmpty()) {
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
-            )
-        }
-    }
+    LedgerListRow(
+        title = title,
+        subtitle = subtitle,
+        leading = { LedgerIconTile(icon) },
+        showChevron = true,
+        onClick = onClick,
+    )
 }

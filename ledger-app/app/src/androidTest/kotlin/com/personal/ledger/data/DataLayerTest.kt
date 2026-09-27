@@ -333,12 +333,14 @@ class DataLayerTest {
     }
 
     @Test
-    fun `标签唯一而商家允许同名`() = runTest {
+    fun `标签唯一而同名商家复用已有记录`() = runTest {
         val ledgerId = seededLedgerId()
         assertTrue(tagRepo.addTag(ledgerId, "日常").isSuccess)
         assertTrue(tagRepo.addTag(ledgerId, "日常").isFailure)
-        assertTrue(merchantRepo.addMerchant(ledgerId, "永辉").isSuccess)
-        assertTrue(merchantRepo.addMerchant(ledgerId, "永辉").isSuccess)
+        val first = merchantRepo.addMerchant(ledgerId, "永辉").getOrThrow()
+        val second = merchantRepo.addMerchant(ledgerId, " 永辉 ").getOrThrow()
+        assertEquals(first.id, second.id)
+        assertEquals(1, merchantRepo.getByLedger(ledgerId).count { it.name == "永辉" })
         // 交易带标签
         val cashId = db.accountDao().getAll().first().id
         val foodId = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.EXPENSE).first().id

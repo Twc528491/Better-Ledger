@@ -3,21 +3,22 @@ package com.personal.ledger.ui.settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.DataObject
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.SettingsBackupRestore
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.TableChart
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,16 +33,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.backup.BackupConstants
 import com.personal.ledger.data.backup.BackupRepository
 import com.personal.ledger.data.backup.BackupScheduler
+import com.personal.ledger.ui.common.LedgerGroup
+import com.personal.ledger.ui.common.LedgerIconTile
+import com.personal.ledger.ui.common.LedgerListRow
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
@@ -155,73 +160,80 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = LedgerSpacing.md,
+                    top = LedgerSpacing.xs,
+                    end = LedgerSpacing.md,
+                    bottom = LedgerSpacing.xl,
+                ),
+            verticalArrangement = Arrangement.spacedBy(LedgerSpacing.lg),
         ) {
-            SectionTitle("导出")
-            ActionButton("导出 CSV（Excel 可直接打开）") {
-                hapticNavigation()
-                csvLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.csv")
-            }
-            ActionButton("导出 JSON（完整备份）") {
-                hapticNavigation()
-                jsonLauncher.launch("ledger-backup-${TimeUtils.currentMonthKey()}.json")
-            }
-            ActionButton("导出 SQLite（数据库文件）") {
-                hapticNavigation()
-                sqliteLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.db")
-            }
-            HorizontalDivider()
-
-            SectionTitle("恢复")
-            ActionButton("从备份恢复（整库覆盖）") {
-                hapticNavigation()
-                restoreLauncher.launch(arrayOf(BackupConstants.MIME_JSON, BackupConstants.MIME_SQLITE, "*/*"))
-            }
-            Text(
-                "恢复为整库覆盖，不做合并；恢复前会自动备份当前数据。",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            HorizontalDivider()
-
-            SectionTitle("自动备份")
-            ActionButton(if (backupDirUri == null) "选择备份目录" else "更改备份目录") {
-                hapticNavigation()
-                treeLauncher.launch(null)
-            }
-            Text(
-                "当前目录：${backupDirUri ?: "未设置"}",
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("自动备份", style = MaterialTheme.typography.bodyLarge)
-                    Text("每日一次；保留 7 个每日 + 4 个每周 + 12 个每月", style = MaterialTheme.typography.bodySmall)
+            LedgerGroup(title = "导出") {
+                ActionRow(Icons.Outlined.TableChart, "导出 CSV", "Excel 可直接打开") {
+                    hapticNavigation()
+                    csvLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.csv")
                 }
-                Switch(
-                    checked = autoBackupEnabled,
-                    onCheckedChange = { enabled ->
-                        hapticLight()
-                        scope.launch {
-                            container.settings.setAutoBackupEnabled(enabled)
-                            if (enabled) {
-                                if (backupDirUri != null) {
-                                    BackupScheduler.enable(context)
-                                } else {
-                                    hapticReject()
-                                    toast("请先选择备份目录")
-                                    container.settings.setAutoBackupEnabled(false)
+                ActionRow(Icons.Outlined.DataObject, "导出 JSON", "完整备份") {
+                    hapticNavigation()
+                    jsonLauncher.launch("ledger-backup-${TimeUtils.currentMonthKey()}.json")
+                }
+                ActionRow(Icons.Outlined.Storage, "导出 SQLite", "数据库文件") {
+                    hapticNavigation()
+                    sqliteLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.db")
+                }
+            }
+
+            Column {
+                LedgerGroup(title = "恢复") {
+                    ActionRow(
+                        icon = Icons.Outlined.SettingsBackupRestore,
+                        title = "从备份恢复",
+                        subtitle = "整库覆盖",
+                        tint = MaterialTheme.colorScheme.error,
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                    ) {
+                        hapticNavigation()
+                        restoreLauncher.launch(arrayOf(BackupConstants.MIME_JSON, BackupConstants.MIME_SQLITE, "*/*"))
+                    }
+                }
+                GroupFootnote("恢复为整库覆盖，不做合并；恢复前会自动备份当前数据。")
+            }
+
+            LedgerGroup(title = "自动备份") {
+                ActionRow(
+                    icon = Icons.Outlined.FolderOpen,
+                    title = if (backupDirUri == null) "选择备份目录" else "更改备份目录",
+                    subtitle = "当前目录：${backupDirUri ?: "未设置"}",
+                ) {
+                    hapticNavigation()
+                    treeLauncher.launch(null)
+                }
+                LedgerListRow(
+                    title = "自动备份",
+                    subtitle = "每日一次；保留 7 个每日 + 4 个每周 + 12 个每月",
+                    leading = { LedgerIconTile(Icons.Outlined.Schedule) },
+                    trailing = {
+                        Switch(
+                            checked = autoBackupEnabled,
+                            onCheckedChange = { enabled ->
+                                hapticLight()
+                                scope.launch {
+                                    container.settings.setAutoBackupEnabled(enabled)
+                                    if (enabled) {
+                                        if (backupDirUri != null) {
+                                            BackupScheduler.enable(context)
+                                        } else {
+                                            hapticReject()
+                                            toast("请先选择备份目录")
+                                            container.settings.setAutoBackupEnabled(false)
+                                        }
+                                    } else {
+                                        BackupScheduler.disable(context)
+                                    }
                                 }
-                            } else {
-                                BackupScheduler.disable(context)
-                            }
-                        }
+                            },
+                        )
                     },
                 )
             }
@@ -302,23 +314,30 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+private fun GroupFootnote(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleSmall,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = LedgerSpacing.xxs, vertical = LedgerSpacing.xs),
     )
 }
 
+/** 数据操作行：图标方块 + 标题 / 说明 + 箭头（替代整宽实心按钮）。 */
 @Composable
-private fun ActionButton(text: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-            Text(text)
-        }
-    }
+private fun ActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    containerColor: Color = MaterialTheme.colorScheme.secondaryContainer,
+    onClick: () -> Unit,
+) {
+    LedgerListRow(
+        title = title,
+        subtitle = subtitle,
+        leading = { LedgerIconTile(icon, tint = tint, containerColor = containerColor) },
+        showChevron = true,
+        onClick = onClick,
+    )
 }
