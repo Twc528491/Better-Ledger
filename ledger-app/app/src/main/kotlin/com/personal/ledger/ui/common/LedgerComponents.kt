@@ -1,5 +1,7 @@
 package com.personal.ledger.ui.common
 
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -157,12 +159,22 @@ fun LedgerHeroCard(
 @Composable
 fun heroSecondaryColor(): Color = LocalContentColor.current.copy(alpha = 0.72f)
 
-/** 主卡片次要数字的语义色调：收入、结余（正 / 负）、资产、负债。 */
+/** 主卡片次要数字的语义色调：收入 / 资产、结余、负结余 / 负债。 */
 enum class HeroTone { INCOME, BALANCE, NEGATIVE }
 
 /**
+ * 品牌色主卡片上的语义浅色：与白色主数字同一明度层级，只改变色相，
+ * 在深青绿底上自然融合，同时仍能一眼区分收入（绿）、结余（蓝）与负数（红）。
+ */
+private fun heroToneColor(tone: HeroTone): Color = when (tone) {
+    HeroTone.INCOME -> Color(0xFFB6F3C8)
+    HeroTone.BALANCE -> Color(0xFFC4E1FF)
+    HeroTone.NEGATIVE -> Color(0xFFFFC6BC)
+}
+
+/**
  * 主卡片内的「标签 + 金额」块；[large] 为页面主数字。
- * 传入 [tone] 时以浅色胶囊承载并使用语义色，保证在品牌色卡片上也能区分收入与结余。
+ * 传入 [tone] 时标签前加同色小圆点、金额使用语义浅色；[divider] 在左侧画一条细分隔线。
  */
 @Composable
 fun HeroFigure(
@@ -171,30 +183,37 @@ fun HeroFigure(
     modifier: Modifier = Modifier,
     large: Boolean = false,
     tone: HeroTone? = null,
+    divider: Boolean = false,
 ) {
     if (tone != null) {
-        val (container, content) = when (tone) {
-            HeroTone.INCOME -> incomeContainerColor() to incomeAmountColor()
-            HeroTone.BALANCE -> transferContainerColor() to transferAmountColor()
-            HeroTone.NEGATIVE -> expenseContainerColor() to expenseAmountColor()
-        }
+        val toneColor = heroToneColor(tone)
+        val dividerColor = LocalContentColor.current.copy(alpha = 0.18f)
         Column(
             modifier = modifier
-                .background(container, MaterialTheme.shapes.medium)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .then(
+                    if (divider) Modifier.drawBehind {
+                        drawLine(dividerColor, Offset(0f, 2.dp.toPx()), Offset(0f, size.height - 2.dp.toPx()),
+                            strokeWidth = 1.dp.toPx())
+                    }.padding(start = LedgerSpacing.md) else Modifier,
+                ),
         ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.labelMedium,
-                color = content.copy(alpha = 0.8f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(7.dp).background(toneColor, CircleShape))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = heroSecondaryColor(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.height(2.dp))
             Text(
                 value,
                 style = LedgerNumerals.of(MaterialTheme.typography.titleMedium),
                 fontWeight = FontWeight.SemiBold,
-                color = content,
+                color = toneColor,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,

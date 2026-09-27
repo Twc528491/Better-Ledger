@@ -188,6 +188,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             label = "结余",
                             value = signedMoney(balance, state.baseCurrency),
                             tone = if (balance < 0) HeroTone.NEGATIVE else HeroTone.BALANCE,
+                            divider = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .clearAndSetSemantics {

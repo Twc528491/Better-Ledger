@@ -129,6 +129,7 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                             label = "负债",
                             value = signedMoney(liabilityTotal, explicitPlus = false),
                             tone = HeroTone.NEGATIVE,
+                            divider = true,
                             modifier = Modifier.weight(1f),
                         )
                     }
