@@ -175,6 +175,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                                 type = cat.type,
                                 sizeDp = 36,
                                 visualKey = cat.id,
+                                iconKey = cat.iconKey,
                             )
                         },
                         trailing = {

@@ -96,8 +96,7 @@ class AddTransactionViewModel(
                 CategorySelection.merchantRootId(categories, it)?.let { rootId ->
                     merchantRepository.getByCategory(ledger.id, rootId)
                 }.orEmpty()
-            } ?: if (editing?.type == TransactionType.TRANSFER)
-                merchants.filter { !it.isArchived } else emptyList()
+            }.orEmpty()
             val tags = tagRepository.getByLedger(ledger.id)
                 .filter { !it.isArchived || it.id in editingTags }
             val lastUsed = settings.lastUsedAccountId.first()
@@ -168,9 +167,10 @@ class AddTransactionViewModel(
             categoryId = null,
             targetAccountId = null,
             merchantId = null,
-            merchantOptions = if (type == TransactionType.TRANSFER)
-                s.merchants.filter { !it.isArchived } else emptyList(),
-            merchantNotice = if (s.merchantId != null) "类型已更改，请重新选择商家" else null,
+            merchantOptions = emptyList(),
+            // 转账不设置商家；切到收支类型时提示重新选择。
+            merchantNotice = if (s.merchantId != null && type != TransactionType.TRANSFER)
+                "类型已更改，请重新选择商家" else null,
             isResolvingMerchant = false,
             error = null,
         )
@@ -328,7 +328,8 @@ class AddTransactionViewModel(
             accountId = s.accountId ?: "",
             targetAccountId = s.targetAccountId,
             categoryId = s.categoryId,
-            merchantId = s.merchantId,
+            // 转账不设置商家（MVP：转账仅选填备注）；编辑旧转账保存时一并清除。
+            merchantId = if (s.type == TransactionType.TRANSFER) null else s.merchantId,
             note = s.note,
             transactionTime = s.time,
             tagIds = s.selectedTagIds.toList(),

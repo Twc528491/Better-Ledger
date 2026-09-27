@@ -74,3 +74,10 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         )
     }
 }
+
+/** v4：分类可选图标库图标。既有分类 iconKey 为 NULL，继续按名称自动匹配。 */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `category` ADD COLUMN `iconKey` TEXT")
+    }
+}

@@ -157,14 +157,51 @@ fun LedgerHeroCard(
 @Composable
 fun heroSecondaryColor(): Color = LocalContentColor.current.copy(alpha = 0.72f)
 
-/** 主卡片内的「标签 + 金额」块；[large] 为页面主数字。 */
+/** 主卡片次要数字的语义色调：收入、结余（正 / 负）、资产、负债。 */
+enum class HeroTone { INCOME, BALANCE, NEGATIVE }
+
+/**
+ * 主卡片内的「标签 + 金额」块；[large] 为页面主数字。
+ * 传入 [tone] 时以浅色胶囊承载并使用语义色，保证在品牌色卡片上也能区分收入与结余。
+ */
 @Composable
 fun HeroFigure(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
     large: Boolean = false,
+    tone: HeroTone? = null,
 ) {
+    if (tone != null) {
+        val (container, content) = when (tone) {
+            HeroTone.INCOME -> incomeContainerColor() to incomeAmountColor()
+            HeroTone.BALANCE -> transferContainerColor() to transferAmountColor()
+            HeroTone.NEGATIVE -> expenseContainerColor() to expenseAmountColor()
+        }
+        Column(
+            modifier = modifier
+                .background(container, MaterialTheme.shapes.medium)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = content.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                value,
+                style = LedgerNumerals.of(MaterialTheme.typography.titleMedium),
+                fontWeight = FontWeight.SemiBold,
+                color = content,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        return
+    }
     Column(modifier = modifier) {
         Text(
             label,

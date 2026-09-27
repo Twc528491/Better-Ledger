@@ -46,7 +46,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Backspace
-import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -85,7 +85,7 @@ import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
-import com.personal.ledger.ui.common.AccountVisuals
+import com.personal.ledger.ui.common.AccountBadge
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.accountTypeLabel
 import com.personal.ledger.ui.common.amountColor
@@ -203,7 +203,12 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 val childGridState = rememberLazyGridState()
                 val shownPage = pagerState.currentPage.coerceIn(0, pageCount - 1)
                 LaunchedEffect(state.type) { pagerState.scrollToPage(0) }
-                val tileHeight = if (compactCategory) 62.dp else 70.dp
+                val tileBadge = if (compactCategory) 38 else 42
+                val labelLineHeight = with(LocalDensity.current) {
+                    MaterialTheme.typography.labelMedium.lineHeight.toDp()
+                }
+                // 圆标（含 6dp 选中描边）+ 名称行高 + 上下留白，避免最底行文字被裁切。
+                val tileHeight = (tileBadge + 6).dp + labelLineHeight + 14.dp
                 val categoryGridHeight = tileHeight * categoryRows + 4.dp * (categoryRows - 1)
                 val selectedRoot = categories.firstOrNull { it.id == expandedRootId }
                 LaunchedEffect(categories, state.categoryId, expandedRootId) {
@@ -294,6 +299,8 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                                         }
                                                         if (activeChildren.isNotEmpty() || selectedArchivedChild) {
                                                             expandedRootId = category.id
+                                                            // 默认“直接记入”一级分类；已选该一级下的子类时保留原选择。
+                                                            if (selectedRootId != category.id) vm.setCategoryId(category.id)
                                                         } else {
                                                             vm.setCategoryId(category.id)
                                                         }
@@ -376,9 +383,6 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                     EntryField("日期", dateLabel(state.time), "选择", Modifier.weight(1f)) {
                         showDatePicker = true
                     }
-                    EntryField("商家", merchantName, "可选", Modifier.weight(1f)) { showMerchantPicker = true }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     EntryField("备注", state.note.ifEmpty { null }, "可选", Modifier.weight(1f)) {
                         showNoteEditor = true
                     }
@@ -418,7 +422,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                         id = account.id,
                         title = account.name,
                         detail = "${accountTypeLabel(account.type)} · ${account.currency}",
-                        emoji = AccountVisuals.emojiFor(account.type),
+                        leading = { AccountBadge(account.type, sizeDp = 36) },
                         selected = account.id == if (pickTarget) state.targetAccountId else state.accountId,
                     )
                 },
@@ -430,12 +434,11 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
         )
     }
 
-    if (showMerchantPicker) {
+    if (showMerchantPicker && state.type != TransactionType.TRANSFER) {
         val rootId = CategorySelection.merchantRootId(allCategoriesOf(state), state.categoryId)
         val root = allCategoriesOf(state).firstOrNull { it.id == rootId }
         val oldSelected = state.merchants.firstOrNull { it.id == state.merchantId }
-        val options = if (state.type == TransactionType.TRANSFER)
-            state.merchants.filter { !it.isArchived } else state.merchantOptions
+        val options = state.merchantOptions
         val merchantItems = remember(options, oldSelected, state.merchantId) {
             MerchantChoices.distinctByName(
                 listOfNotNull(oldSelected).filter { old -> options.none { it.id == old.id } } + options,
@@ -444,19 +447,13 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
         }
         EntryPickerSheet(
             title = "选择商家",
-            subtitle = when {
-                state.type == TransactionType.TRANSFER -> "当前账本全部商家"
-                root != null -> "${root.name}分类下的常用商家"
-                else -> null
-            },
+            subtitle = root?.let { "${it.name}分类下的常用商家" },
             options = merchantItems.map { merchant ->
                 EntryPickerOption(merchant.id, merchant.name, emoji = merchant.name.trim().take(1),
                     selected = merchant.id == state.merchantId)
             },
-            hint = if (state.type != TransactionType.TRANSFER && state.categoryId == null)
-                "请先选择分类，再选择或新建该分类的商家" else null,
-            addLabel = if (state.type == TransactionType.TRANSFER || state.categoryId != null)
-                "新建" else null,
+            hint = if (state.categoryId == null) "请先选择分类，再选择或新建该分类的商家" else null,
+            addLabel = if (state.categoryId != null) "新建" else null,
             clearLabel = "不选择商家",
             onClear = {
                 vm.setMerchantId(null)
@@ -573,8 +570,9 @@ private fun AmountPanel(
             type == TransactionType.TRANSFER -> Box(
                 Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Filled.SyncAlt, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp)) }
-            category != null -> CategoryBadge(category.name, category.type, sizeDp = 40, visualKey = category.id)
+            ) { Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = accent, modifier = Modifier.size(22.dp)) }
+            category != null -> CategoryBadge(category.name, category.type, sizeDp = 40,
+                visualKey = category.id, iconKey = category.iconKey)
             else -> Box(
                 Modifier.size(40.dp).border(1.5.dp, accent.copy(alpha = 0.35f), CircleShape),
             )
@@ -658,7 +656,8 @@ private fun CategoryTile(
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            CategoryBadge(category.name, category.type, sizeDp = badge, visualKey = category.id)
+            CategoryBadge(category.name, category.type, sizeDp = badge, visualKey = category.id,
+                iconKey = category.iconKey)
         }
         Text(
             labelOverride ?: category.name,

@@ -64,6 +64,7 @@ fun CategoryEntity.toDomain() = Category(
     parentId = parentId,
     sortOrder = sortOrder,
     isArchived = isArchived,
+    iconKey = iconKey,
 )
 
 fun MerchantEntity.toDomain() = Merchant(

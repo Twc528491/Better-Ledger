@@ -52,6 +52,7 @@ class StatisticsViewModel(
 ) : ViewModel() {
 
     private val month = MutableStateFlow(YearMonth.now())
+    val selectedMonth: StateFlow<YearMonth> = month
 
     val uiState: StateFlow<StatisticsUiState> = combine(
         ledgerRepository.currentLedger,
@@ -140,6 +141,10 @@ class StatisticsViewModel(
 
     fun nextMonth() {
         month.value = month.value.plusMonths(1)
+    }
+
+    fun setMonth(ym: YearMonth) {
+        month.value = ym
     }
 
     private fun labelOf(ym: YearMonth) = "${ym.year}年${ym.monthValue}月"

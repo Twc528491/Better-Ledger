@@ -5,47 +5,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.BusinessCenter
-import androidx.compose.material.icons.filled.CardGiftcard
-import androidx.compose.material.icons.filled.ChildCare
-import androidx.compose.material.icons.filled.Checkroom
-import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.ElectricalServices
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Flight
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.Pets
-import androidx.compose.material.icons.filled.Redeem
-import androidx.compose.material.icons.filled.RequestQuote
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.Smartphone
-import androidx.compose.material.icons.filled.Spa
-import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material.icons.filled.Work
-import androidx.compose.material.icons.twotone.BakeryDining
-import androidx.compose.material.icons.twotone.DirectionsBus
-import androidx.compose.material.icons.twotone.Eco
-import androidx.compose.material.icons.twotone.Fastfood
-import androidx.compose.material.icons.twotone.Home
-import androidx.compose.material.icons.twotone.HomeRepairService
-import androidx.compose.material.icons.twotone.LocalCafe
-import androidx.compose.material.icons.twotone.LocalGroceryStore
-import androidx.compose.material.icons.twotone.LocalHospital
-import androidx.compose.material.icons.twotone.LocalShipping
-import androidx.compose.material.icons.twotone.Paid
-import androidx.compose.material.icons.twotone.SmokingRooms
-import androidx.compose.material.icons.twotone.Subscriptions
-import androidx.compose.material.icons.twotone.VolunteerActivism
+import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.automirrored.rounded.ShowChart
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.RequestQuote
+import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -241,59 +210,10 @@ object CategoryVisuals {
         return if (type == CategoryType.INCOME) "other_income" else "other"
     }
 
-    fun iconFor(name: String, type: CategoryType): ImageVector =
-        when (iconKeyFor(name, type)) {
-            "food" -> Icons.TwoTone.Fastfood
-            "transit" -> Icons.TwoTone.DirectionsBus
-            "shopping" -> Icons.TwoTone.LocalGroceryStore
-            "home" -> Icons.TwoTone.Home
-            "movie" -> Icons.Filled.Movie
-            "medical" -> Icons.TwoTone.LocalHospital
-            "other" -> Icons.Filled.Inventory2
-            "salary" -> Icons.TwoTone.Paid
-            "other_income" -> Icons.Filled.AccountBalanceWallet
-            "daily" -> Icons.Filled.CleaningServices
-            "clothing" -> Icons.Filled.Checkroom
-            "phone" -> Icons.Filled.Smartphone
-            "education" -> Icons.Filled.School
-            "fitness" -> Icons.Filled.FitnessCenter
-            "travel" -> Icons.Filled.Flight
-            "pets" -> Icons.Filled.Pets
-            "gift" -> Icons.Filled.CardGiftcard
-            "car" -> Icons.Filled.DirectionsCar
-            "devices" -> Icons.Filled.Devices
-            "childcare" -> Icons.Filled.ChildCare
-            "office" -> Icons.Filled.BusinessCenter
-            "electric" -> Icons.Filled.ElectricalServices
-            "spa" -> Icons.Filled.Spa
-            "insurance" -> Icons.Filled.VerifiedUser
-            "repair" -> Icons.Filled.Build
-            "tax" -> Icons.Filled.RequestQuote
-            "subscription" -> Icons.TwoTone.Subscriptions
-            "fresh" -> Icons.TwoTone.Eco
-            "snack" -> Icons.TwoTone.BakeryDining
-            "coffee" -> Icons.TwoTone.LocalCafe
-            "housekeeping" -> Icons.TwoTone.HomeRepairService
-            "delivery" -> Icons.TwoTone.LocalShipping
-            "donation" -> Icons.TwoTone.VolunteerActivism
-            "tobacco" -> Icons.TwoTone.SmokingRooms
-            "bonus" -> Icons.Filled.EmojiEvents
-            "work" -> Icons.Filled.Work
-            "business" -> Icons.Filled.Storefront
-            "invest" -> Icons.AutoMirrored.Filled.TrendingUp
-            "reimburse" -> Icons.AutoMirrored.Filled.ReceiptLong
-            "present" -> Icons.Filled.Redeem
-            "refund" -> Icons.Filled.CurrencyExchange
-            "rent" -> Icons.TwoTone.Home
-            "dividend" -> Icons.AutoMirrored.Filled.TrendingUp
-            "interest" -> Icons.TwoTone.Paid
-            "subsidy" -> Icons.Filled.RequestQuote
-            "scholarship" -> Icons.Filled.School
-            "royalty" -> Icons.AutoMirrored.Filled.ReceiptLong
-            "commission" -> Icons.Filled.BusinessCenter
-            "secondhand" -> Icons.Filled.CurrencyExchange
-            else -> Icons.Filled.Inventory2
-        }
+    /** 用户在图标库中选择的 [iconKey] 优先；否则按名称 / 关键词映射。 */
+    fun iconFor(name: String, type: CategoryType, iconKey: String? = null): ImageVector =
+        (CategoryIconLibrary.find(iconKey) ?: CategoryIconLibrary.find(iconKeyFor(name, type)))?.icon
+            ?: Icons.Rounded.Inventory2
 
     @Suppress("UNUSED_PARAMETER")
     fun emojiFor(name: String, type: CategoryType, visualKey: String = name): String {
@@ -353,18 +273,31 @@ fun categoryChartColor(visualKey: String): Color {
     }
 }
 
-/** 账户类型视觉：emoji。 */
+/** 账户类型视觉：Material Rounded 图标 + 固定色相，与分类圆标同一风格。 */
 object AccountVisuals {
-    fun emojiFor(type: AccountType): String = when (type) {
-        AccountType.CASH -> "💵"
-        AccountType.BANK -> "🏦"
-        AccountType.ALIPAY -> "🔵"
-        AccountType.WECHAT -> "💚"
-        AccountType.CREDIT_CARD -> "💳"
-        AccountType.SAVINGS -> "🐷"
-        AccountType.INVESTMENT -> "📈"
-        AccountType.LOAN -> "🏛️"
-        AccountType.OTHER -> "👛"
+    fun iconFor(type: AccountType): ImageVector = when (type) {
+        AccountType.CASH -> Icons.Rounded.Payments
+        AccountType.BANK -> Icons.Rounded.AccountBalance
+        AccountType.ALIPAY -> Icons.Rounded.AccountBalanceWallet
+        AccountType.WECHAT -> Icons.AutoMirrored.Rounded.Chat
+        AccountType.CREDIT_CARD -> Icons.Rounded.CreditCard
+        AccountType.SAVINGS -> Icons.Rounded.Savings
+        AccountType.INVESTMENT -> Icons.AutoMirrored.Rounded.ShowChart
+        AccountType.LOAN -> Icons.Rounded.RequestQuote
+        AccountType.OTHER -> Icons.Rounded.MoreHoriz
+    }
+
+    /** 固定色相；null 表示中性灰（“其他”）。 */
+    fun hueFor(type: AccountType): Float? = when (type) {
+        AccountType.CASH -> 142f
+        AccountType.BANK -> 226f
+        AccountType.ALIPAY -> 204f
+        AccountType.WECHAT -> 160f
+        AccountType.CREDIT_CARD -> 284f
+        AccountType.SAVINGS -> 30f
+        AccountType.INVESTMENT -> 340f
+        AccountType.LOAN -> 4f
+        AccountType.OTHER -> null
     }
 }
 
@@ -379,35 +312,6 @@ fun accountTypeLabel(type: AccountType): String = when (type) {
     AccountType.INVESTMENT -> "投资"
     AccountType.LOAN -> "贷款"
     AccountType.OTHER -> "其他"
-}
-
-/** 账户类型主题色（浅色模式用柔和浅底，深色模式用亮色调）。 */
-@Composable
-fun accountColor(type: AccountType): Color {
-    if (!LocalLedgerDarkTheme.current) {
-        return when (type) {
-            AccountType.CASH -> Color(0xFFDDF2DF)
-            AccountType.BANK -> Color(0xFFDCEBFA)
-            AccountType.ALIPAY -> Color(0xFFDCE8FF)
-            AccountType.WECHAT -> Color(0xFFDDF4E8)
-            AccountType.CREDIT_CARD -> Color(0xFFF0E0F3)
-            AccountType.SAVINGS -> Color(0xFFFFEDD0)
-            AccountType.INVESTMENT -> Color(0xFFD8F0EC)
-            AccountType.LOAN -> Color(0xFFFFE4E1)
-            AccountType.OTHER -> Color(0xFFE8EAED)
-        }
-    }
-    return when (type) {
-        AccountType.CASH -> Color(0xFF24402B)
-        AccountType.BANK -> Color(0xFF1F3550)
-        AccountType.ALIPAY -> Color(0xFF1E3358)
-        AccountType.WECHAT -> Color(0xFF1D3F2E)
-        AccountType.CREDIT_CARD -> Color(0xFF3B2842)
-        AccountType.SAVINGS -> Color(0xFF45341A)
-        AccountType.INVESTMENT -> Color(0xFF173C38)
-        AccountType.LOAN -> Color(0xFF45241F)
-        AccountType.OTHER -> Color(0xFF2E3230)
-    }
 }
 
 /** 带色底圆标的 emoji 图标。 */
@@ -428,7 +332,45 @@ fun EmojiBadge(
     }
 }
 
-/** 分类圆标：浅色调圆底 + 同色相 Material 图标，扁平、无阴影。 */
+/**
+ * 扁平色调圆标：浅色调圆底 + 同色相高饱和图标，分类与账户共用。
+ * [hue] 为 null 时使用中性灰。
+ */
+@Composable
+fun TonalIconBadge(
+    icon: ImageVector,
+    hue: Float?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    sizeDp: Int = 36,
+) {
+    val dark = LocalLedgerDarkTheme.current
+    val background = when {
+        hue == null -> MaterialTheme.colorScheme.surfaceContainerHigh
+        dark -> Color.hsv(hue, 0.34f, 0.30f)
+        else -> Color.hsv(hue, 0.12f, 0.97f)
+    }
+    val tint = when {
+        hue == null -> MaterialTheme.colorScheme.onSurfaceVariant
+        dark -> Color.hsv(hue, 0.40f, 0.95f)
+        else -> Color.hsv(hue, 0.70f, 0.60f)
+    }
+    Box(
+        modifier = modifier
+            .size(sizeDp.dp)
+            .background(background, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size((sizeDp * 0.56f).coerceAtLeast(16f).dp),
+        )
+    }
+}
+
+/** 分类圆标；[iconKey] 为用户在图标库中选择的图标，缺省按名称映射。 */
 @Composable
 fun CategoryBadge(
     name: String,
@@ -436,28 +378,24 @@ fun CategoryBadge(
     modifier: Modifier = Modifier,
     sizeDp: Int = 36,
     visualKey: String = name,
+    iconKey: String? = null,
 ) {
-    Box(
-        modifier = modifier
-            .size(sizeDp.dp)
-            .background(categoryColor(visualKey), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = CategoryVisuals.iconFor(name, type),
-            contentDescription = name + "分类图标",
-            tint = categoryIconColor(visualKey),
-            modifier = Modifier.size((sizeDp * 0.56f).coerceAtLeast(16f).dp),
-        )
-    }
+    TonalIconBadge(
+        icon = CategoryVisuals.iconFor(name, type, iconKey),
+        hue = categoryHue(visualKey),
+        contentDescription = name + "分类图标",
+        modifier = modifier,
+        sizeDp = sizeDp,
+    )
 }
 
 /** 账户圆标。 */
 @Composable
 fun AccountBadge(type: AccountType, modifier: Modifier = Modifier, sizeDp: Int = 36) {
-    EmojiBadge(
-        emoji = AccountVisuals.emojiFor(type),
-        background = accountColor(type),
+    TonalIconBadge(
+        icon = AccountVisuals.iconFor(type),
+        hue = AccountVisuals.hueFor(type),
+        contentDescription = accountTypeLabel(type) + "账户图标",
         modifier = modifier,
         sizeDp = sizeDp,
     )

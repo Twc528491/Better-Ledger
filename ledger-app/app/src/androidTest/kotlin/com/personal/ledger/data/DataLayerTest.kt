@@ -333,6 +333,28 @@ class DataLayerTest {
     }
 
     @Test
+    fun `分类图标可在新建时选择并可更换或恢复自动`() = runTest {
+        val ledgerId = seededLedgerId()
+        // 默认种子分类不带自选图标。
+        assertTrue(db.categoryDao().getByLedger(ledgerId).all { it.iconKey == null })
+        val pets = categoryRepo.addCategory(ledgerId, "猫粮", CategoryType.EXPENSE, iconKey = "pets").getOrThrow()
+        assertEquals("pets", db.categoryDao().getById(pets.id)?.iconKey)
+        assertTrue(categoryRepo.addCategory(ledgerId, "空图标", CategoryType.EXPENSE, iconKey = " ").isFailure)
+        assertTrue(db.categoryDao().getByLedger(ledgerId).none { it.name == "空图标" })
+
+        categoryRepo.setIconKey(pets.id, "gift").getOrThrow()
+        assertEquals("gift", db.categoryDao().getById(pets.id)?.iconKey)
+        categoryRepo.setIconKey(pets.id, null).getOrThrow()
+        assertEquals(null, db.categoryDao().getById(pets.id)?.iconKey)
+        assertTrue(categoryRepo.setIconKey(pets.id, "x".repeat(100)).isFailure)
+        assertTrue(categoryRepo.setIconKey("missing", "pets").isFailure)
+        // 更换图标不改变名称与排序。
+        val after = db.categoryDao().getById(pets.id)!!
+        assertEquals("猫粮", after.name)
+        assertEquals(pets.sortOrder, after.sortOrder)
+    }
+
+    @Test
     fun `标签唯一而同名商家复用已有记录`() = runTest {
         val ledgerId = seededLedgerId()
         assertTrue(tagRepo.addTag(ledgerId, "日常").isSuccess)

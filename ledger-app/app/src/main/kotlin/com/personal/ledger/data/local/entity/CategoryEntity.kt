@@ -26,4 +26,6 @@ data class CategoryEntity(
     val parentId: String?,
     val sortOrder: Int,
     val isArchived: Boolean,
+    /** 用户在图标库中选择的图标 key；NULL 表示按名称自动匹配（v4 新增）。 */
+    val iconKey: String? = null,
 )

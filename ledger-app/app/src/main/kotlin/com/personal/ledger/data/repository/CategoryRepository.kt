@@ -10,6 +10,25 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
+/**
+ * 分类图标 key 的数据层校验。数据层不依赖 UI 图标库：只保证 key 为 null 或简短非空字符串；
+ * 未知 key 由 UI 回退为按名称匹配的图标。
+ */
+object CategoryIconKeys {
+    const val MAX_LENGTH = 64
+
+    fun isValid(key: String?): Boolean =
+        key == null || (key.isNotBlank() && key == key.trim() && key.length <= MAX_LENGTH)
+
+    /** null 保持 null（自动图标）；去除首尾空白后校验，非法时抛出 [IllegalArgumentException]。 */
+    fun normalize(key: String?): String? {
+        if (key == null) return null
+        val trimmed = key.trim()
+        if (!isValid(trimmed)) throw IllegalArgumentException("无效的分类图标")
+        return trimmed
+    }
+}
+
 class CategoryRepository(private val database: AppDatabase) {
 
     private val categoryDao = database.categoryDao()
@@ -77,15 +96,18 @@ class CategoryRepository(private val database: AppDatabase) {
      * - 最多两级；二级分类 parentId 必须指向同账本一级分类，且父子 type 一致；
      * - 同账本同类型一级分类名称唯一，同一父分类下二级分类名称唯一；
      * - 唯一性校验必须在事务内进行（parentId 可空，不能仅依赖 SQLite UNIQUE）。
+     * [iconKey] 为 null 时按名称自动匹配图标。
      */
     suspend fun addCategory(
         ledgerId: String,
         name: String,
         type: CategoryType,
         parentId: String? = null,
+        iconKey: String? = null,
     ): Result<Category> {
         return try {
             val category = database.withTransaction {
+                val normalizedIconKey = CategoryIconKeys.normalize(iconKey)
                 val trimmed = name.trim()
                 if (trimmed.isEmpty()) throw IllegalArgumentException("名称不能为空")
                 val parent = parentId?.let { categoryDao.getById(it) }
@@ -108,6 +130,7 @@ class CategoryRepository(private val database: AppDatabase) {
                     parentId = parentId,
                     sortOrder = maxSort + 1,
                     isArchived = false,
+                    iconKey = normalizedIconKey,
                 )
                 categoryDao.insert(entity)
                 entity.toDomain()
@@ -134,6 +157,22 @@ class CategoryRepository(private val database: AppDatabase) {
                 )
                 if (count > 0) throw IllegalArgumentException("同级下已存在同名分类")
                 categoryDao.update(entity.copy(name = trimmed))
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** 更换分类图标；null 恢复为按名称自动匹配。仅修改图标，不影响名称、层级与排序。 */
+    suspend fun setIconKey(id: String, iconKey: String?): Result<Unit> {
+        return try {
+            val normalized = CategoryIconKeys.normalize(iconKey)
+            database.withTransaction {
+                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                if (entity.iconKey != normalized) {
+                    categoryDao.update(entity.copy(iconKey = normalized))
+                }
             }
             Result.success(Unit)
         } catch (e: Exception) {

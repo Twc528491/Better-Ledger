@@ -10,6 +10,7 @@ import com.personal.ledger.BuildConfig
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.database.DATABASE_VERSION
 import com.personal.ledger.data.local.database.RecurringDatabaseGate
+import com.personal.ledger.data.repository.CategoryIconKeys
 import com.personal.ledger.data.repository.toDomain
 import com.personal.ledger.data.settings.SettingsRepository
 import com.personal.ledger.domain.model.TransactionType
@@ -149,7 +150,7 @@ class BackupRepository(
             if (backup.backupFormatVersion !in 1..BackupConstants.FORMAT_VERSION) {
                 throw IllegalStateException("不支持的备份格式版本（${backup.backupFormatVersion}）")
             }
-            validateRecurringBackup(backup.data)
+                        validateRecurringBackup(backup.data)
             val merchantCategories = if (backup.backupFormatVersion < 3) {
                 deriveLegacyMerchantCategories(backup.data)
             } else {
@@ -173,7 +174,11 @@ class BackupRepository(
 
                     backup.data.ledgers.forEach { database.ledgerDao().insert(it.toEntity()) }
                     backup.data.accounts.forEach { database.accountDao().insert(it.toEntity()) }
-                    backup.data.categories.forEach { database.categoryDao().insert(it.toEntity()) }
+                    // 图标仅用于显示：非法 key 不阻断恢复，回退为“自动”（按名称匹配）。
+                    backup.data.categories.forEach {
+                        val icon = it.iconKey?.trim()?.takeIf(CategoryIconKeys::isValid)
+                        database.categoryDao().insert(it.copy(iconKey = icon).toEntity())
+                    }
                     backup.data.merchants.forEach { database.merchantDao().insert(it.toEntity()) }
                     merchantCategories.forEach { database.merchantCategoryDao().insert(it.toEntity()) }
                     backup.data.tags.forEach { database.tagDao().insert(it.toEntity()) }
@@ -307,6 +312,16 @@ class BackupRepository(
             if (version >= 3 && "merchant_category" !in tables) {
                 throw IllegalStateException("SQLite v3 备份缺少商家分类关联表")
             }
+            if (version >= 4) {
+                val categoryColumns = sqlite.rawQuery("PRAGMA table_info(`category`)", null).use { cursor ->
+                    val nameIndex = cursor.getColumnIndexOrThrow("name")
+                    buildSet { while (cursor.moveToNext()) add(cursor.getString(nameIndex)) }
+                }
+                if ("iconKey" !in categoryColumns) {
+                    throw IllegalStateException("SQLite v4 备份缺少分类图标字段")
+                }
+            }
+            // v1–v3 备份替换后由 Room 在下次打开时按显式 Migration 升级到当前版本。
         } finally {
             sqlite.close()
         }

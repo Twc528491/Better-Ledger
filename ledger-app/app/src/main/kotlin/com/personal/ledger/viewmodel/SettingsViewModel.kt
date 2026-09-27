@@ -110,12 +110,22 @@ class CategoriesViewModel(
         type.value = t
     }
 
-    fun addCategory(name: String, parentId: String?, onDone: (Result<Unit>) -> Unit) {
+    fun addCategory(
+        name: String,
+        parentId: String?,
+        iconKey: String? = null,
+        onDone: (Result<Unit>) -> Unit,
+    ) {
         val s = uiState.value
         viewModelScope.launch {
             val ledger = ledgerRepository.currentLedger.first() ?: return@launch
-            onDone(categoryRepository.addCategory(ledger.id, name, s.type, parentId).map { Unit })
+            onDone(categoryRepository.addCategory(ledger.id, name, s.type, parentId, iconKey).map { Unit })
         }
+    }
+
+    /** 更换分类图标；null 表示恢复按名称自动匹配。 */
+    fun setIconKey(id: String, iconKey: String?, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch { onDone(categoryRepository.setIconKey(id, iconKey)) }
     }
 
     fun supplementCommonCategories(onDone: (Result<Int>) -> Unit) {

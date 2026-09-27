@@ -1,5 +1,6 @@
 package com.personal.ledger.ui.home
 
+import com.personal.ledger.ui.common.SettingsActionButton
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.SwapHoriz
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -58,6 +58,7 @@ import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.HeroFigure
+import com.personal.ledger.ui.common.HeroTone
 import com.personal.ledger.ui.common.LedgerHeroCard
 import com.personal.ledger.ui.common.LedgerProgressBar
 import com.personal.ledger.ui.common.LedgerSectionHeader
@@ -129,11 +130,9 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
+                    SettingsActionButton {
                         hapticNavigation()
                         navController.navigate(Routes.SETTINGS)
-                    }) {
-                        Icon(Icons.Filled.Tune, contentDescription = "设置")
                     }
                 },
             )
@@ -161,15 +160,17 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                         large = true,
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
-                    Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.md)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
                             label = "收入",
                             value = signedMoney(state.income, state.baseCurrency),
+                            tone = HeroTone.INCOME,
                             modifier = Modifier.weight(1f),
                         )
                         HeroFigure(
                             label = "结余",
                             value = signedMoney(balance, state.baseCurrency),
+                            tone = if (balance < 0) HeroTone.NEGATIVE else HeroTone.BALANCE,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -234,6 +235,7 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                                 TransactionRow(
                                     tx = tx,
                                     categoryNames = state.categoryNames,
+                                    categoryIconKeys = state.categoryIconKeys,
                                     merchantNames = state.merchantNames,
                                     accountNames = state.accountNames,
                                     onClick = {
@@ -330,6 +332,7 @@ private fun BudgetSection(
 private fun TransactionRow(
     tx: Transaction,
     categoryNames: Map<String, String>,
+    categoryIconKeys: Map<String, String>,
     merchantNames: Map<String, String>,
     accountNames: Map<String, String>,
     onClick: () -> Unit,
@@ -379,6 +382,7 @@ private fun TransactionRow(
                 type = if (tx.type == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE,
                 sizeDp = 40,
                 visualKey = tx.categoryId ?: categoryName.orEmpty(),
+                iconKey = categoryIconKeys[tx.categoryId],
             )
         }
         Column(

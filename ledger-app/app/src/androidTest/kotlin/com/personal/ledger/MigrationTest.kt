@@ -6,13 +6,14 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.database.MIGRATION_1_2
 import com.personal.ledger.data.local.database.MIGRATION_2_3
+import com.personal.ledger.data.local.database.MIGRATION_3_4
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
  * Room Migration 仪器测试（ARCHITECTURE.md 第 4/12 节）。
- * 检查 v1 schema 可升级到 v2，并由 Room schema 导出结果校验迁移后的表与索引。
+ * 检查各版本 schema 可逐级升级到当前版本，并由 Room schema 导出结果校验迁移后的表与索引。
  */
 @RunWith(AndroidJUnit4::class)
 class MigrationTest {
@@ -108,6 +109,63 @@ class MigrationTest {
         migrated.query("SELECT name FROM ledger WHERE id = 'legacy'").use { cursor ->
             org.junit.Assert.assertTrue(cursor.moveToFirst())
             org.junit.Assert.assertEquals("old", cursor.getString(0))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateVersion3ToVersion4AddsNullableIconKeyAndKeepsCategories() {
+        val name = "migration-v3-to-v4"
+        val oldDb = helper.createDatabase(name, 3)
+        oldDb.execSQL("INSERT INTO ledger VALUES ('l1', 'one', 'CNY', 1, 1, 0)")
+        oldDb.execSQL("INSERT INTO category VALUES ('food', 'l1', '餐饮', 'EXPENSE', NULL, 0, 0)")
+        oldDb.execSQL("INSERT INTO category VALUES ('lunch', 'l1', '午餐', 'EXPENSE', 'food', 1, 1)")
+        oldDb.close()
+
+        val migrated = helper.runMigrationsAndValidate(name, 4, true, MIGRATION_3_4)
+        migrated.query(
+            "SELECT id, name, parentId, sortOrder, isArchived, iconKey FROM category ORDER BY sortOrder",
+        ).use { cursor ->
+            org.junit.Assert.assertTrue(cursor.moveToFirst())
+            org.junit.Assert.assertEquals("food", cursor.getString(0))
+            org.junit.Assert.assertEquals("餐饮", cursor.getString(1))
+            org.junit.Assert.assertTrue(cursor.isNull(2))
+            org.junit.Assert.assertEquals(0, cursor.getInt(4))
+            org.junit.Assert.assertTrue(cursor.isNull(5))
+            org.junit.Assert.assertTrue(cursor.moveToNext())
+            org.junit.Assert.assertEquals("lunch", cursor.getString(0))
+            org.junit.Assert.assertEquals("food", cursor.getString(2))
+            org.junit.Assert.assertEquals(1, cursor.getInt(4))
+            org.junit.Assert.assertTrue(cursor.isNull(5))
+            org.junit.Assert.assertFalse(cursor.moveToNext())
+        }
+        // 迁移后可写入自选图标。
+        migrated.execSQL("UPDATE category SET iconKey = 'pets' WHERE id = 'food'")
+        migrated.query("SELECT iconKey FROM category WHERE id = 'food'").use { cursor ->
+            org.junit.Assert.assertTrue(cursor.moveToFirst())
+            org.junit.Assert.assertEquals("pets", cursor.getString(0))
+        }
+        migrated.close()
+    }
+
+    @Test
+    fun migrateVersion1ThroughVersion4KeepsOldLedgerAndCategories() {
+        val name = "migration-v1-to-v4"
+        val oldDb = helper.createDatabase(name, 1)
+        oldDb.execSQL("INSERT INTO ledger VALUES ('legacy', 'old', 'CNY', 1, 1, 0)")
+        oldDb.execSQL("INSERT INTO category VALUES ('food', 'legacy', '餐饮', 'EXPENSE', NULL, 0, 0)")
+        oldDb.close()
+        val migrated = helper.runMigrationsAndValidate(
+            name, 4, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4,
+        )
+        migrated.query("SELECT name FROM ledger WHERE id = 'legacy'").use { cursor ->
+            org.junit.Assert.assertTrue(cursor.moveToFirst())
+            org.junit.Assert.assertEquals("old", cursor.getString(0))
+        }
+        migrated.query("SELECT name, iconKey FROM category WHERE id = 'food'").use { cursor ->
+            org.junit.Assert.assertTrue(cursor.moveToFirst())
+            org.junit.Assert.assertEquals("餐饮", cursor.getString(0))
+            org.junit.Assert.assertTrue(cursor.isNull(1))
         }
         migrated.close()
     }

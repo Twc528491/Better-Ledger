@@ -1,5 +1,8 @@
 package com.personal.ledger.ui.transaction
 
+import com.personal.ledger.ui.common.MonthPickerSheet
+import com.personal.ledger.ui.common.MonthSwitcher
+import com.personal.ledger.ui.common.SettingsActionButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -51,7 +54,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.SyncAlt
+import androidx.compose.material.icons.filled.SwapHoriz
 import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.expenseAmountColor
 import com.personal.ledger.ui.common.incomeAmountColor
@@ -136,6 +139,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     }) {
                         Icon(Icons.Filled.DeleteOutline, contentDescription = "回收站")
                     }
+                    SettingsActionButton {
+                        hapticNavigation()
+                        navController.navigate(Routes.SETTINGS)
+                    }
                 },
             )
         },
@@ -218,6 +225,9 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 )
             } else {
                 val categoryMap = remember(state.categories) { state.categories.associate { it.id to it.name } }
+                val categoryIconMap = remember(state.categories) {
+                    state.categories.mapNotNull { c -> c.iconKey?.let { c.id to it } }.toMap()
+                }
                 val accountMap = remember(state.accounts) { state.accounts.associate { it.id to it.name } }
                 val tagMap = remember(state.tags) { state.tags.associate { it.id to it.name } }
                 val grouped = remember(state.transactions) {
@@ -263,6 +273,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             TransactionItem(
                                 tx = tx,
                                 categoryNames = categoryMap,
+                                categoryIconKeys = categoryIconMap,
                                 merchantNameOf = state.merchantNameOf,
                                 accountNames = accountMap,
                                 tagNames = tagMap,
@@ -468,34 +479,6 @@ private fun dayHeaderLabel(date: java.time.LocalDate): String {
     return "${date.monthValue}月${date.dayOfMonth}日  $suffix"
 }
 
-/** 顶栏月份切换：左右箭头直接切月，点击中间月份打开月份面板。 */
-@Composable
-private fun MonthSwitcher(
-    label: String,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onOpenPicker: () -> Unit,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月")
-        }
-        Row(
-            modifier = Modifier
-                .clip(CircleShape)
-                .clickable(onClickLabel = "选择月份", onClick = onOpenPicker)
-                .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(label, style = LedgerNumerals.of(MaterialTheme.typography.titleLarge))
-            Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
-        }
-        IconButton(onClick = onNext) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月")
-        }
-    }
-}
-
 /** 当月汇总：支出 / 收入 / 结余三栏，数字等宽。 */
 @Composable
 private fun MonthSummary(expense: Long, income: Long, currency: String, modifier: Modifier = Modifier) {
@@ -532,98 +515,12 @@ private fun SummaryCell(
     }
 }
 
-/** 月份面板：年份左右切换 + 3×4 大尺寸月份格；当前月描边，已选月实心。 */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MonthPickerSheet(
-    current: YearMonth,
-    onPick: (YearMonth) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var year by remember { mutableStateOf(current.year) }
-    val thisMonth = remember { YearMonth.now() }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { year-- }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一年")
-                }
-                Text(
-                    "${year}年",
-                    style = LedgerNumerals.of(MaterialTheme.typography.titleLarge),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(onClick = { year++ }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一年")
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                (1..12).chunked(3).forEach { rowMonths ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        rowMonths.forEach { m ->
-                            val ym = YearMonth.of(year, m)
-                            val selected = ym == current
-                            val isThisMonth = ym == thisMonth
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp)
-                                    .clip(MaterialTheme.shapes.medium)
-                                    .background(
-                                        if (selected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.surfaceContainer,
-                                    )
-                                    .then(
-                                        if (isThisMonth && !selected) Modifier.border(
-                                            1.5.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium,
-                                        ) else Modifier,
-                                    )
-                                    .clickable(onClickLabel = "${year}年${m}月") { onPick(ym) },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    "${m}月",
-                                    style = LedgerNumerals.of(MaterialTheme.typography.titleSmall),
-                                    fontWeight = if (selected || isThisMonth) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = when {
-                                        selected -> MaterialTheme.colorScheme.onPrimary
-                                        isThisMonth -> MaterialTheme.colorScheme.primary
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) { Text("取消") }
-                androidx.compose.material3.FilledTonalButton(
-                    onClick = { onPick(thisMonth) },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                ) { Text("回到本月") }
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TransactionItem(
     tx: Transaction,
     categoryNames: Map<String, String>,
+    categoryIconKeys: Map<String, String>,
     merchantNameOf: Map<String, String>,
     accountNames: Map<String, String>,
     tagNames: Map<String, String>,
@@ -673,7 +570,7 @@ private fun TransactionItem(
                         .background(transferContainerColor(), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.SyncAlt, contentDescription = "转账",
+                    Icon(Icons.Filled.SwapHoriz, contentDescription = "转账",
                         tint = transferAmountColor(), modifier = Modifier.size(20.dp))
                 }
             } else {
@@ -687,6 +584,7 @@ private fun TransactionItem(
                     },
                     sizeDp = 38,
                     visualKey = tx.categoryId ?: categoryName,
+                    iconKey = categoryIconKeys[tx.categoryId],
                 )
             }
             Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp)) {

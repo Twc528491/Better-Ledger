@@ -286,6 +286,7 @@ private fun RecurringChargeCard(
                         type = category.type,
                         sizeDp = 36,
                         visualKey = category.id,
+                        iconKey = category.iconKey,
                     )
                     Spacer(Modifier.width(LedgerSpacing.sm))
                 }

@@ -32,6 +32,8 @@ data class HomeUiState(
     val recent: List<Transaction> = emptyList(),
     val totalBudget: BudgetProgress? = null,
     val categoryNames: Map<String, String> = emptyMap(),
+    /** 分类 ID → 用户选择的图标 key（未选择则不在表中）。 */
+    val categoryIconKeys: Map<String, String> = emptyMap(),
     val merchantNames: Map<String, String> = emptyMap(),
     val accountNames: Map<String, String> = emptyMap(),
     val loading: Boolean = true,
@@ -109,6 +111,7 @@ class HomeViewModel(
                         recent = recent,
                         totalBudget = totalBudget,
                         categoryNames = categories.associate { it.id to it.name },
+                        categoryIconKeys = categories.mapNotNull { c -> c.iconKey?.let { c.id to it } }.toMap(),
                         merchantNames = merchants.associate { it.id to it.name },
                         accountNames = accounts.associate { it.id to it.name },
                         loading = false,

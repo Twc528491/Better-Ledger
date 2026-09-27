@@ -1,5 +1,6 @@
 package com.personal.ledger.ui.account
 
+import com.personal.ledger.ui.common.SettingsActionButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,8 +46,8 @@ import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.AccountWithBalance
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountBadge
-import com.personal.ledger.ui.common.AccountVisuals
 import com.personal.ledger.ui.common.HeroFigure
+import com.personal.ledger.ui.common.HeroTone
 import com.personal.ledger.ui.common.LedgerGroupItem
 import com.personal.ledger.ui.common.LedgerHeroCard
 import com.personal.ledger.ui.common.LedgerSectionHeader
@@ -84,15 +84,13 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 actions = {
                     IconButton(onClick = {
                         hapticNavigation()
-                        navController.navigate(Routes.SETTINGS)
-                    }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "设置")
-                    }
-                    IconButton(onClick = {
-                        hapticNavigation()
                         showAddDialog = true
                     }) {
                         Icon(Icons.Filled.Add, contentDescription = "新建账户")
+                    }
+                    SettingsActionButton {
+                        hapticNavigation()
+                        navController.navigate(Routes.SETTINGS)
                     }
                 },
             )
@@ -120,15 +118,17 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                         large = true,
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
-                    Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.md)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
                             label = "资产",
                             value = signedMoney(assetTotal, explicitPlus = false),
+                            tone = HeroTone.INCOME,
                             modifier = Modifier.weight(1f),
                         )
                         HeroFigure(
                             label = "负债",
                             value = signedMoney(liabilityTotal, explicitPlus = false),
+                            tone = HeroTone.NEGATIVE,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -361,7 +361,7 @@ private fun AccountTypeOptionCard(
                 .padding(vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(AccountVisuals.emojiFor(type), fontSize = MaterialTheme.typography.titleLarge.fontSize)
+            AccountBadge(type = type, sizeDp = 32, modifier = Modifier.padding(bottom = 4.dp))
             Text(
                 accountTypeLabel(type),
                 style = MaterialTheme.typography.bodySmall,

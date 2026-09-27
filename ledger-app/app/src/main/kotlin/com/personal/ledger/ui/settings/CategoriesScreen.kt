@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -30,11 +34,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,6 +73,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     var showAddDialog by remember { mutableStateOf(false) }
     var addParentId by remember { mutableStateOf<String?>(null) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var iconCategory by remember { mutableStateOf<Category?>(null) }
     var actionCategory by remember { mutableStateOf<Category?>(null) }
     var deleteCandidate by remember { mutableStateOf<Category?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -200,6 +209,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                                     onAddChild = if (cat.parentId == null && !cat.isArchived) ({
                                         hapticNavigation()
                                         addParentId = cat.id
+                                        error = null
                                         showAddDialog = true
                                     }) else null,
                                 )
@@ -244,40 +254,65 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     }
 
     if (showAddDialog) {
-        var name by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text(if (addParentId == null) "新建一级分类" else "新建二级分类") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("分类名称") },
-                    singleLine = true,
-                )
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        val parentName = addParentId?.let { id -> state.categories.firstOrNull { it.id == id }?.name }
+        CategoryIconSheet(
+            title = if (addParentId == null) "新建一级分类" else "新建二级分类",
+            subtitle = parentName?.let { "属于“$it”" },
+            type = state.type,
+            initialName = "",
+            initialIconKey = null,
+            nameEditable = true,
+            confirmLabel = "创建",
+            error = error,
+            onDismiss = {
+                showAddDialog = false
+                error = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        vm.addCategory(name, addParentId) { result ->
-                            result.onSuccess {
-                                hapticConfirm()
-                                showAddDialog = false
-                                error = null
-                            }
-                                .onFailure {
-                                    hapticReject()
-                                    error = it.message ?: "创建失败"
-                                }
-                        }
+            onConfirm = { name, iconKey ->
+                vm.addCategory(name, addParentId, iconKey) { result ->
+                    result.onSuccess {
+                        hapticConfirm()
+                        showAddDialog = false
+                        error = null
                     }
-                }) { Text("创建") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("取消") }
+                        .onFailure {
+                            hapticReject()
+                            error = it.message ?: "创建失败"
+                        }
+                }
             },
         )
+    }
+
+    iconCategory?.let { category ->
+        key(category.id) {
+            CategoryIconSheet(
+                title = "更换图标",
+                type = category.type,
+                initialName = category.name,
+                initialIconKey = category.iconKey,
+                nameEditable = false,
+                visualKey = category.id,
+                confirmLabel = "保存",
+                error = error,
+                onDismiss = {
+                    iconCategory = null
+                    error = null
+                },
+                onConfirm = { _, iconKey ->
+                    vm.setIconKey(category.id, iconKey) { result ->
+                        result.onSuccess {
+                            hapticConfirm()
+                            iconCategory = null
+                            error = null
+                        }.onFailure {
+                            hapticReject()
+                            error = it.message ?: "保存失败"
+                        }
+                    }
+                },
+            )
+        }
     }
 
     editingCategory?.let { category ->
@@ -320,27 +355,34 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     actionCategory?.let { category ->
         AlertDialog(
             onDismissRequest = { actionCategory = null },
-            title = { Text("分类操作") },
-            text = { Text(category.name) },
-            confirmButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = {
+            title = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            text = {
+                Column {
+                    CategoryActionItem(icon = Icons.Outlined.Palette, label = "更换图标") {
+                        hapticNavigation()
+                        actionCategory = null
+                        error = null
+                        iconCategory = category
+                    }
+                    CategoryActionItem(icon = Icons.Outlined.Edit, label = "重命名") {
                         hapticNavigation()
                         actionCategory = null
                         error = null
                         editingCategory = category
-                    }) { Text("重命名") }
-                    TextButton(onClick = {
+                    }
+                    CategoryActionItem(
+                        icon = Icons.Outlined.Delete,
+                        label = "删除",
+                        color = MaterialTheme.colorScheme.error,
+                    ) {
                         hapticConfirm()
                         actionCategory = null
                         error = null
                         deleteCandidate = category
-                    }) {
-                        Text("删除", color = MaterialTheme.colorScheme.error)
                     }
                 }
             },
-            dismissButton = {
+            confirmButton = {
                 TextButton(onClick = { actionCategory = null }) { Text("取消") }
             },
         )
@@ -407,6 +449,7 @@ private fun CategoryRow(
             type = category.type,
             visualKey = category.id,
             sizeDp = if (isSub) 32 else 40,
+            iconKey = category.iconKey,
         )
         Text(
             category.name,
@@ -440,5 +483,31 @@ private fun CategoryRow(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CategoryActionItem(
+    icon: ImageVector,
+    label: String,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable(onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = LedgerSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = color)
+        Text(
+            label,
+            color = color,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(start = LedgerSpacing.md),
+        )
     }
 }

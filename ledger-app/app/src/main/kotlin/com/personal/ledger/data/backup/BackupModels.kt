@@ -15,7 +15,7 @@ import kotlinx.serialization.Serializable
 
 /** 备份格式常量。格式版本用于兼容性判断（ARCHITECTURE.md 第 8 节）。 */
 object BackupConstants {
-    const val FORMAT_VERSION = 3
+    const val FORMAT_VERSION = 4
     const val FILE_PREFIX = "ledger-backup-"
     const val MIME_JSON = "application/json"
     const val MIME_CSV = "text/csv"
@@ -84,6 +84,8 @@ data class CategoryDto(
     val parentId: String? = null,
     val sortOrder: Int,
     val isArchived: Boolean,
+    /** v4 新增：图标库 key。v1–v3 备份缺省为 null（按名称自动匹配图标）。 */
+    val iconKey: String? = null,
 )
 
 @Serializable
@@ -177,7 +179,7 @@ data class RecurringOccurrenceDto(
 
 fun LedgerEntity.toDto() = LedgerDto(id, name, baseCurrency, createdAt, updatedAt, isArchived)
 fun AccountEntity.toDto() = AccountDto(id, ledgerId, name, type.name, currency, initialBalance, initialBalanceTime, createdAt, updatedAt, isArchived)
-fun CategoryEntity.toDto() = CategoryDto(id, ledgerId, name, type.name, parentId, sortOrder, isArchived)
+fun CategoryEntity.toDto() = CategoryDto(id, ledgerId, name, type.name, parentId, sortOrder, isArchived, iconKey)
 fun MerchantEntity.toDto() = MerchantDto(id, ledgerId, name, createdAt, isArchived)
 fun MerchantCategoryEntity.toDto() = MerchantCategoryDto(merchantId, categoryId)
 fun TagEntity.toDto() = TagDto(id, ledgerId, name, createdAt, isArchived)
@@ -199,7 +201,7 @@ fun AccountDto.toEntity() = AccountEntity(
 fun CategoryDto.toEntity() = CategoryEntity(
     id, ledgerId, name,
     com.personal.ledger.domain.model.CategoryType.valueOf(type),
-    parentId, sortOrder, isArchived,
+    parentId, sortOrder, isArchived, iconKey,
 )
 fun MerchantDto.toEntity() = MerchantEntity(id, ledgerId, name, createdAt, isArchived)
 fun MerchantCategoryDto.toEntity() = MerchantCategoryEntity(merchantId, categoryId)

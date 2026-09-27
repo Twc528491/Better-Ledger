@@ -57,6 +57,8 @@ data class Category(
     val parentId: String?,
     val sortOrder: Int,
     val isArchived: Boolean,
+    /** 图标库 key；null 表示按名称自动匹配图标。 */
+    val iconKey: String? = null,
 )
 
 /** 商家。允许同名。 */

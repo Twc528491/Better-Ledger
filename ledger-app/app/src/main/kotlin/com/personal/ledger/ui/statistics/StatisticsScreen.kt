@@ -1,5 +1,13 @@
 package com.personal.ledger.ui.statistics
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import com.personal.ledger.navigation.Routes
+import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.MonthPickerSheet
+import com.personal.ledger.ui.common.MonthSwitcher
+import com.personal.ledger.ui.common.SettingsActionButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,8 +25,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.DonutLarge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +57,7 @@ import com.personal.ledger.data.repository.BudgetProgress
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.HeroFigure
+import com.personal.ledger.ui.common.HeroTone
 import com.personal.ledger.ui.common.LedgerGroupItem
 import com.personal.ledger.ui.common.LedgerHeroCard
 import com.personal.ledger.ui.common.LedgerProgressBar
@@ -85,6 +92,9 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
     val hapticLight = rememberHapticLight()
+    val hapticNavigation = rememberHapticNavigation()
+    val selectedMonth by vm.selectedMonth.collectAsStateWithLifecycle()
+    var showMonthPicker by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState(pageCount = { STATISTICS_CHART_TABS.size })
     val coroutineScope = rememberCoroutineScope()
     val topCategories = state.expenseByCategory.take(5)
@@ -113,21 +123,11 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("统计 · ${state.monthLabel}") },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        hapticLight()
-                        vm.previousMonth()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一月")
-                    }
-                },
+                title = { Text("统计") },
                 actions = {
-                    IconButton(onClick = {
-                        hapticLight()
-                        vm.nextMonth()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一月")
+                    SettingsActionButton {
+                        hapticNavigation()
+                        navController.navigate(Routes.SETTINGS)
                     }
                 },
             )
@@ -137,8 +137,27 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(top = LedgerSpacing.xs, bottom = LedgerSpacing.xl),
+            contentPadding = PaddingValues(bottom = LedgerSpacing.xl),
         ) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(bottom = LedgerSpacing.xs), contentAlignment = Alignment.Center) {
+                    MonthSwitcher(
+                        label = state.monthLabel,
+                        onPrevious = {
+                            hapticLight()
+                            vm.previousMonth()
+                        },
+                        onNext = {
+                            hapticLight()
+                            vm.nextMonth()
+                        },
+                        onOpenPicker = {
+                            hapticLight()
+                            showMonthPicker = true
+                        },
+                    )
+                }
+            }
             // 概览主卡片：支出为主数字；收入 / 结余仅用内容色 + 显式正负号。
             item {
                 val expenseText = Money.formatWithCurrency(state.expense, state.baseCurrency)
@@ -153,10 +172,11 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                         },
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
-                    Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.md)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
                             label = "收入",
                             value = signedMoney(state.income, state.baseCurrency),
+                            tone = HeroTone.INCOME,
                             modifier = Modifier
                                 .weight(1f)
                                 .clearAndSetSemantics {
@@ -167,6 +187,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                         HeroFigure(
                             label = "结余",
                             value = signedMoney(balance, state.baseCurrency),
+                            tone = if (balance < 0) HeroTone.NEGATIVE else HeroTone.BALANCE,
                             modifier = Modifier
                                 .weight(1f)
                                 .clearAndSetSemantics {
@@ -303,6 +324,17 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             }
         }
     }
+
+    if (showMonthPicker) {
+        MonthPickerSheet(
+            current = selectedMonth,
+            onPick = { ym ->
+                vm.setMonth(ym)
+                showMonthPicker = false
+            },
+            onDismiss = { showMonthPicker = false },
+        )
+    }
 }
 
 private val STATISTICS_CHART_TABS = listOf("分类占比", "月度收支", "每日支出", "分类排行")
@@ -365,6 +397,7 @@ private fun CategoryStatRow(stat: CategoryStat, currency: String) {
             type = stat.category.type,
             sizeDp = 36,
             visualKey = stat.category.id,
+            iconKey = stat.category.iconKey,
         )
         Column(modifier = Modifier.weight(1f).padding(start = LedgerSpacing.sm)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

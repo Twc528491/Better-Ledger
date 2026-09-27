@@ -28,7 +28,7 @@ import com.personal.ledger.data.local.entity.TagEntity
 import com.personal.ledger.data.local.entity.TransactionEntity
 import com.personal.ledger.data.local.entity.TransactionTagEntity
 
-const val DATABASE_VERSION = 3
+const val DATABASE_VERSION = 4
 
 @Database(
     entities = [
@@ -71,7 +71,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "ledger.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
             }
 
         /** 关闭并释放单例（SQLite 恢复替换文件前调用；随后需重启应用）。 */

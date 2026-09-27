@@ -52,6 +52,8 @@ internal data class EntryPickerOption(
     val detail: String? = null,
     val emoji: String = "•",
     val selected: Boolean = false,
+    /** 自定义前置图标（如账户圆标）；为空时显示 [emoji] 文字圆标。 */
+    val leading: (@Composable () -> Unit)? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -248,12 +250,17 @@ private fun EntryChoiceRow(option: EntryPickerOption, multiSelect: Boolean, onCl
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.size(36.dp).background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(option.emoji, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary)
+            val leading = option.leading
+            if (leading != null) {
+                leading()
+            } else {
+                Box(
+                    Modifier.size(36.dp).background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(option.emoji, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary)
+                }
             }
             Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
                 Text(option.title, style = MaterialTheme.typography.bodyLarge,
