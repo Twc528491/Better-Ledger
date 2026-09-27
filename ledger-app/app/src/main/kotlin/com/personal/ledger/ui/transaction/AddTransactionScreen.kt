@@ -123,6 +123,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     var showTagPicker by remember { mutableStateOf(false) }
     var showNoteEditor by remember { mutableStateOf(false) }
     var expandedRootId by remember(state.type) { mutableStateOf<String?>(null) }
+    var initialExpandDone by remember(state.type) { mutableStateOf(false) }
     val pagerScope = rememberCoroutineScope()
     val hapticSave = rememberHapticSave()
     val fontScale = LocalDensity.current.fontScale
@@ -211,10 +212,13 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 val tileHeight = (tileBadge + 6).dp + labelLineHeight + 14.dp
                 val categoryGridHeight = tileHeight * categoryRows + 4.dp * (categoryRows - 1)
                 val selectedRoot = categories.firstOrNull { it.id == expandedRootId }
-                LaunchedEffect(categories, state.categoryId, expandedRootId) {
-                    if (expandedRootId == null && state.categoryId != null) {
+                // 仅在分类数据首次就绪时（如编辑已选子类的旧账单）自动展开一次；
+                // 之后用户点“返回一级分类”不得被再次展开。
+                LaunchedEffect(categories) {
+                    if (!initialExpandDone && categories.isNotEmpty()) {
+                        initialExpandDone = true
                         val selected = categories.firstOrNull { it.id == state.categoryId }
-                        if (selected?.parentId != null) expandedRootId = selected.parentId
+                        if (expandedRootId == null && selected?.parentId != null) expandedRootId = selected.parentId
                     }
                 }
                 Surface(shape = MaterialTheme.shapes.large, color = cardColor()) {

@@ -6,9 +6,9 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <!-- 账本卡片：两层偏移半透明阴影模拟柔和投影 -->
-    <path android:fillColor="#1A00221B" android:pathData="M40,31 H60 A8,8 0 0 1 68,39 V67 A8,8 0 0 1 60,75 H40 A8,8 0 0 1 32,67 V39 A8,8 0 0 1 40,31 Z" />
-    <path android:fillColor="#1F00221B" android:pathData="M40,30 H60 A8,8 0 0 1 68,38 V66 A8,8 0 0 1 60,74 H40 A8,8 0 0 1 32,66 V38 A8,8 0 0 1 40,30 Z" />
-    <path android:pathData="M40,28 H60 A8,8 0 0 1 68,36 V64 A8,8 0 0 1 60,72 H40 A8,8 0 0 1 32,64 V36 A8,8 0 0 1 40,28 Z">
+    <path android:fillColor="#1A00221B" android:pathData="M37,31 H55 A9,9 0 0 1 64,40 V66 A9,9 0 0 1 55,75 H37 A9,9 0 0 1 28,66 V40 A9,9 0 0 1 37,31 Z" />
+    <path android:fillColor="#1F00221B" android:pathData="M37,30 H55 A9,9 0 0 1 64,39 V65 A9,9 0 0 1 55,74 H37 A9,9 0 0 1 28,65 V39 A9,9 0 0 1 37,30 Z" />
+    <path android:pathData="M37,28 H55 A9,9 0 0 1 64,37 V63 A9,9 0 0 1 55,72 H37 A9,9 0 0 1 28,63 V37 A9,9 0 0 1 37,28 Z">
         <aapt:attr name="android:fillColor">
             <gradient android:type="linear" android:startX="0" android:startY="28"
                 android:endX="0" android:endY="72">
@@ -17,32 +17,32 @@
             </gradient>
         </aapt:attr>
     </path>
-    <path android:fillColor="#FF17695A" android:pathData="M40.5,36 H59.5 A2.5,2.5 0 0 1 62,38.5 V38.5 A2.5,2.5 0 0 1 59.5,41 H40.5 A2.5,2.5 0 0 1 38,38.5 V38.5 A2.5,2.5 0 0 1 40.5,36 Z" />
-    <path android:fillColor="#FFB4C8C1" android:pathData="M39.6,46 H54.4 A1.6,1.6 0 0 1 56,47.6 V47.6 A1.6,1.6 0 0 1 54.4,49.2 H39.6 A1.6,1.6 0 0 1 38,47.6 V47.6 A1.6,1.6 0 0 1 39.6,46 Z" />
-    <path android:fillColor="#FFB4C8C1" android:pathData="M39.6,53 H49.4 A1.6,1.6 0 0 1 51,54.6 V54.6 A1.6,1.6 0 0 1 49.4,56.2 H39.6 A1.6,1.6 0 0 1 38,54.6 V54.6 A1.6,1.6 0 0 1 39.6,53 Z" />
+    <path android:fillColor="#FF17695A" android:pathData="M36.5,36 H55.5 A2.5,2.5 0 0 1 58,38.5 V38.5 A2.5,2.5 0 0 1 55.5,41 H36.5 A2.5,2.5 0 0 1 34,38.5 V38.5 A2.5,2.5 0 0 1 36.5,36 Z" />
+    <path android:fillColor="#FFB4C8C1" android:pathData="M35.6,46 H50.4 A1.6,1.6 0 0 1 52,47.6 V47.6 A1.6,1.6 0 0 1 50.4,49.2 H35.6 A1.6,1.6 0 0 1 34,47.6 V47.6 A1.6,1.6 0 0 1 35.6,46 Z" />
+    <path android:fillColor="#FFB4C8C1" android:pathData="M35.6,53 H45.4 A1.6,1.6 0 0 1 47,54.6 V54.6 A1.6,1.6 0 0 1 45.4,56.2 H35.6 A1.6,1.6 0 0 1 34,54.6 V54.6 A1.6,1.6 0 0 1 35.6,53 Z" />
     <!-- 金币：外圈 / 内圈反向渐变形成浅浮雕 -->
-    <path android:fillColor="#2E00221B" android:pathData="M54,70.5 A13,13 0 1 0 80,70.5 A13,13 0 1 0 54,70.5 Z" />
-    <path android:pathData="M54,68 A13,13 0 1 0 80,68 A13,13 0 1 0 54,68 Z">
+    <path android:fillColor="#2E00221B" android:pathData="M54,69.5 A13,13 0 1 0 80,69.5 A13,13 0 1 0 54,69.5 Z" />
+    <path android:pathData="M54,67 A13,13 0 1 0 80,67 A13,13 0 1 0 54,67 Z">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="54" android:startY="55"
-                android:endX="80" android:endY="81">
+            <gradient android:type="linear" android:startX="54" android:startY="54"
+                android:endX="80" android:endY="80">
                 <item android:offset="0" android:color="#FFFFE08A" />
                 <item android:offset="1" android:color="#FFE3A532" />
             </gradient>
         </aapt:attr>
     </path>
-    <path android:pathData="M56.8,68 A10.2,10.2 0 1 0 77.2,68 A10.2,10.2 0 1 0 56.8,68 Z"
+    <path android:pathData="M56.8,67 A10.2,10.2 0 1 0 77.2,67 A10.2,10.2 0 1 0 56.8,67 Z"
         android:strokeColor="#CCFFF1C4"
         android:strokeWidth="0.9">
         <aapt:attr name="android:fillColor">
-            <gradient android:type="linear" android:startX="77.2" android:startY="78.2"
-                android:endX="56.8" android:endY="57.8">
+            <gradient android:type="linear" android:startX="77.2" android:startY="77.2"
+                android:endX="56.8" android:endY="56.8">
                 <item android:offset="0" android:color="#FFFFE08A" />
                 <item android:offset="1" android:color="#FFE9AE3C" />
             </gradient>
         </aapt:attr>
     </path>
-    <path android:pathData="M62.6,62.2 L67,67.4 L71.4,62.2 M67,67.4 V74.2 M63.4,67.9 H70.6 M63.4,71 H70.6"
+    <path android:pathData="M62.6,61.2 L67,66.4 L71.4,61.2 M67,66.4 V73.2 M63.4,66.9 H70.6 M63.4,70 H70.6"
         android:strokeColor="#FF9A6512"
         android:strokeWidth="1.9"
         android:strokeLineCap="round"
