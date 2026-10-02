@@ -218,4 +218,65 @@ class TransactionRepository(
         }
         return null
     }
+
+    // ---------------------------------------------------------------------
+    // 多选批量操作：每个方法都在单个数据库事务内完成，要么全部生效、要么全部回滚。
+    // ---------------------------------------------------------------------
+
+    /** 批量软删除（进入回收站），返回实际删除的笔数；已在回收站的记录忽略。 */
+    suspend fun softDeleteAll(ids: Collection<String>): Result<Int> = batchResult {
+        val now = TimeUtils.now()
+        database.withTransaction {
+            ids.distinct().chunked(BATCH_CHUNK).sumOf { transactionDao.softDeleteByIds(it, now) }
+        }
+    }
+
+    /** 批量从回收站恢复，返回实际恢复的笔数。 */
+    suspend fun restoreAll(ids: Collection<String>): Result<Int> = batchResult {
+        val now = TimeUtils.now()
+        database.withTransaction {
+            ids.distinct().chunked(BATCH_CHUNK).sumOf { transactionDao.restoreByIds(it, now) }
+        }
+    }
+
+    /**
+     * 彻底删除回收站中的账单（不可恢复），只作用于 isDeleted = 1 的记录。
+     * 同一事务内先清理依赖行：标签关联与定时扣款执行记录（recurring_occurrence）。
+     * 执行记录对应的周期早已被规则的 nextOccurrenceIndex 越过，不会因此重新生成扣款；
+     * 保留悬空记录反而会让备份恢复校验（执行记录必须指向存在的交易）失败。
+     */
+    suspend fun purgeAll(ids: Collection<String>): Result<Int> = batchResult {
+        database.withTransaction {
+            val targets = ids.distinct().chunked(BATCH_CHUNK)
+                .flatMap { transactionDao.filterRecycledIds(it) }
+            purgeRecycled(targets)
+        }
+    }
+
+    /** 清空当前账本的回收站，返回彻底删除的笔数。 */
+    suspend fun emptyRecycleBin(ledgerId: String): Result<Int> = batchResult {
+        database.withTransaction {
+            purgeRecycled(transactionDao.getRecycledIds(ledgerId))
+        }
+    }
+
+    private suspend fun purgeRecycled(targets: List<String>): Int =
+        targets.chunked(BATCH_CHUNK).sumOf { chunk ->
+            transactionDao.deleteTagLinksOf(chunk)
+            transactionDao.deleteRecurringOccurrencesOf(chunk)
+            transactionDao.purgeRecycledByIds(chunk)
+        }
+
+    private suspend fun batchResult(block: suspend () -> Int): Result<Int> = try {
+        Result.success(block())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+    private companion object {
+        /** 低于旧版 SQLite 999 个绑定参数上限，留出余量。 */
+        const val BATCH_CHUNK = 500
+    }
 }

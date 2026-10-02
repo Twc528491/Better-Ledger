@@ -1,5 +1,16 @@
 package com.personal.ledger.ui.transaction
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -12,34 +23,56 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.LedgerGroupItem
 import com.personal.ledger.ui.common.MoneyText
+import com.personal.ledger.ui.common.MultiSelection
+import com.personal.ledger.ui.common.SelectionCheckCircle
+import com.personal.ledger.ui.common.SelectionTopBar
 import com.personal.ledger.ui.common.amountColor
-import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticDelete
+import com.personal.ledger.ui.common.rememberHapticLight
+import com.personal.ledger.ui.common.rememberHapticLongPress
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.ui.common.rememberMultiSelection
+import com.personal.ledger.ui.common.selectionHighlightColor
+import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.flow.flatMapLatest
@@ -47,34 +80,127 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+/** 回收站里待确认的不可撤销操作。 */
+private sealed interface RecyclePurgeRequest {
+    data class Selected(val ids: List<String>) : RecyclePurgeRequest
+    data class All(val ledgerId: String, val count: Int) : RecyclePurgeRequest
+}
+
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class,
+    kotlinx.coroutines.ExperimentalCoroutinesApi::class,
+)
 @Composable
 fun RecycleBinScreen(container: AppContainer, navController: NavHostController) {
     val scope = rememberCoroutineScope()
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
     val hapticReject = rememberHapticReject()
-    val ledgerId = container.ledgerRepository.currentLedger
-        .map { it?.id.orEmpty() }
-    val items by ledgerId
-        .flatMapLatest { id ->
-            if (id.isEmpty()) flowOf(emptyList()) else container.transactionRepository.observeRecycleBin(id)
+    val hapticLight = rememberHapticLight()
+    val hapticLongPress = rememberHapticLongPress()
+    val hapticDelete = rememberHapticDelete()
+    val repository = container.transactionRepository
+    val ledgerIdFlow = remember(container) {
+        container.ledgerRepository.currentLedger.map { it?.id.orEmpty() }
+    }
+    val ledgerId by ledgerIdFlow.collectAsStateWithLifecycle(initialValue = "")
+    val items by remember(ledgerIdFlow) {
+        ledgerIdFlow.flatMapLatest { id ->
+            if (id.isEmpty()) flowOf(emptyList()) else repository.observeRecycleBin(id)
         }
-        .collectAsStateWithLifecycle(initialValue = emptyList())
+    }.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    var selection by rememberMultiSelection()
+    var purgeRequest by remember { mutableStateOf<RecyclePurgeRequest?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val visibleIds = remember(items) { items.map { it.id } }
+    LaunchedEffect(visibleIds) { selection = selection.retain(visibleIds) }
+    BackHandler(enabled = selection.active) { selection = MultiSelection.None }
+
+    fun notify(message: String) {
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
+    }
+
+    // 批量操作统一入口：防重复提交，成功后退出多选并提示结果。
+    fun runBatch(action: suspend () -> Result<Int>, success: (Int) -> String, failure: String) {
+        if (busy) return
+        busy = true
+        scope.launch {
+            action()
+                .onSuccess { n ->
+                    hapticConfirm()
+                    selection = MultiSelection.None
+                    notify(success(n))
+                }
+                .onFailure {
+                    hapticReject()
+                    notify(failure)
+                }
+            busy = false
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text("回收站") },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        hapticNavigation()
-                        navController.popBackStack()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+            if (selection.active) {
+                SelectionTopBar(
+                    count = selection.count,
+                    allSelected = selection.allSelected(visibleIds),
+                    onClose = { selection = MultiSelection.None },
+                    onToggleAll = {
+                        hapticLight()
+                        selection = selection.toggleAll(visibleIds)
+                    },
+                ) {
+                    IconButton(
+                        onClick = {
+                            val ids = selection.selectedIn(visibleIds)
+                            runBatch(
+                                action = { repository.restoreAll(ids) },
+                                success = { n -> "已恢复 $n 笔" },
+                                failure = "恢复失败，请重试",
+                            )
+                        },
+                        enabled = selection.count > 0 && !busy,
+                    ) {
+                        Icon(Icons.Filled.Restore, contentDescription = "恢复所选账单")
                     }
-                },
-            )
+                    IconButton(
+                        onClick = { purgeRequest = RecyclePurgeRequest.Selected(selection.selectedIn(visibleIds)) },
+                        enabled = selection.count > 0 && !busy,
+                    ) {
+                        Icon(Icons.Filled.DeleteForever, contentDescription = "彻底删除所选账单")
+                    }
+                }
+            } else {
+                TopAppBar(
+                    title = { Text("回收站") },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            hapticNavigation()
+                            navController.popBackStack()
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                    actions = {
+                        if (items.isNotEmpty() && ledgerId.isNotEmpty()) {
+                            IconButton(
+                                onClick = { purgeRequest = RecyclePurgeRequest.All(ledgerId, items.size) },
+                                enabled = !busy,
+                            ) {
+                                Icon(Icons.Filled.DeleteSweep, contentDescription = "清空回收站")
+                            }
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         if (items.isEmpty()) {
@@ -98,53 +224,169 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
                     bottom = LedgerSpacing.xl,
                 ),
             ) {
+                item(key = "hint", contentType = "hint") {
+                    Text(
+                        if (selection.active) "点按账单切换选择" else "长按账单可多选，批量恢复或彻底删除",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = LedgerSpacing.xxs, bottom = LedgerSpacing.xs),
+                    )
+                }
                 val count = items.size
                 itemsIndexed(items, key = { _, tx -> tx.id }) { index, tx ->
                     LedgerGroupItem(index = index, count = count) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 56.dp)
-                                .padding(start = LedgerSpacing.md, end = LedgerSpacing.xxs, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f).padding(end = LedgerSpacing.sm)) {
-                                Text(
-                                    tx.note ?: "无备注",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    TimeUtils.formatMonthDay(tx.transactionTime),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            MoneyText(
-                                text = when (tx.type) {
-                                    TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
-                                    TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
-                                    TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
-                                },
-                                color = amountColor(tx.type),
-                            )
-                            IconButton(onClick = {
+                        RecycleBinRow(
+                            tx = tx,
+                            selectionActive = selection.active,
+                            selected = tx.id in selection,
+                            onClick = {
+                                if (selection.active) {
+                                    hapticLight()
+                                    selection = selection.toggle(tx.id)
+                                }
+                            },
+                            onLongClick = {
+                                if (!selection.active) hapticLongPress() else hapticLight()
+                                selection = selection.longPress(tx.id)
+                            },
+                            onRestore = {
                                 scope.launch {
-                                    container.transactionRepository.restore(tx.id)
+                                    repository.restore(tx.id)
                                         .onSuccess { hapticConfirm() }
                                         .onFailure { hapticReject() }
                                 }
-                            }) {
-                                Icon(
-                                    Icons.Filled.Restore,
-                                    contentDescription = "恢复",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
+                            },
+                        )
                     }
                 }
+            }
+        }
+    }
+
+    purgeRequest?.let { request ->
+        val n = when (request) {
+            is RecyclePurgeRequest.Selected -> request.ids.size
+            is RecyclePurgeRequest.All -> request.count
+        }
+        AlertDialog(
+            onDismissRequest = { purgeRequest = null },
+            title = {
+                Text(
+                    when (request) {
+                        is RecyclePurgeRequest.Selected -> "彻底删除 $n 笔账单？"
+                        is RecyclePurgeRequest.All -> "清空回收站？"
+                    },
+                )
+            },
+            text = {
+                Text(
+                    when (request) {
+                        is RecyclePurgeRequest.Selected -> "彻底删除后无法恢复，此操作不可撤销。"
+                        is RecyclePurgeRequest.All -> "回收站中的 $n 笔账单将被彻底删除，无法恢复，此操作不可撤销。"
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    hapticDelete()
+                    purgeRequest = null
+                    when (request) {
+                        is RecyclePurgeRequest.Selected -> runBatch(
+                            action = { repository.purgeAll(request.ids) },
+                            success = { deleted -> "已彻底删除 $deleted 笔" },
+                            failure = "删除失败，请重试",
+                        )
+                        is RecyclePurgeRequest.All -> runBatch(
+                            action = { repository.emptyRecycleBin(request.ledgerId) },
+                            success = { deleted -> "已清空回收站，共 $deleted 笔" },
+                            failure = "清空失败，请重试",
+                        )
+                    }
+                }) {
+                    Text(
+                        if (request is RecyclePurgeRequest.All) "清空" else "彻底删除",
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { purgeRequest = null }) { Text("取消") }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RecycleBinRow(
+    tx: Transaction,
+    selectionActive: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onRestore: () -> Unit,
+) {
+    val rowBackground by animateColorAsState(
+        if (selected) selectionHighlightColor() else Color.Transparent,
+        animationSpec = tween(150),
+        label = "recycle-selected-bg",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(rowBackground)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onClickLabel = if (selectionActive) (if (selected) "取消选择" else "选择") else null,
+                onLongClickLabel = if (selectionActive) null else "多选",
+                hapticFeedbackEnabled = false,
+            )
+            .then(if (selectionActive) Modifier.semantics { this.selected = selected } else Modifier)
+            .heightIn(min = 56.dp)
+            .padding(start = LedgerSpacing.md, end = LedgerSpacing.xxs, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AnimatedVisibility(
+            visible = selectionActive,
+            enter = fadeIn(tween(150)) + expandHorizontally(tween(150)),
+            exit = fadeOut(tween(120)) + shrinkHorizontally(tween(120)),
+        ) {
+            SelectionCheckCircle(
+                selected = selected,
+                modifier = Modifier.padding(end = LedgerSpacing.sm),
+            )
+        }
+        Column(modifier = Modifier.weight(1f).padding(end = LedgerSpacing.sm)) {
+            Text(
+                tx.note ?: "无备注",
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                TimeUtils.formatMonthDay(tx.transactionTime),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        MoneyText(
+            text = when (tx.type) {
+                TransactionType.EXPENSE -> Money.formatSignedMinor(-tx.amount)
+                TransactionType.INCOME -> Money.formatSignedMinor(tx.amount, explicitPlus = true)
+                TransactionType.TRANSFER -> Money.formatMinor(tx.amount)
+            },
+            color = amountColor(tx.type),
+            modifier = Modifier.padding(end = if (selectionActive) LedgerSpacing.sm else 0.dp),
+        )
+        // 多选时隐藏单条恢复按钮，避免与批量操作混淆。
+        if (!selectionActive) {
+            IconButton(onClick = onRestore) {
+                Icon(
+                    Icons.Filled.Restore,
+                    contentDescription = "恢复",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }

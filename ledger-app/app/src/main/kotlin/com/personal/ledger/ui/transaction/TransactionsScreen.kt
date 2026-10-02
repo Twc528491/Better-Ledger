@@ -72,15 +72,33 @@ import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.EmptyState
-import com.personal.ledger.ui.common.TransactionDeleteDialogs
+import com.personal.ledger.ui.common.MultiSelection
+import com.personal.ledger.ui.common.SelectionCheckCircle
+import com.personal.ledger.ui.common.SelectionTopBar
 import com.personal.ledger.ui.common.amountColor
+import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticLongPress
 import com.personal.ledger.ui.common.rememberHapticNavigation
+import com.personal.ledger.ui.common.rememberMultiSelection
+import com.personal.ledger.ui.common.selectionHighlightColor
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.TransactionsViewModel
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.launch
 import java.time.YearMonth
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
@@ -98,16 +116,44 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
         )
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
-    var deleteCandidate by remember { mutableStateOf<Transaction?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
     var showMonthPicker by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
+    var selection by rememberMultiSelection()
+    var confirmBatchDelete by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val hapticLight = rememberHapticLight()
     val hapticLongPress = rememberHapticLongPress()
     val hapticNavigation = rememberHapticNavigation()
+    val hapticDelete = rememberHapticDelete()
+
+    // 多选只针对当前月份、当前筛选下可见的账单；不再可见的 id 自动移出选择。
+    val visibleIds = remember(state.transactions) { state.transactions.map { it.id } }
+    LaunchedEffect(visibleIds) { selection = selection.retain(visibleIds) }
+    BackHandler(enabled = selection.active) { selection = MultiSelection.None }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
+          if (selection.active) {
+            SelectionTopBar(
+                count = selection.count,
+                allSelected = selection.allSelected(visibleIds),
+                onClose = { selection = MultiSelection.None },
+                onToggleAll = {
+                    hapticLight()
+                    selection = selection.toggleAll(visibleIds)
+                },
+            ) {
+                IconButton(
+                    onClick = { confirmBatchDelete = true },
+                    enabled = selection.count > 0,
+                ) {
+                    Icon(Icons.Filled.DeleteOutline, contentDescription = "删除所选账单")
+                }
+            }
+          } else {
             TopAppBar(
                 title = { Text("账单") },
                 actions = {
@@ -145,6 +191,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     }
                 },
             )
+          }
         },
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -244,22 +291,47 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                         dayHeaderLabel(date)
                     }
                 }
+                val dayIds = remember(grouped) { grouped.mapValues { (_, list) -> list.map { it.id } } }
                 LazyColumn(contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)) {
                     grouped.forEach { (date, list) ->
                         val dayExpense = dayExpenses[date] ?: 0L
                         item(key = "header-$date", contentType = "day-header") {
+                            val ids = dayIds[date].orEmpty()
+                            val dayAllSelected = selection.active && selection.allSelected(ids)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    // 选择模式下点日期头整天选中 / 取消。
+                                    .then(
+                                        if (selection.active) {
+                                            Modifier
+                                                .clickable(onClickLabel = if (dayAllSelected) "取消选择当天" else "选择当天") {
+                                                    hapticLight()
+                                                    selection = selection.toggleAll(ids)
+                                                }
+                                                .semantics { selected = dayAllSelected }
+                                        } else {
+                                            Modifier
+                                        },
+                                    )
                                     .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    dayLabels[date].orEmpty(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (selection.active) {
+                                        SelectionCheckCircle(
+                                            selected = dayAllSelected,
+                                            sizeDp = 18,
+                                            modifier = Modifier.padding(end = 8.dp),
+                                        )
+                                    }
+                                    Text(
+                                        dayLabels[date].orEmpty(),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 if (dayExpense > 0) {
                                     Text(
                                         "支出 ${Money.formatMinor(dayExpense)}",
@@ -279,13 +351,21 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 tagNames = tagMap,
                                 tagIdsOf = state.tagIdsOf,
                                 currency = state.baseCurrency,
+                                selectionActive = selection.active,
+                                selected = tx.id in selection,
                                 onClick = {
-                                    hapticNavigation()
-                                    navController.navigate(Routes.add(tx.id))
+                                    if (selection.active) {
+                                        hapticLight()
+                                        selection = selection.toggle(tx.id)
+                                    } else {
+                                        hapticNavigation()
+                                        navController.navigate(Routes.add(tx.id))
+                                    }
                                 },
                                 onLongClick = {
-                                    hapticLongPress()
-                                    deleteCandidate = tx
+                                    // 长按进入多选并选中该笔；已在多选中则切换选择。
+                                    if (!selection.active) hapticLongPress() else hapticLight()
+                                    selection = selection.longPress(tx.id)
                                 },
                             )
                         }
@@ -444,11 +524,46 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
         }
     }
 
-    TransactionDeleteDialogs(
-        transaction = deleteCandidate,
-        onDismiss = { deleteCandidate = null },
-        onDelete = { tx, onFinished -> vm.delete(tx.id) { onFinished() } },
-    )
+    if (confirmBatchDelete) {
+        val ids = selection.selectedIn(visibleIds)
+        val n = ids.size
+        AlertDialog(
+            onDismissRequest = { confirmBatchDelete = false },
+            title = { Text("删除 $n 笔账单？") },
+            text = { Text("删除后进入回收站，仍可恢复。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        hapticDelete()
+                        confirmBatchDelete = false
+                        vm.deleteAll(ids) { result ->
+                            scope.launch {
+                                result.onSuccess { deleted ->
+                                    selection = MultiSelection.None
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    val action = snackbarHostState.showSnackbar(
+                                        message = "已删除 $deleted 笔",
+                                        actionLabel = "撤销",
+                                        duration = SnackbarDuration.Long,
+                                    )
+                                    if (action == SnackbarResult.ActionPerformed) vm.restoreAll(ids)
+                                }.onFailure {
+                                    snackbarHostState.currentSnackbarData?.dismiss()
+                                    snackbarHostState.showSnackbar("删除失败，请重试")
+                                }
+                            }
+                        }
+                    },
+                    enabled = n > 0,
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmBatchDelete = false }) { Text("取消") }
+            },
+        )
+    }
 }
 
 private fun activeFilterSummary(state: com.personal.ledger.viewmodel.TransactionsUiState): String {
@@ -526,9 +641,16 @@ private fun TransactionItem(
     tagNames: Map<String, String>,
     tagIdsOf: Map<String, List<String>>,
     currency: String,
+    selectionActive: Boolean,
+    selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
+    val rowBackground by animateColorAsState(
+        if (selected) selectionHighlightColor() else androidx.compose.ui.graphics.Color.Transparent,
+        animationSpec = tween(150),
+        label = "tx-selected-bg",
+    )
     val title = remember(tx, categoryNames, merchantNameOf) { titleOf(tx, categoryNames, merchantNameOf) }
     val time = remember(tx.transactionTime) { timeOfDay(tx.transactionTime) }
     val tags = remember(tx.id, tagIdsOf[tx.id], tagNames) {
@@ -552,18 +674,31 @@ private fun TransactionItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .background(rowBackground)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
+                onClickLabel = if (selectionActive) (if (selected) "取消选择" else "选择") else "编辑账单",
+                onLongClickLabel = if (selectionActive) null else "多选",
                 hapticFeedbackEnabled = false,
             )
+            .then(if (selectionActive) Modifier.semantics { this.selected = selected } else Modifier)
             .heightIn(min = 60.dp)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            if (tx.type == TransactionType.TRANSFER) {
+          // 选中时圆标换成主色对勾圆；多选中未选中的行在圆标右下角给出空心选择圈。
+          Box(modifier = Modifier.size(38.dp)) {
+            androidx.compose.animation.Crossfade(
+                targetState = selected,
+                animationSpec = tween(150),
+                label = "tx-badge-check",
+            ) { showCheck ->
+              if (showCheck) {
+                SelectionCheckCircle(selected = true, sizeDp = 38)
+              } else if (tx.type == TransactionType.TRANSFER) {
                 Box(
                     modifier = Modifier
                         .size(38.dp)
@@ -573,7 +708,7 @@ private fun TransactionItem(
                     Icon(Icons.Filled.SwapHoriz, contentDescription = "转账",
                         tint = transferAmountColor(), modifier = Modifier.size(20.dp))
                 }
-            } else {
+              } else {
                 val categoryName = categoryNames[tx.categoryId] ?: "其他"
                 CategoryBadge(
                     name = categoryName,
@@ -586,7 +721,16 @@ private fun TransactionItem(
                     visualKey = tx.categoryId ?: categoryName,
                     iconKey = categoryIconKeys[tx.categoryId],
                 )
+              }
             }
+            if (selectionActive && !selected) {
+                SelectionCheckCircle(
+                    selected = false,
+                    sizeDp = 14,
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                )
+            }
+          }
             Column(modifier = Modifier.padding(start = 12.dp, end = 8.dp)) {
                 Text(
                     title,

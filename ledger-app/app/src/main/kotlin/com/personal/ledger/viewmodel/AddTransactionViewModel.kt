@@ -12,6 +12,7 @@ import com.personal.ledger.data.repository.TransactionRepository
 import com.personal.ledger.data.settings.SettingsRepository
 import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.Category
+import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.Merchant
 import com.personal.ledger.domain.model.Tag
 import com.personal.ledger.domain.model.Transaction
@@ -289,6 +290,47 @@ class AddTransactionViewModel(
                         )
                     }
                     onDone(Result.success(Unit))
+                }
+                .onFailure { onDone(Result.failure(it)) }
+        }
+    }
+
+    /**
+     * 记一笔中直接新建二级分类：校验（同名、层级、类型）由 [CategoryRepository.addCategory] 负责。
+     * 成功后并入当前分类列表，并在收支类型未切换时直接选中新分类。
+     */
+    fun addSubcategory(
+        parentId: String,
+        name: String,
+        iconKey: String?,
+        onDone: (Result<Category>) -> Unit,
+    ) {
+        val start = _uiState.value
+        val ledgerId = start.ledgerId
+        if (ledgerId == null) {
+            onDone(Result.failure(IllegalStateException("账本未就绪")))
+            return
+        }
+        val parent = (start.expenseCategories + start.incomeCategories).firstOrNull { it.id == parentId }
+        if (parent == null) {
+            onDone(Result.failure(IllegalArgumentException("父分类不存在")))
+            return
+        }
+        viewModelScope.launch {
+            categoryRepository.addCategory(ledgerId, name, parent.type, parentId, iconKey)
+                .onSuccess { created ->
+                    val current = _uiState.value
+                    if (current.ledgerId == ledgerId) {
+                        _uiState.value = if (created.type == CategoryType.EXPENSE) {
+                            current.copy(expenseCategories = (current.expenseCategories + created).distinctBy { it.id })
+                        } else {
+                            current.copy(incomeCategories = (current.incomeCategories + created).distinctBy { it.id })
+                        }
+                        val sameType = (current.type == TransactionType.EXPENSE && created.type == CategoryType.EXPENSE) ||
+                            (current.type == TransactionType.INCOME && created.type == CategoryType.INCOME)
+                        if (sameType) setCategoryId(created.id)
+                    }
+                    onDone(Result.success(created))
                 }
                 .onFailure { onDone(Result.failure(it)) }
         }

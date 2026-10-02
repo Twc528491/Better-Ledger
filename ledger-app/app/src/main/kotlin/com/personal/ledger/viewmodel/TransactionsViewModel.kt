@@ -189,8 +189,16 @@ class TransactionsViewModel(
         tagId.value = null
     }
 
-    fun delete(id: String, onDone: (Result<Unit>) -> Unit = {}) {
-        viewModelScope.launch { onDone(transactionRepository.softDelete(id)) }
+    /** 多选批量删除：单个事务内全部软删除进回收站，回调实际删除笔数。 */
+    fun deleteAll(ids: List<String>, onDone: (Result<Int>) -> Unit = {}) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch { onDone(transactionRepository.softDeleteAll(ids)) }
+    }
+
+    /** 撤销批量删除。 */
+    fun restoreAll(ids: List<String>, onDone: (Result<Int>) -> Unit = {}) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch { onDone(transactionRepository.restoreAll(ids)) }
     }
 
     private fun labelOf(ym: YearMonth) = "${ym.year}年${ym.monthValue}月"
