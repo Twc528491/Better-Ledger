@@ -23,6 +23,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -77,7 +80,8 @@ internal fun CategoryIconSheet(
 ) {
     var name by remember { mutableStateOf(initialName) }
     var selectedIconKey by remember { mutableStateOf(initialIconKey) }
-    val previewName = name.trim().ifEmpty { "新分类" }
+    val defaultPreviewName = stringResource(R.string.set_category_preview_name)
+    val previewName = name.trim().ifEmpty { defaultPreviewName }
     val canConfirm = !nameEditable || name.isNotBlank()
 
     ModalBottomSheet(
@@ -120,7 +124,7 @@ internal fun CategoryIconSheet(
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
-                            label = { Text("分类名称") },
+                            label = { Text(stringResource(R.string.set_category_name)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             modifier = Modifier.weight(1f),
@@ -135,7 +139,7 @@ internal fun CategoryIconSheet(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                CategoryIconLibrary.find(selectedIconKey)?.label ?: "自动匹配图标",
+                                CategoryIconLibrary.find(selectedIconKey)?.label ?: stringResource(R.string.set_icon_auto_match),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -166,7 +170,7 @@ internal fun CategoryIconSheet(
                     CategoryIconLibrary.groups.forEach { (groupTitle, icons) ->
                         item(key = "group-$groupTitle", span = { GridItemSpan(maxLineSpan) }) {
                             Text(
-                                groupTitle,
+                                stringResource(groupTitle),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(
@@ -192,7 +196,7 @@ internal fun CategoryIconSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text("取消")
+                        Text(stringResource(R.string.action_cancel))
                     }
                     Button(
                         onClick = { if (canConfirm) onConfirm(name.trim(), selectedIconKey) },
@@ -219,13 +223,13 @@ private fun AutoIconOption(icon: ImageVector, selected: Boolean, onClick: () -> 
         IconCircle(icon = icon, contentDescription = null, selected = selected)
         Column(Modifier.weight(1f).padding(start = LedgerSpacing.sm)) {
             Text(
-                "自动",
+                stringResource(R.string.set_icon_auto),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                "按分类名称匹配图标",
+                stringResource(R.string.set_icon_auto_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

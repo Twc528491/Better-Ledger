@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.personal.ledger.BuildConfig
+import com.personal.ledger.R
+import com.personal.ledger.data.StoredMessage
+import com.personal.ledger.data.StoredMessages
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.database.DATABASE_VERSION
 import com.personal.ledger.data.local.database.RecurringDatabaseGate
@@ -15,10 +17,14 @@ import com.personal.ledger.data.repository.toDomain
 import com.personal.ledger.data.settings.SettingsRepository
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.Money
+import com.personal.ledger.util.LocaleContext
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
+import com.personal.ledger.util.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -41,7 +47,11 @@ class BackupRepository(
     private val context: Context,
     private val database: AppDatabase,
     private val settings: SettingsRepository,
+    val stores: BackupStores = BackupStores(context),
 ) {
+
+    /** 立即备份与自动备份互斥，避免同一秒生成同名文件或并发轮换。 */
+    private val backupMutex = Mutex()
 
     private val json = Json {
         prettyPrint = true
@@ -88,17 +98,22 @@ class BackupRepository(
         val tags = database.tagDao().getAll().associateBy { it.id }
 
         val timeFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
+        // 表头与类型按导出时的应用语言生成
+        val res = LocaleContext.of(context)
+        val expenseLabel = res.getString(R.string.type_expense)
+        val incomeLabel = res.getString(R.string.type_income)
+        val transferLabel = res.getString(R.string.type_transfer)
         val sb = StringBuilder()
-        sb.append("账本,类型,金额,币种,账户,转入账户,分类,商家,标签,备注,时间\n")
+        sb.append(res.getString(R.string.data_csv_header)).append('\n')
 
         database.transactionDao().getAll()
             .filter { !it.isDeleted } // CSV 不包含已删除交易
             .sortedBy { it.transactionTime }
             .forEach { tx ->
                 val typeLabel = when (tx.type) {
-                    TransactionType.EXPENSE -> "支出"
-                    TransactionType.INCOME -> "收入"
-                    TransactionType.TRANSFER -> "转账"
+                    TransactionType.EXPENSE -> expenseLabel
+                    TransactionType.INCOME -> incomeLabel
+                    TransactionType.TRANSFER -> transferLabel
                 }
                 val amountText = BigDecimal.valueOf(tx.amount, 2).toPlainString()
                 val tagNames = (tagLinks[tx.id].orEmpty())
@@ -132,7 +147,7 @@ class BackupRepository(
                 cursor.moveToFirst()
             }
             val source = context.getDatabasePath("ledger.db")
-            if (!source.exists()) throw IllegalStateException("数据库文件不存在")
+            if (!source.exists()) throw UserFacingException(R.string.err_db_file_missing)
             source.copyTo(dest, overwrite = true)
             Unit
         }
@@ -148,9 +163,9 @@ class BackupRepository(
         runCatching {
             val backup = json.decodeFromString(BackupFile.serializer(), bytes.toString(Charsets.UTF_8))
             if (backup.backupFormatVersion !in 1..BackupConstants.FORMAT_VERSION) {
-                throw IllegalStateException("不支持的备份格式版本（${backup.backupFormatVersion}）")
+                throw UserFacingException(R.string.err_backup_format_version, backup.backupFormatVersion)
             }
-                        validateRecurringBackup(backup.data)
+            validateRecurringBackup(backup.data)
             val merchantCategories = if (backup.backupFormatVersion < 3) {
                 deriveLegacyMerchantCategories(backup.data)
             } else {
@@ -201,7 +216,7 @@ class BackupRepository(
             try {
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     candidate.outputStream().use { output -> input.copyTo(output) }
-                } ?: throw IllegalStateException("无法读取备份文件")
+                } ?: throw UserFacingException(R.string.err_backup_read)
                 validateSqliteBackup(candidate)
                 RecurringDatabaseGate.mutex.withLock {
                     backupBeforeRestoreOrThrow()
@@ -234,64 +249,183 @@ class BackupRepository(
         }
     }
 
-    // ---------- 自动备份 ----------
+    // ---------- 备份位置 / 立即备份 / 自动备份 ----------
 
-    /** 自动备份到 SAF 目录并执行轮换；返回是否成功。 */
-    suspend fun runAutoBackup(dirUri: Uri): Boolean = withContext(Dispatchers.IO) {
+    /** 当前备份位置（默认目录或自定义文件夹）及其可用状态。 */
+    suspend fun currentLocation(): BackupLocationState = stores.resolve(settings.backupDirUri.first())
+
+    /** 使用自定义 SAF 文件夹：持久化读写授权后保存。 */
+    suspend fun useCustomFolder(treeUri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val dir = DocumentFile.fromTreeUri(context, dirUri) ?: return@runCatching false
-            val now = java.time.LocalDateTime.now()
-            val name = BackupRotation.fileName(now)
-            val jsonBytes = buildBackupJson()
-            val file = dir.createFile(BackupConstants.MIME_JSON, name)
-                ?: return@runCatching false
-            context.contentResolver.openOutputStream(file.uri)?.use { it.write(jsonBytes) }
-                ?: return@runCatching false
-
-            // 轮换：7 每日 + 4 每周 + 12 每月
-            val names = dir.listFiles().mapNotNull { it.name }
-                .filter { it.startsWith(BackupConstants.FILE_PREFIX) && it.endsWith(".json") }
-            BackupRotation.selectFilesToDelete(names, java.time.LocalDate.now())
-                .forEach { n -> dir.findFile(n)?.delete() }
-            true
-        }.getOrDefault(false)
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            val previous = settings.backupDirUri.first()
+            settings.setBackupDirUri(treeUri.toString())
+            settings.recordBackupResult(succeededAt = null, warning = null)
+            if (previous != null && previous != treeUri.toString()) stores.customStore(previous).releasePermission()
+        }
     }
 
-    /** 恢复前自动备份当前数据：优先写入用户选择的备份目录，否则写入应用 filesDir。 */
+    /** 恢复为默认目录：清除自定义文件夹并释放其授权（文件夹中的已有文件不受影响）。 */
+    suspend fun useDefaultFolder() {
+        settings.backupDirUri.first()?.let { stores.customStore(it).releasePermission() }
+        settings.setBackupDirUri(null)
+        settings.recordBackupResult(succeededAt = null, warning = null)
+    }
+
+    /**
+     * 立即备份：把完整 JSON 备份写入当前备份位置（无需选择器），随后执行轮换。
+     * 自动备份 Worker 也走这里。
+     *
+     * 自定义文件夹授权丢失 / 写入失败时回退写入默认目录，并记录警告供界面提示；
+     * 不会静默清除用户的自定义设置，由用户决定重新选择或恢复默认。
+     */
+    suspend fun backupNow(): Result<BackupRunResult> = withContext(Dispatchers.IO) {
+        backupMutex.withLock {
+            val result = runCatching {
+                val location = currentLocation()
+                val bytes = buildBackupJson()
+                val name = BackupRotation.fileName(java.time.LocalDateTime.now())
+                var store = if (location.customUnavailable) stores.defaultStore() else location.store
+                var fellBack = location.customUnavailable
+                val entry = try {
+                    store.write(name, bytes)
+                } catch (e: Exception) {
+                    if (!location.isCustom || fellBack) throw e
+                    store = stores.defaultStore()
+                    fellBack = true
+                    store.write(name, bytes)
+                }
+                val rotated = runCatching { rotate(store) }.getOrDefault(0)
+                BackupRunResult(entry, store.describe(), fellBack, rotated)
+            }
+            result.onSuccess {
+                settings.recordBackupResult(
+                    succeededAt = TimeUtils.now(),
+                    warning = if (it.fellBackToDefault) CUSTOM_FOLDER_LOST_WARNING else null,
+                )
+            }.onFailure {
+                settings.recordBackupResult(
+                    succeededAt = null,
+                    warning = StoredMessages.encode(
+                        StoredMessage.BACKUP_FAILED,
+                        StoredMessages.encode(it, StoredMessage.BACKUP_UNKNOWN_ERROR),
+                    ),
+                )
+            }
+            result
+        }
+    }
+
+    /** 自动备份入口（WorkManager）；返回是否成功。 */
+    suspend fun runAutoBackup(): Boolean = backupNow().isSuccess
+
+    /** 轮换：只考虑严格命名的 ledger-backup-*.json，恢复前备份与其他文件不会被删除。返回删除数量。 */
+    private suspend fun rotate(store: BackupStore): Int {
+        val entries = store.list()
+        val toDelete = BackupRotation.selectFilesToDelete(
+            BackupCatalog.rotationCandidates(entries),
+            java.time.LocalDate.now(),
+        ).toSet()
+        return entries.filter { it.name in toDelete }.count { store.delete(it) }
+    }
+
+    /** 列出当前位置中的备份与应用内部的恢复前备份（均为从新到旧）。 */
+    suspend fun listBackups(): BackupListing = withContext(Dispatchers.IO) {
+        val location = currentLocation()
+        val storeResult = if (location.customUnavailable) {
+            Result.failure(UserFacingException(R.string.err_custom_folder_inaccessible))
+        } else {
+            runCatching { BackupCatalog.visibleNewestFirst(location.store.list()) }
+        }
+        val internal = stores.internalPreRestoreStore()
+        val internalEntries = runCatching {
+            BackupCatalog.visibleNewestFirst(internal.list())
+        }.getOrDefault(emptyList())
+        BackupListing(
+            location = location,
+            entries = storeResult.getOrDefault(emptyList()),
+            listError = storeResult.exceptionOrNull()?.userMessage(LocaleContext.of(context)),
+            internalStore = internal,
+            internalEntries = internalEntries,
+        )
+    }
+
+    /** 把备份文件另存到用户选择的位置（SAF CreateDocument）。 */
+    suspend fun copyBackupTo(store: BackupStore, entry: BackupEntry, target: Uri): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                store.open(entry).use { input ->
+                    context.contentResolver.openOutputStream(target, "w")?.use { output -> input.copyTo(output) }
+                        ?: throw UserFacingException(R.string.err_write_target)
+                }
+                Unit
+            }
+        }
+
+    /**
+     * 从任意 URI 恢复（content:// 或 file://）：按文件名或首字节判断 JSON / SQLite。
+     * JSON 恢复后调用方需回退无效的当前账本；SQLite 恢复后需重启应用。
+     */
+    suspend fun restoreFromUri(uri: Uri, displayName: String? = null): Result<RestoreOutcome> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val name = displayName ?: uri.lastPathSegment.orEmpty()
+                val isJson = name.endsWith(".json", ignoreCase = true) ||
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val buf = ByteArray(1)
+                            input.read(buf) >= 0 && buf[0] == '{'.code.toByte()
+                        } == true
+                    }.getOrDefault(false)
+                if (isJson) {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw UserFacingException(R.string.err_backup_read)
+                    restoreJson(bytes).getOrThrow()
+                    RestoreOutcome.JSON_RESTORED
+                } else {
+                    restoreSqlite(uri).getOrThrow()
+                    RestoreOutcome.SQLITE_RESTART_REQUIRED
+                }
+            }
+        }
+
+    /**
+     * 恢复前自动备份当前数据：优先写入当前备份位置（默认目录或可用的自定义文件夹），
+     * 失败时写入应用内部 filesDir/pre-restore-backups。
+     */
     private suspend fun backupBeforeRestoreOrThrow() {
         val jsonBytes = buildBackupJson()
-        val name = BackupRotation.fileName(java.time.LocalDateTime.now())
-        val backupDirUri = settings.backupDirUri.first()
-        val savedToUserDirectory = if (backupDirUri != null) {
-            runCatching {
-                val dir = DocumentFile.fromTreeUri(context, Uri.parse(backupDirUri))
-                val file = dir?.createFile(BackupConstants.MIME_JSON, "pre-restore-$name")
-                    ?: return@runCatching false
-                context.contentResolver.openOutputStream(file.uri)?.use { it.write(jsonBytes) } != null
-            }.getOrDefault(false)
-        } else {
-            false
-        }
-        if (!savedToUserDirectory) {
-            val dir = File(context.filesDir, "pre-restore-backups")
-            if (!dir.exists() && !dir.mkdirs()) throw IllegalStateException("无法创建恢复前备份目录")
-            File(dir, "pre-restore-$name").writeBytes(jsonBytes)
+        val name = BackupCatalog.preRestoreFileName(java.time.LocalDateTime.now())
+        val savedToStore = runCatching {
+            val location = currentLocation()
+            if (location.customUnavailable) {
+                false
+            } else {
+                location.store.write(name, jsonBytes)
+                true
+            }
+        }.getOrDefault(false)
+        if (!savedToStore) {
+            stores.internalPreRestoreStore().write(name, jsonBytes)
         }
     }
 
     private fun validateSqliteBackup(file: File) {
-        if (file.length() == 0L) throw IllegalStateException("备份文件为空")
+        if (file.length() == 0L) throw UserFacingException(R.string.err_backup_empty)
         val sqlite = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
         try {
             val quickCheck = sqlite.rawQuery("PRAGMA quick_check", null).use { cursor ->
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             }
-            if (quickCheck != "ok") throw IllegalStateException("SQLite 备份完整性校验失败")
+            if (quickCheck != "ok") throw UserFacingException(R.string.err_sqlite_integrity)
             val version = sqlite.rawQuery("PRAGMA user_version", null).use { cursor ->
                 if (cursor.moveToFirst()) cursor.getInt(0) else 0
             }
             if (version !in 1..DATABASE_VERSION) {
-                throw IllegalStateException("不支持的数据库版本：$version")
+                throw UserFacingException(R.string.err_db_version, version)
             }
             val tables = sqlite.rawQuery(
                 "SELECT name FROM sqlite_master WHERE type = 'table'",
@@ -305,12 +439,12 @@ class BackupRepository(
                 "ledger", "account", "category", "merchant", "tag",
                 "transaction", "transaction_tag", "budget",
             )
-            if (!tables.containsAll(required)) throw IllegalStateException("SQLite 备份缺少必要数据表")
+            if (!tables.containsAll(required)) throw UserFacingException(R.string.err_sqlite_missing_tables)
             if (version >= 2 && !tables.containsAll(setOf("recurring_charge", "recurring_occurrence"))) {
-                throw IllegalStateException("SQLite v2 备份缺少定时扣款数据表")
+                throw UserFacingException(R.string.err_sqlite_v2_missing)
             }
             if (version >= 3 && "merchant_category" !in tables) {
-                throw IllegalStateException("SQLite v3 备份缺少商家分类关联表")
+                throw UserFacingException(R.string.err_sqlite_v3_missing)
             }
             if (version >= 4) {
                 val categoryColumns = sqlite.rawQuery("PRAGMA table_info(`category`)", null).use { cursor ->
@@ -318,7 +452,7 @@ class BackupRepository(
                     buildSet { while (cursor.moveToNext()) add(cursor.getString(nameIndex)) }
                 }
                 if ("iconKey" !in categoryColumns) {
-                    throw IllegalStateException("SQLite v4 备份缺少分类图标字段")
+                    throw UserFacingException(R.string.err_sqlite_v4_missing)
                 }
             }
             // v1–v3 备份替换后由 Room 在下次打开时按显式 Migration 升级到当前版本。
@@ -330,21 +464,21 @@ class BackupRepository(
     private fun validateRecurringBackup(data: BackupData) {
         val charges = data.recurringCharges.map { it.toEntity() }
         val chargeIds = charges.map { it.id }.toSet()
-        if (chargeIds.size != charges.size) throw IllegalStateException("定时扣款 ID 重复")
+        if (chargeIds.size != charges.size) throw UserFacingException(R.string.err_backup_recurring_dup_id)
         val ledgers = data.ledgers.associateBy { it.id }
         val accounts = data.accounts.associateBy { it.id }
         val categories = data.categories.associateBy { it.id }
         val transactionIds = data.transactions.map { it.id }.toSet()
-        if (transactionIds.size != data.transactions.size) throw IllegalStateException("交易 ID 重复")
+        if (transactionIds.size != data.transactions.size) throw UserFacingException(R.string.err_backup_tx_dup_id)
         charges.forEach { charge ->
             val domain = try {
                 charge.toDomain()
             } catch (_: Exception) {
-                throw IllegalStateException("定时扣款规则包含无效频率、日期或时区")
+                throw UserFacingException(R.string.err_backup_recurring_invalid_rule)
             }
-            if (charge.amount <= 0) throw IllegalStateException("定时扣款金额必须大于 0")
-            if (charge.minuteOfDay !in 0..1439) throw IllegalStateException("定时扣款时间无效")
-            if (charge.nextOccurrenceIndex < 0) throw IllegalStateException("定时扣款周期位置无效")
+            if (charge.amount <= 0) throw UserFacingException(R.string.err_backup_recurring_amount)
+            if (charge.minuteOfDay !in 0..1439) throw UserFacingException(R.string.err_backup_recurring_time)
+            if (charge.nextOccurrenceIndex < 0) throw UserFacingException(R.string.err_backup_recurring_index)
             val expected = try {
                 com.personal.ledger.domain.calc.RecurringSchedule.dueAt(
                     domain.startDate,
@@ -354,38 +488,38 @@ class BackupRepository(
                     domain.nextOccurrenceIndex,
                 )
             } catch (_: Exception) {
-                throw IllegalStateException("定时扣款计划日期超出可用范围")
+                throw UserFacingException(R.string.err_backup_recurring_date_range)
             }
-            if (expected != charge.nextDueAt) throw IllegalStateException("定时扣款计划日期与周期位置不一致")
+            if (expected != charge.nextDueAt) throw UserFacingException(R.string.err_backup_recurring_date_mismatch)
             val ledger = ledgers[charge.ledgerId]
-                ?: throw IllegalStateException("定时扣款所关联的账本不存在")
+                ?: throw UserFacingException(R.string.err_backup_recurring_ledger)
             val account = accounts[charge.accountId]
-                ?: throw IllegalStateException("定时扣款所关联的账户不存在")
+                ?: throw UserFacingException(R.string.err_backup_recurring_account)
             val category = categories[charge.categoryId]
-                ?: throw IllegalStateException("定时扣款所关联的分类不存在")
+                ?: throw UserFacingException(R.string.err_backup_recurring_category)
             if (account.ledgerId != charge.ledgerId || account.currency != ledger.baseCurrency) {
-                throw IllegalStateException("定时扣款账户与账本不匹配")
+                throw UserFacingException(R.string.err_backup_recurring_account_mismatch)
             }
-            if (charge.currency != ledger.baseCurrency) throw IllegalStateException("定时扣款币种与账本不匹配")
+            if (charge.currency != ledger.baseCurrency) throw UserFacingException(R.string.err_backup_recurring_currency)
             if (category.ledgerId != charge.ledgerId || category.type != "EXPENSE") {
-                throw IllegalStateException("定时扣款必须使用同账本的支出分类")
+                throw UserFacingException(R.string.err_backup_recurring_expense)
             }
         }
         val occurrenceKeys = mutableSetOf<Pair<String, Long>>()
         val occurrenceTransactionIds = mutableSetOf<String>()
         data.recurringOccurrences.forEach { occurrence ->
-            if (occurrence.ruleId !in chargeIds) throw IllegalStateException("定时扣款执行记录缺少所属规则")
-            if (occurrence.transactionId !in transactionIds) throw IllegalStateException("定时扣款执行记录缺少交易")
+            if (occurrence.ruleId !in chargeIds) throw UserFacingException(R.string.err_backup_occurrence_rule)
+            if (occurrence.transactionId !in transactionIds) throw UserFacingException(R.string.err_backup_occurrence_tx)
             val charge = charges.first { it.id == occurrence.ruleId }
             val transaction = data.transactions.first { it.id == occurrence.transactionId }
             if (transaction.ledgerId != charge.ledgerId) {
-                throw IllegalStateException("定时扣款执行交易与规则账本不匹配")
+                throw UserFacingException(R.string.err_backup_occurrence_ledger)
             }
             if (!occurrenceKeys.add(occurrence.ruleId to occurrence.dueAt)) {
-                throw IllegalStateException("定时扣款执行记录重复")
+                throw UserFacingException(R.string.err_backup_occurrence_dup)
             }
             if (!occurrenceTransactionIds.add(occurrence.transactionId)) {
-                throw IllegalStateException("定时扣款执行交易重复")
+                throw UserFacingException(R.string.err_backup_occurrence_tx_dup)
             }
         }
     }
@@ -394,17 +528,17 @@ class BackupRepository(
         val merchants = data.merchants.associateBy { it.id }
         val categories = data.categories.associateBy { it.id }
         if (links.map { it.merchantId to it.categoryId }.toSet().size != links.size) {
-            throw IllegalStateException("商家分类关联重复")
+            throw UserFacingException(R.string.err_backup_merchant_link_dup)
         }
         links.forEach { link ->
             val merchant = merchants[link.merchantId]
-                ?: throw IllegalStateException("商家分类关联缺少商家")
+                ?: throw UserFacingException(R.string.err_backup_merchant_link_merchant)
             val category = categories[link.categoryId]
-                ?: throw IllegalStateException("商家分类关联缺少分类")
+                ?: throw UserFacingException(R.string.err_backup_merchant_link_category)
             if (merchant.ledgerId != category.ledgerId || category.parentId != null ||
                 category.type !in setOf("EXPENSE", "INCOME")
             ) {
-                throw IllegalStateException("商家分类关联必须指向同账本一级分类")
+                throw UserFacingException(R.string.err_backup_merchant_link_root)
             }
         }
     }
@@ -423,6 +557,9 @@ class BackupRepository(
     }
 
     companion object {
+        /** 存入设置的警告代码；[SettingsRepository.lastBackupWarning] 读取时按当前语言解析。 */
+        val CUSTOM_FOLDER_LOST_WARNING: String = StoredMessages.encode(StoredMessage.BACKUP_CUSTOM_FOLDER_LOST)
+
         /** 恢复（SQLite）后重启应用使新数据库生效。 */
         fun restartApp(context: Context) {
             val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -432,4 +569,32 @@ class BackupRepository(
             Runtime.getRuntime().exit(0)
         }
     }
+}
+
+/** 一次立即 / 自动备份的结果。 */
+data class BackupRunResult(
+    val entry: BackupEntry,
+    val locationLabel: String,
+    /** 自定义文件夹不可用，本次已回退写入默认目录。 */
+    val fellBackToDefault: Boolean,
+    /** 轮换删除的旧备份数量。 */
+    val rotatedCount: Int,
+)
+
+/** 备份管理页的列表数据。 */
+data class BackupListing(
+    val location: BackupLocationState,
+    val entries: List<BackupEntry>,
+    /** 列出失败的原因（已按列出时的应用语言解析）。 */
+    val listError: String?,
+    val internalStore: BackupStore,
+    val internalEntries: List<BackupEntry>,
+)
+
+enum class RestoreOutcome {
+    /** JSON 已恢复，需回退无效的当前账本。 */
+    JSON_RESTORED,
+
+    /** SQLite 文件已替换，需重启应用。 */
+    SQLITE_RESTART_REQUIRED,
 }

@@ -26,7 +26,7 @@ import java.time.YearMonth
 data class HomeUiState(
     val ledgerName: String = "",
     val baseCurrency: String = "CNY",
-    val monthLabel: String = "",
+    val month: YearMonth = YearMonth.now(),
     val income: Long = 0L,
     val expense: Long = 0L,
     val recent: List<Transaction> = emptyList(),
@@ -105,7 +105,7 @@ class HomeViewModel(
                     HomeUiState(
                         ledgerName = ledger.name,
                         baseCurrency = ledger.baseCurrency,
-                        monthLabel = "${ym.monthValue}月",
+                        month = ym,
                         income = income,
                         expense = expense,
                         recent = recent,

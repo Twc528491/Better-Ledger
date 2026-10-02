@@ -12,11 +12,16 @@ import com.personal.ledger.data.repository.TransactionRepository
 import com.personal.ledger.data.settings.SettingsRepository
 import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.Category
+import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.Merchant
 import com.personal.ledger.domain.model.Tag
 import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.domain.model.TransactionType
+import com.personal.ledger.R
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UiText
+import com.personal.ledger.util.UserFacingException
+import com.personal.ledger.util.toUiText
 import com.personal.ledger.ui.transaction.CategorySelection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,10 +46,10 @@ data class AddTransactionUiState(
     val incomeCategories: List<Category> = emptyList(),
     val merchants: List<Merchant> = emptyList(),
     val merchantOptions: List<Merchant> = emptyList(),
-    val merchantNotice: String? = null,
+    val merchantNotice: UiText? = null,
     val isResolvingMerchant: Boolean = false,
     val tags: List<Tag> = emptyList(),
-    val error: String? = null,
+    val error: UiText? = null,
     val saved: Boolean = false,
     val isSaving: Boolean = false,
     val editing: Transaction? = null,
@@ -146,7 +151,7 @@ class AddTransactionViewModel(
             throw e
           } catch (e: Exception) {
             if (generation == loadGeneration) {
-                _uiState.value = _uiState.value.copy(error = e.message ?: "加载账单失败，请重试")
+                _uiState.value = _uiState.value.copy(error = e.toUiText(R.string.add_error_load_failed))
             }
           } finally {
             if (generation == loadGeneration) isLoading = false
@@ -170,7 +175,7 @@ class AddTransactionViewModel(
             merchantOptions = emptyList(),
             // 转账不设置商家；切到收支类型时提示重新选择。
             merchantNotice = if (s.merchantId != null && type != TransactionType.TRANSFER)
-                "类型已更改，请重新选择商家" else null,
+                UiText.res(R.string.add_notice_type_changed) else null,
             isResolvingMerchant = false,
             error = null,
         )
@@ -210,7 +215,7 @@ class AddTransactionViewModel(
             _uiState.value = current.copy(
                 merchantOptions = options,
                 merchantId = if (clearMerchant) null else current.merchantId,
-                merchantNotice = if (clearMerchant) "分类已更改，原商家不在此分类商家库，已取消选择" else null,
+                merchantNotice = if (clearMerchant) UiText.res(R.string.add_notice_category_changed) else null,
                 isResolvingMerchant = false,
             )
           } catch (e: CancellationException) {
@@ -220,8 +225,8 @@ class AddTransactionViewModel(
             if (current.categoryId == id && generation == merchantRequestGeneration) {
                 _uiState.value = current.copy(
                     merchantId = null, isResolvingMerchant = false,
-                    merchantNotice = "商家库暂时无法读取，原商家已取消选择",
-                    error = e.message ?: "商家库读取失败",
+                    merchantNotice = UiText.res(R.string.add_notice_merchant_unavailable),
+                    error = e.toUiText(R.string.add_error_merchant_load_failed),
                 )
             }
           }
@@ -247,7 +252,7 @@ class AddTransactionViewModel(
         val start = _uiState.value
         val ledgerId = start.ledgerId
         if (ledgerId == null) {
-            onDone(Result.failure(IllegalStateException("账本未就绪")))
+            onDone(Result.failure(UserFacingException(R.string.add_error_ledger_not_ready)))
             return
         }
         viewModelScope.launch {
@@ -276,7 +281,7 @@ class AddTransactionViewModel(
     fun addTag(name: String, onDone: (Result<Unit>) -> Unit) {
         val ledgerId = _uiState.value.ledgerId
         if (ledgerId == null) {
-            onDone(Result.failure(IllegalStateException("账本未就绪")))
+            onDone(Result.failure(UserFacingException(R.string.add_error_ledger_not_ready)))
             return
         }
         viewModelScope.launch {
@@ -294,6 +299,47 @@ class AddTransactionViewModel(
         }
     }
 
+    /**
+     * 记一笔中直接新建二级分类：校验（同名、层级、类型）由 [CategoryRepository.addCategory] 负责。
+     * 成功后并入当前分类列表，并在收支类型未切换时直接选中新分类。
+     */
+    fun addSubcategory(
+        parentId: String,
+        name: String,
+        iconKey: String?,
+        onDone: (Result<Category>) -> Unit,
+    ) {
+        val start = _uiState.value
+        val ledgerId = start.ledgerId
+        if (ledgerId == null) {
+            onDone(Result.failure(UserFacingException(R.string.add_error_ledger_not_ready)))
+            return
+        }
+        val parent = (start.expenseCategories + start.incomeCategories).firstOrNull { it.id == parentId }
+        if (parent == null) {
+            onDone(Result.failure(UserFacingException(R.string.add_error_parent_missing)))
+            return
+        }
+        viewModelScope.launch {
+            categoryRepository.addCategory(ledgerId, name, parent.type, parentId, iconKey)
+                .onSuccess { created ->
+                    val current = _uiState.value
+                    if (current.ledgerId == ledgerId) {
+                        _uiState.value = if (created.type == CategoryType.EXPENSE) {
+                            current.copy(expenseCategories = (current.expenseCategories + created).distinctBy { it.id })
+                        } else {
+                            current.copy(incomeCategories = (current.incomeCategories + created).distinctBy { it.id })
+                        }
+                        val sameType = (current.type == TransactionType.EXPENSE && created.type == CategoryType.EXPENSE) ||
+                            (current.type == TransactionType.INCOME && created.type == CategoryType.INCOME)
+                        if (sameType) setCategoryId(created.id)
+                    }
+                    onDone(Result.success(created))
+                }
+                .onFailure { onDone(Result.failure(it)) }
+        }
+    }
+
     fun setNote(text: String) {
         _uiState.value = _uiState.value.copy(note = text)
     }
@@ -306,18 +352,18 @@ class AddTransactionViewModel(
         val s = _uiState.value
         if (s.isSaving || s.saved) return
         if (s.isResolvingMerchant) {
-            _uiState.value = s.copy(error = "正在检查此分类的商家，请稍候保存")
+            _uiState.value = s.copy(error = UiText.res(R.string.add_error_resolving_merchant))
             return
         }
         val amount = com.personal.ledger.util.Money.parseToMinor(
             com.personal.ledger.ui.transaction.AmountEntry.forSaving(s.amountText),
         )
         if (amount == null) {
-            _uiState.value = s.copy(error = "请输入有效金额（最多两位小数）")
+            _uiState.value = s.copy(error = UiText.res(R.string.add_error_invalid_amount))
             return
         }
         if (s.ledgerId == null) {
-            _uiState.value = s.copy(error = "账本未就绪")
+            _uiState.value = s.copy(error = UiText.res(R.string.add_error_ledger_not_ready))
             return
         }
         val draft = TransactionDraft(
@@ -346,7 +392,7 @@ class AddTransactionViewModel(
                 runCatching { settings.setLastUsedAccountId(draft.accountId.ifEmpty { null }) }
                 onSaved()
             }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(isSaving = false, error = e.message ?: "保存失败")
+                _uiState.value = _uiState.value.copy(isSaving = false, error = e.toUiText(R.string.add_error_save_failed))
             }
         }
     }

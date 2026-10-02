@@ -45,13 +45,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.repository.RecurringChargeDraft
 import com.personal.ledger.domain.model.Account
@@ -66,7 +69,9 @@ import com.personal.ledger.ui.common.insetColor
 import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.ui.theme.LedgerSpacing
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
+import com.personal.ledger.util.userMessage
 import com.personal.ledger.viewmodel.RecurringChargesViewModel
 import java.time.Instant
 import java.time.LocalDate
@@ -86,7 +91,8 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
         )
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
-    val appContext = LocalContext.current.applicationContext
+    val context = LocalContext.current
+    val appContext = context.applicationContext
     var editorVisible by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<RecurringCharge?>(null) }
     var deleting by remember { mutableStateOf<RecurringCharge?>(null) }
@@ -96,10 +102,10 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("定时扣款") },
+                title = { Text(stringResource(R.string.set_recurring_title)) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -111,7 +117,7 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                     editorVisible = true
                 },
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("添加扣款") },
+                text = { Text(stringResource(R.string.set_recurring_add_fab)) },
             )
         },
     ) { padding ->
@@ -137,9 +143,9 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                         )
                         Spacer(Modifier.width(LedgerSpacing.sm))
                         Column(verticalArrangement = Arrangement.spacedBy(LedgerSpacing.xxs)) {
-                            Text("只在本地账本生成普通支出记录，不会向商家或银行实际付款。", style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.set_recurring_info), style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "开始日期早于现在时会补记已到期扣款；每次最多补 200 笔。后台执行受系统省电和调度影响，打开应用时也会检查补记。",
+                                stringResource(R.string.set_recurring_info_detail),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -159,7 +165,7 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
             if (state.ledger == null) {
                 item {
                     Text(
-                        "当前没有可用账本。",
+                        stringResource(R.string.set_recurring_no_ledger),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -168,8 +174,8 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                 item {
                     EmptyState(
                         icon = Icons.Outlined.EventRepeat,
-                        title = "还没有定时扣款",
-                        subtitle = "添加后可设置金额、账户、支出分类、开始日期和重复周期。",
+                        title = stringResource(R.string.set_recurring_empty),
+                        subtitle = stringResource(R.string.set_recurring_empty_hint),
                     )
                 }
             } else {
@@ -185,8 +191,10 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                         },
                         onPauseToggle = {
                             vm.setPaused(charge.id, !charge.isPaused) { result ->
-                                notice = result.exceptionOrNull()?.message
-                                    ?: if (charge.isPaused) "已恢复，将从当前时间起安排下一次扣款。" else "已暂停定时扣款。"
+                                notice = result.exceptionOrNull()?.userMessage(context)
+                                    ?: context.getString(
+                                        if (charge.isPaused) R.string.set_recurring_resumed else R.string.set_recurring_paused_notice,
+                                    )
                                 if (result.isSuccess && charge.isPaused) {
                                     com.personal.ledger.worker.RecurringChargeScheduler.enqueueCatchUp(
                                         appContext,
@@ -196,7 +204,8 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                         },
                         onRetry = {
                             vm.retry(charge.id) { result ->
-                                notice = result.exceptionOrNull()?.message ?: "已重新安排检查。"
+                                notice = result.exceptionOrNull()?.userMessage(context)
+                                    ?: context.getString(R.string.set_recurring_retry_done)
                                 if (result.isSuccess) {
                                     com.personal.ledger.worker.RecurringChargeScheduler.enqueueCatchUp(
                                         appContext,
@@ -224,7 +233,7 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
                     complete(result)
                     if (result.isSuccess) {
                         editorVisible = false
-                        notice = "定时扣款已保存。"
+                        notice = context.getString(R.string.set_recurring_saved)
                         com.personal.ledger.worker.RecurringChargeScheduler.enqueueCatchUp(
                             appContext,
                         )
@@ -239,19 +248,20 @@ fun RecurringChargesScreen(container: AppContainer, navController: NavHostContro
     deleting?.let { charge ->
         AlertDialog(
             onDismissRequest = { deleting = null },
-            title = { Text("删除定时扣款？") },
-            text = { Text("将停止后续生成；已经生成的支出记录会保留。") },
+            title = { Text(stringResource(R.string.set_recurring_delete_title)) },
+            text = { Text(stringResource(R.string.set_recurring_delete_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     hapticDelete()
                     vm.delete(charge.id) { result ->
-                        notice = result.exceptionOrNull()?.message ?: "定时扣款已删除。"
+                        notice = result.exceptionOrNull()?.userMessage(context)
+                            ?: context.getString(R.string.set_recurring_deleted)
                         if (result.isSuccess) deleting = null
                     }
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text("取消") }
+                TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -299,7 +309,12 @@ private fun RecurringChargeCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "${frequencyLabel(charge.frequency)} · ${account?.name ?: "账户不可用"} · ${category?.name ?: "分类不可用"}",
+                        stringResource(
+                            R.string.set_recurring_summary,
+                            frequencyLabel(charge.frequency),
+                            account?.name ?: stringResource(R.string.set_recurring_account_unavailable),
+                            category?.name ?: stringResource(R.string.set_recurring_category_unavailable),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -315,23 +330,27 @@ private fun RecurringChargeCard(
             when {
                 charge.lastError != null -> {
                     Text(
-                        "生成失败：${charge.lastError}",
+                        stringResource(R.string.set_recurring_generate_failed, recurringErrorText(charge)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
-                    TextButton(onClick = onRetry) { Text("重新检查") }
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.set_recurring_retry)) }
                 }
                 charge.isPaused -> Text(
-                    "已暂停",
+                    stringResource(R.string.set_recurring_paused),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 else -> {
-                    val formatter = remember(charge.zoneId) {
-                        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(charge.zoneId)
-                    }
+                    val locale = LocalConfiguration.current.locales[0]
+                    val nextAt = Instant.ofEpochMilli(charge.nextDueAt).atZone(charge.zoneId)
                     Text(
-                        "下次：${formatter.format(Instant.ofEpochMilli(charge.nextDueAt))}（${charge.zoneId.id}）",
+                        stringResource(
+                            R.string.set_recurring_next,
+                            DateLabels.fullDate(nextAt.toLocalDate(), locale),
+                            DateTimeFormatter.ofPattern("HH:mm").format(nextAt),
+                            charge.zoneId.id,
+                        ),
                         style = LedgerNumerals.of(MaterialTheme.typography.bodySmall),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -341,13 +360,13 @@ private fun RecurringChargeCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xxs),
             ) {
-                TextButton(onClick = onEdit) { Text("编辑") }
+                TextButton(onClick = onEdit) { Text(stringResource(R.string.action_edit)) }
                 TextButton(onClick = onPauseToggle) {
-                    Text(if (charge.isPaused) "恢复" else "暂停")
+                    Text(stringResource(if (charge.isPaused) R.string.set_recurring_resume else R.string.set_recurring_pause))
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDelete) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -364,6 +383,7 @@ private fun RecurringChargeEditor(
     onDismiss: () -> Unit,
     onSave: (String?, RecurringChargeDraft, (Result<RecurringCharge>) -> Unit) -> Unit,
 ) {
+    val context = LocalContext.current
     val zone = charge?.zoneId ?: ZoneId.systemDefault()
     var name by remember(charge?.id) { mutableStateOf(charge?.name.orEmpty()) }
     var amountText by remember(charge?.id) {
@@ -393,45 +413,48 @@ private fun RecurringChargeEditor(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (charge == null) "添加定时扣款" else "编辑定时扣款") },
+        title = {
+            Text(stringResource(if (charge == null) R.string.set_recurring_add_title else R.string.set_recurring_edit_title))
+        },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                val archivedSuffix = stringResource(R.string.label_archived_suffix)
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("名称") },
+                    label = { Text(stringResource(R.string.set_recurring_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it },
-                    label = { Text("金额（$currency）") },
+                    label = { Text(stringResource(R.string.set_recurring_amount, currency)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 RecurringChoiceField(
-                    label = "扣款账户",
+                    label = stringResource(R.string.set_recurring_account),
                     value = availableAccounts.firstOrNull { it.id == accountId }?.let {
-                        it.name + if (it.isArchived) "（已归档）" else ""
+                        it.name + if (it.isArchived) archivedSuffix else ""
                     }.orEmpty(),
-                    choices = availableAccounts.map { it.id to (it.name + if (it.isArchived) "（已归档）" else "") },
+                    choices = availableAccounts.map { it.id to (it.name + if (it.isArchived) archivedSuffix else "") },
                     onChoose = { accountId = it },
                 )
                 RecurringChoiceField(
-                    label = "支出分类",
+                    label = stringResource(R.string.set_recurring_category),
                     value = availableCategories.firstOrNull { it.id == categoryId }?.let {
-                        it.name + if (it.isArchived) "（已归档）" else ""
+                        it.name + if (it.isArchived) archivedSuffix else ""
                     }.orEmpty(),
-                    choices = availableCategories.map { it.id to (it.name + if (it.isArchived) "（已归档）" else "") },
+                    choices = availableCategories.map { it.id to (it.name + if (it.isArchived) archivedSuffix else "") },
                     onChoose = { categoryId = it },
                 )
                 RecurringChoiceField(
-                    label = "重复周期",
+                    label = stringResource(R.string.set_recurring_frequency),
                     value = frequencyLabel(frequency),
                     choices = RecurrenceFrequency.entries.map { it.name to frequencyLabel(it) },
                     onChoose = { frequency = RecurrenceFrequency.valueOf(it) },
@@ -439,18 +462,18 @@ private fun RecurringChargeEditor(
                 OutlinedTextField(
                     value = dateText,
                     onValueChange = { dateText = it },
-                    label = { Text("开始日期（yyyy-MM-dd）") },
+                    label = { Text(stringResource(R.string.set_recurring_start_date)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = timeText,
                     onValueChange = { timeText = it },
-                    label = { Text("本地时间（HH:mm）") },
+                    label = { Text(stringResource(R.string.set_recurring_time)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Text("时区：${zone.id}。开始日期早于当前日期时，已到期周期会补记。", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.set_recurring_zone_note, zone.id), style = MaterialTheme.typography.bodySmall)
                 if (formError != null) {
                     Text(formError.orEmpty(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
@@ -462,12 +485,12 @@ private fun RecurringChargeEditor(
                 val start = runCatching { LocalDate.parse(dateText.trim()) }.getOrNull()
                 val time = runCatching { LocalTime.parse(timeText.trim()) }.getOrNull()
                 when {
-                    name.isBlank() -> formError = "请填写名称"
-                    amount == null || amount <= 0 -> formError = "请输入大于 0 的有效金额"
-                    accountId.isBlank() -> formError = "请选择账户"
-                    categoryId.isBlank() -> formError = "请选择支出分类"
-                    start == null -> formError = "日期格式应为 yyyy-MM-dd"
-                    time == null -> formError = "时间格式应为 HH:mm"
+                    name.isBlank() -> formError = context.getString(R.string.set_recurring_error_name)
+                    amount == null || amount <= 0 -> formError = context.getString(R.string.set_recurring_error_amount)
+                    accountId.isBlank() -> formError = context.getString(R.string.set_recurring_error_account)
+                    categoryId.isBlank() -> formError = context.getString(R.string.set_recurring_error_category)
+                    start == null -> formError = context.getString(R.string.set_recurring_error_date)
+                    time == null -> formError = context.getString(R.string.set_recurring_error_time)
                     else -> {
                         formError = null
                         isSaving = true
@@ -487,15 +510,16 @@ private fun RecurringChargeEditor(
                         ) { result ->
                             isSaving = false
                             if (result.isFailure) {
-                                formError = result.exceptionOrNull()?.message ?: "保存失败"
+                                formError = result.exceptionOrNull()?.userMessage(context, R.string.set_save_failed)
+                                    ?: context.getString(R.string.set_save_failed)
                             }
                         }
                     }
                 }
-            }) { Text(if (isSaving) "保存中…" else "保存") }
+            }) { Text(stringResource(if (isSaving) R.string.set_saving else R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -512,7 +536,11 @@ private fun RecurringChoiceField(
         Text(label, style = MaterialTheme.typography.labelMedium)
         androidx.compose.foundation.layout.Box {
             OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(value.ifBlank { "请选择" })
+                Text(
+                    value.ifBlank { stringResource(R.string.set_please_choose) },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 choices.forEach { (key, title) ->
@@ -529,9 +557,20 @@ private fun RecurringChoiceField(
     }
 }
 
-private fun frequencyLabel(frequency: RecurrenceFrequency): String = when (frequency) {
-    RecurrenceFrequency.DAILY -> "每天"
-    RecurrenceFrequency.WEEKLY -> "每周"
-    RecurrenceFrequency.MONTHLY -> "每月"
-    RecurrenceFrequency.YEARLY -> "每年"
-}
+@Composable
+private fun frequencyLabel(frequency: RecurrenceFrequency): String = stringResource(
+    when (frequency) {
+        RecurrenceFrequency.DAILY -> R.string.set_freq_daily
+        RecurrenceFrequency.WEEKLY -> R.string.set_freq_weekly
+        RecurrenceFrequency.MONTHLY -> R.string.set_freq_monthly
+        RecurrenceFrequency.YEARLY -> R.string.set_freq_yearly
+    },
+)
+
+/**
+ * 定时扣款最近一次生成失败的原因。
+ * 新数据为错误码，按当前语言解析；旧版保存的中文原文原样显示。
+ */
+@Composable
+private fun recurringErrorText(charge: RecurringCharge): String =
+    charge.lastError?.let { com.personal.ledger.data.storedMessageText(it) }.orEmpty()

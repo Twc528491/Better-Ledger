@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,11 +36,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.data.local.dao.LedgerPurgeCounts
+import com.personal.ledger.domain.calc.PurgeRules
+import com.personal.ledger.domain.model.Ledger
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.LedgerGroup
 import com.personal.ledger.ui.common.LedgerIconTile
@@ -64,6 +72,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showLedgerDialog by remember { mutableStateOf(false) }
     var showCreateLedger by remember { mutableStateOf(false) }
+    var purgeLedger by remember { mutableStateOf<Ledger?>(null) }
     val hapticLight = rememberHapticLight()
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
@@ -72,13 +81,13 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("记账设置") },
+                title = { Text(stringResource(R.string.set_bookkeeping_title)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -97,20 +106,36 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             verticalArrangement = Arrangement.spacedBy(LedgerSpacing.lg),
         ) {
             item {
-                LedgerGroup(title = "记账项") {
-                    SettingsRow(Icons.Outlined.Category, "分类管理", "收入 / 支出分类，最多两级") {
+                LedgerGroup(title = stringResource(R.string.set_group_items)) {
+                    SettingsRow(
+                        Icons.Outlined.Category,
+                        stringResource(R.string.set_categories_title),
+                        stringResource(R.string.set_categories_subtitle),
+                    ) {
                         hapticNavigation()
                         navController.navigate(Routes.CATEGORIES)
                     }
-                    SettingsRow(Icons.Outlined.Storefront, "商家管理", "常去商家，记账快速选择") {
+                    SettingsRow(
+                        Icons.Outlined.Storefront,
+                        stringResource(R.string.set_merchants_title),
+                        stringResource(R.string.set_merchants_subtitle),
+                    ) {
                         hapticNavigation()
                         navController.navigate(Routes.MERCHANTS)
                     }
-                    SettingsRow(Icons.Outlined.Sell, "标签管理", "自定义标签，一笔可多个") {
+                    SettingsRow(
+                        Icons.Outlined.Sell,
+                        stringResource(R.string.set_tags_title),
+                        stringResource(R.string.set_tags_subtitle),
+                    ) {
                         hapticNavigation()
                         navController.navigate(Routes.TAGS)
                     }
-                    SettingsRow(Icons.Outlined.Savings, "预算设置", "月总预算与分类预算") {
+                    SettingsRow(
+                        Icons.Outlined.Savings,
+                        stringResource(R.string.set_budgets_title),
+                        stringResource(R.string.set_budgets_subtitle),
+                    ) {
                         hapticNavigation()
                         navController.navigate(Routes.BUDGETS)
                     }
@@ -118,11 +143,11 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             }
 
             item {
-                LedgerGroup(title = "账本") {
+                LedgerGroup(title = stringResource(R.string.set_group_ledger)) {
                     SettingsRow(
                         icon = Icons.AutoMirrored.Outlined.MenuBook,
-                        title = "账本管理",
-                        subtitle = "当前：${state.currentLedgerName}",
+                        title = stringResource(R.string.set_ledgers_title),
+                        subtitle = stringResource(R.string.set_ledger_current, state.currentLedgerName),
                     ) {
                         hapticNavigation()
                         showLedgerDialog = true
@@ -137,7 +162,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             onDismissRequest = {
                 showLedgerDialog = false
             },
-            title = { Text("账本管理") },
+            title = { Text(stringResource(R.string.set_ledgers_title)) },
             text = {
                 Column {
                     state.ledgers.forEach { ledger ->
@@ -157,7 +182,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                                 onClick = null,
                             )
                             Text(
-                                ledger.name + if (ledger.isArchived) "（已归档）" else "",
+                                ledger.name + if (ledger.isArchived) stringResource(R.string.label_archived_suffix) else "",
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(start = 8.dp),
@@ -169,7 +194,20 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                                             .onFailure { hapticReject() }
                                     }
                                 }) {
-                                    Text(if (ledger.isArchived) "恢复" else "归档")
+                                    Text(
+                                        stringResource(
+                                            if (ledger.isArchived) R.string.action_restore else R.string.action_archive,
+                                        ),
+                                    )
+                                }
+                            }
+                            if (ledger.isArchived) {
+                                TextButton(onClick = {
+                                    hapticConfirm()
+                                    showLedgerDialog = false
+                                    purgeLedger = ledger
+                                }) {
+                                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
@@ -178,15 +216,23 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                         hapticNavigation()
                         showLedgerDialog = false
                         showCreateLedger = true
-                    }) { Text("+ 新建账本") }
+                    }) { Text(stringResource(R.string.set_ledger_new_button)) }
                 }
             },
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = {
                     showLedgerDialog = false
-                }) { Text("关闭") }
+                }) { Text(stringResource(R.string.action_close)) }
             },
+        )
+    }
+
+    purgeLedger?.let { ledger ->
+        LedgerPurgeDialog(
+            container = container,
+            ledger = ledger,
+            onDismiss = { purgeLedger = null },
         )
     }
 
@@ -196,12 +242,12 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
             onDismissRequest = {
                 showCreateLedger = false
             },
-            title = { Text("新建账本") },
+            title = { Text(stringResource(R.string.set_ledger_new_title)) },
             text = {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("账本名称（币种 V1 固定 CNY）") },
+                    label = { Text(stringResource(R.string.set_ledger_name_label)) },
                     singleLine = true,
                 )
             },
@@ -215,12 +261,12 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                             }.onFailure { hapticReject() }
                         }
                     }
-                }) { Text("创建") }
+                }) { Text(stringResource(R.string.set_create)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showCreateLedger = false
-                }) { Text("取消") }
+                }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -241,4 +287,54 @@ private fun SettingsRow(
         showChevron = true,
         onClick = onClick,
     )
+}
+
+/** 彻底删除已归档账本：列出数据量，并要求输入账本名称确认。 */
+@Composable
+private fun LedgerPurgeDialog(
+    container: AppContainer,
+    ledger: Ledger,
+    onDismiss: () -> Unit,
+) {
+    var counts by remember(ledger.id) { mutableStateOf<LedgerPurgeCounts?>(null) }
+    var typedName by remember(ledger.id) { mutableStateOf("") }
+    LaunchedEffect(ledger.id) { counts = container.purgeRepository.ledgerCounts(ledger.id) }
+    val c = counts
+    PurgeDialog(
+        container = container,
+        title = stringResource(R.string.set_ledger_purge_title),
+        impact = if (c == null) {
+            stringResource(R.string.set_purge_counting)
+        } else {
+            val parts = listOf(
+                pluralStringResource(R.plurals.set_count_transactions_incl_bin, c.transactions, c.transactions),
+                pluralStringResource(R.plurals.set_count_accounts, c.accounts, c.accounts),
+                pluralStringResource(R.plurals.set_count_categories, c.categories, c.categories),
+                pluralStringResource(R.plurals.set_count_merchants, c.merchants, c.merchants),
+                pluralStringResource(R.plurals.set_count_tags, c.tags, c.tags),
+                pluralStringResource(R.plurals.set_count_budgets, c.budgets, c.budgets),
+                pluralStringResource(R.plurals.set_count_recurring, c.recurringCharges, c.recurringCharges),
+            )
+            stringResource(
+                R.string.set_ledger_purge_impact,
+                ledger.name,
+                parts.joinToString(stringResource(R.string.set_list_separator)),
+            )
+        },
+        confirmEnabled = c != null && PurgeRules.ledgerNameConfirmed(typedName, ledger.name),
+        onDismiss = onDismiss,
+        onPurged = onDismiss,
+        purge = {
+            container.purgeRepository.purgeLedger(ledger.id)
+                .onSuccess { container.ledgerRepository.fallbackCurrentLedgerIfInvalid() }
+        },
+    ) {
+        OutlinedTextField(
+            value = typedName,
+            onValueChange = { typedName = it },
+            label = { Text(stringResource(R.string.set_ledger_purge_confirm_label, ledger.name)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }

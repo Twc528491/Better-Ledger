@@ -1,11 +1,14 @@
 package com.personal.ledger.data.repository
 
 import androidx.room.withTransaction
+import com.personal.ledger.R
+import com.personal.ledger.data.TextResolver
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.CategoryEntity
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -24,12 +27,16 @@ object CategoryIconKeys {
     fun normalize(key: String?): String? {
         if (key == null) return null
         val trimmed = key.trim()
-        if (!isValid(trimmed)) throw IllegalArgumentException("无效的分类图标")
+        if (!isValid(trimmed)) throw UserFacingException(R.string.err_invalid_category_icon)
         return trimmed
     }
 }
 
-class CategoryRepository(private val database: AppDatabase) {
+class CategoryRepository(
+    private val database: AppDatabase,
+    /** 补充分类的显示语言；为 null（测试）时使用中文种子键。 */
+    private val text: TextResolver? = null,
+) {
 
     private val categoryDao = database.categoryDao()
 
@@ -63,10 +70,13 @@ class CategoryRepository(private val database: AppDatabase) {
                     Triple(CategoryType.INCOME, it, incomeSort++)
                 }
 
-                additions.forEach { (type, name, sortOrder) ->
-                    val id = DefaultSeed.categoryId(ledgerId, type, name)
+                additions.forEach { (type, key, sortOrder) ->
+                    // ID 由稳定的中文种子键生成，与语言无关；同名判断同时比较种子键与当前语言显示名。
+                    val id = DefaultSeed.categoryId(ledgerId, type, key)
+                    val name = DefaultSeed.displayName(key, text)
                     val alreadyPresent = existing.any {
-                        it.id == id || (it.type == type && it.parentId == null && it.name == name)
+                        it.id == id ||
+                            (it.type == type && it.parentId == null && (it.name == name || it.name == key))
                     }
                     if (!alreadyPresent) {
                         categoryDao.insert(
@@ -109,16 +119,16 @@ class CategoryRepository(private val database: AppDatabase) {
             val category = database.withTransaction {
                 val normalizedIconKey = CategoryIconKeys.normalize(iconKey)
                 val trimmed = name.trim()
-                if (trimmed.isEmpty()) throw IllegalArgumentException("名称不能为空")
+                if (trimmed.isEmpty()) throw UserFacingException(R.string.err_name_empty)
                 val parent = parentId?.let { categoryDao.getById(it) }
                 if (parentId != null) {
-                    if (parent == null) throw IllegalArgumentException("父分类不存在")
-                    if (parent.ledgerId != ledgerId) throw IllegalArgumentException("父分类不属于当前账本")
-                    if (parent.parentId != null) throw IllegalArgumentException("分类最多两级")
-                    if (parent.type != type) throw IllegalArgumentException("父子分类类型必须一致")
+                    if (parent == null) throw UserFacingException(R.string.err_parent_category_not_found)
+                    if (parent.ledgerId != ledgerId) throw UserFacingException(R.string.err_parent_category_not_in_ledger)
+                    if (parent.parentId != null) throw UserFacingException(R.string.err_category_max_depth)
+                    if (parent.type != type) throw UserFacingException(R.string.err_parent_child_type)
                 }
                 val count = categoryDao.countSameName(ledgerId, type, parentId, trimmed)
-                if (count > 0) throw IllegalArgumentException("同级下已存在同名分类")
+                if (count > 0) throw UserFacingException(R.string.err_category_duplicate)
                 val maxSort = categoryDao.getByLedgerAndType(ledgerId, type)
                     .filter { it.parentId == parentId }
                     .maxOfOrNull { it.sortOrder } ?: -1
@@ -145,9 +155,9 @@ class CategoryRepository(private val database: AppDatabase) {
     suspend fun rename(id: String, newName: String): Result<Unit> {
         return try {
             database.withTransaction {
-                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val entity = categoryDao.getById(id) ?: throw UserFacingException(R.string.err_category_not_found)
                 val trimmed = newName.trim()
-                if (trimmed.isEmpty()) throw IllegalArgumentException("名称不能为空")
+                if (trimmed.isEmpty()) throw UserFacingException(R.string.err_name_empty)
                 val count = categoryDao.countSameName(
                     entity.ledgerId,
                     entity.type,
@@ -155,7 +165,7 @@ class CategoryRepository(private val database: AppDatabase) {
                     trimmed,
                     excludeId = entity.id,
                 )
-                if (count > 0) throw IllegalArgumentException("同级下已存在同名分类")
+                if (count > 0) throw UserFacingException(R.string.err_category_duplicate)
                 categoryDao.update(entity.copy(name = trimmed))
             }
             Result.success(Unit)
@@ -169,7 +179,7 @@ class CategoryRepository(private val database: AppDatabase) {
         return try {
             val normalized = CategoryIconKeys.normalize(iconKey)
             database.withTransaction {
-                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val entity = categoryDao.getById(id) ?: throw UserFacingException(R.string.err_category_not_found)
                 if (entity.iconKey != normalized) {
                     categoryDao.update(entity.copy(iconKey = normalized))
                 }
@@ -182,7 +192,7 @@ class CategoryRepository(private val database: AppDatabase) {
 
     /** 归档 / 恢复归档。 */
     suspend fun setArchived(id: String, archived: Boolean): Result<Unit> {
-        val entity = categoryDao.getById(id) ?: return Result.failure(NoSuchElementException("分类不存在"))
+        val entity = categoryDao.getById(id) ?: return Result.failure(UserFacingException(R.string.err_category_not_found))
         return try {
             categoryDao.update(entity.copy(isArchived = archived))
             Result.success(Unit)
@@ -198,7 +208,7 @@ class CategoryRepository(private val database: AppDatabase) {
     suspend fun delete(id: String): Result<Unit> {
         return try {
             database.withTransaction {
-                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val entity = categoryDao.getById(id) ?: throw UserFacingException(R.string.err_category_not_found)
                 val all = categoryDao.getByLedger(entity.ledgerId)
                 if (entity.parentId == null) {
                     all.filter { it.parentId == entity.id && !it.isArchived }
@@ -216,10 +226,10 @@ class CategoryRepository(private val database: AppDatabase) {
 
     /** 在同一层级内移动分类；交换排序值可保持父子层级和其他分类稳定。 */
     suspend fun move(id: String, direction: Int): Result<Unit> {
-        if (direction !in setOf(-1, 1)) return Result.failure(IllegalArgumentException("无效移动方向"))
+        if (direction !in setOf(-1, 1)) return Result.failure(UserFacingException(R.string.err_invalid_move_direction))
         return try {
             database.withTransaction {
-                val entity = categoryDao.getById(id) ?: throw NoSuchElementException("分类不存在")
+                val entity = categoryDao.getById(id) ?: throw UserFacingException(R.string.err_category_not_found)
                 val siblings = categoryDao.getByLedgerAndType(entity.ledgerId, entity.type)
                     .filter { it.parentId == entity.parentId && it.isArchived == entity.isArchived }
                     .sortedBy { it.sortOrder }

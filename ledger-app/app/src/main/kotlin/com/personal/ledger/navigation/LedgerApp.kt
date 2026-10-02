@@ -1,5 +1,6 @@
 package com.personal.ledger.navigation
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +8,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -15,6 +18,8 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -28,13 +33,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.isSpecified
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.ui.account.AccountDetailScreen
 import com.personal.ledger.ui.account.AccountsScreen
@@ -42,6 +52,7 @@ import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticStrong
 import com.personal.ledger.ui.home.HomeScreen
+import com.personal.ledger.ui.settings.BackupsScreen
 import com.personal.ledger.ui.settings.BookkeepingSettingsScreen
 import com.personal.ledger.ui.settings.CategoriesScreen
 import com.personal.ledger.ui.settings.BudgetsScreen
@@ -67,6 +78,7 @@ object Routes {
     const val CATEGORIES = "categories"
     const val BUDGETS = "budgets"
     const val DATA = "data"
+    const val BACKUPS = "backups"
     const val MERCHANTS = "merchants"
     const val TAGS = "tags"
     const val RECURRING_CHARGES = "recurring_charges"
@@ -78,18 +90,18 @@ object Routes {
 
 private data class TabItem(
     val route: String,
-    val label: String,
+    @StringRes val label: Int,
     val icon: ImageVector,
 )
 
 private val leftTabs = listOf(
-    TabItem(Routes.HOME, "首页", Icons.Filled.Home),
-    TabItem(Routes.TRANSACTIONS, "账单", Icons.AutoMirrored.Filled.List),
+    TabItem(Routes.HOME, R.string.core_tab_home, Icons.Filled.Home),
+    TabItem(Routes.TRANSACTIONS, R.string.core_tab_transactions, Icons.AutoMirrored.Filled.List),
 )
 
 private val rightTabs = listOf(
-    TabItem(Routes.STATISTICS, "统计", Icons.Filled.BarChart),
-    TabItem(Routes.ACCOUNTS, "资产", Icons.Filled.AccountBalanceWallet),
+    TabItem(Routes.STATISTICS, R.string.core_tab_statistics, Icons.Filled.BarChart),
+    TabItem(Routes.ACCOUNTS, R.string.core_tab_accounts, Icons.Filled.AccountBalanceWallet),
 )
 
 private val tabRoutes = leftTabs.map { it.route } + rightTabs.map { it.route }
@@ -155,7 +167,7 @@ fun LedgerApp(container: AppContainer) {
                                 ) {
                                     Icon(
                                         Icons.Filled.Add,
-                                        contentDescription = "记一笔",
+                                        contentDescription = stringResource(R.string.core_add_transaction),
                                         tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(28.dp),
                                     )
@@ -163,10 +175,12 @@ fun LedgerApp(container: AppContainer) {
                             },
                             label = {
                                 Text(
-                                    "记一笔",
+                                    stringResource(R.string.core_add_transaction),
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.primary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(indicatorColor = Color.Transparent),
@@ -199,6 +213,7 @@ fun LedgerApp(container: AppContainer) {
             composable(Routes.CATEGORIES) { CategoriesScreen(container, navController) }
             composable(Routes.BUDGETS) { BudgetsScreen(container, navController) }
             composable(Routes.DATA) { DataScreen(container, navController) }
+            composable(Routes.BACKUPS) { BackupsScreen(container, navController) }
             composable(Routes.MERCHANTS) { MerchantsScreen(container, navController) }
             composable(Routes.TAGS) { TagsScreen(container, navController) }
             composable(Routes.ACCOUNT_DETAIL) { entry ->
@@ -222,14 +237,31 @@ private fun androidx.compose.foundation.layout.RowScope.TabItemView(
             hapticNavigation()
             navController.navigateToRootTab(tab.route)
         },
-        icon = { Icon(tab.icon, contentDescription = tab.label) },
-        label = { Text(tab.label) },
+        icon = { Icon(tab.icon, contentDescription = stringResource(tab.label)) },
+        label = { TabLabel(stringResource(tab.label)) },
         colors = NavigationBarItemDefaults.colors(
             selectedIconColor = MaterialTheme.colorScheme.primary,
             selectedTextColor = MaterialTheme.colorScheme.primary,
             indicatorColor = MaterialTheme.colorScheme.primaryContainer,
             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    )
+}
+
+/** 底部导航标签：单行；英文等较长文字在窄屏上自动缩小字号，而不是截断或换行。 */
+@Composable
+private fun TabLabel(text: String) {
+    val style = LocalTextStyle.current
+    BasicText(
+        text = text,
+        style = style.copy(color = LocalContentColor.current),
+        overflow = TextOverflow.Ellipsis,
+        maxLines = 1,
+        autoSize = TextAutoSize.StepBased(
+            minFontSize = 9.sp,
+            maxFontSize = style.fontSize.takeIf { it.isSpecified } ?: 12.sp,
+            stepSize = 0.5.sp,
         ),
     )
 }

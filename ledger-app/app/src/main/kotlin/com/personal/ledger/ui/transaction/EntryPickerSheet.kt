@@ -35,7 +35,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
+import com.personal.ledger.util.userMessage
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +77,7 @@ internal fun EntryPickerSheet(
     onAdd: ((String, (Result<Unit>) -> Unit) -> Unit)? = null,
     closeOnAddSuccess: Boolean = false,
 ) {
+    val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var newName by remember { mutableStateOf("") }
     var addError by remember { mutableStateOf<String?>(null) }
@@ -118,7 +123,7 @@ internal fun EntryPickerSheet(
                         onValueChange = { query = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        label = { Text("搜索") },
+                        label = { Text(stringResource(R.string.action_search)) },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                     )
@@ -148,7 +153,7 @@ internal fun EntryPickerSheet(
                 Box(Modifier.fillMaxWidth().heightIn(max = maxListHeight)) {
                     when {
                         filtered.isEmpty() -> Text(
-                            if (options.isEmpty()) "暂无可选内容" else "没有匹配的内容",
+                            stringResource(if (options.isEmpty()) R.string.add_picker_empty else R.string.add_picker_no_match),
                             modifier = Modifier.align(Alignment.Center),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodyMedium,
@@ -189,7 +194,7 @@ internal fun EntryPickerSheet(
                             modifier = Modifier.weight(1f),
                             enabled = !isAdding,
                             singleLine = true,
-                            label = { Text("名称") },
+                            label = { Text(stringResource(R.string.add_picker_name)) },
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                         )
@@ -203,11 +208,11 @@ internal fun EntryPickerSheet(
                                     result.onSuccess {
                                         newName = ""
                                         if (closeOnAddSuccess) onDismiss()
-                                    }.onFailure { addError = it.message ?: "新建失败，请重试" }
+                                    }.onFailure { addError = it.userMessage(context, R.string.add_picker_add_failed) }
                                 }
                             },
                             modifier = Modifier.heightIn(min = 48.dp),
-                        ) { Text(if (isAdding) "创建中…" else addLabel) }
+                        ) { Text(if (isAdding) stringResource(R.string.add_picker_creating) else addLabel, maxLines = 1) }
                     }
                     addError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error,
@@ -222,10 +227,10 @@ internal fun EntryPickerSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = { focusManager.clearFocus(); onDismiss() },
-                        modifier = Modifier.heightIn(min = 48.dp)) { Text("取消") }
+                        modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.action_cancel)) }
                     if (multiSelect) {
                         Button(onClick = { focusManager.clearFocus(); onDone?.invoke(stagedIds) },
-                            modifier = Modifier.heightIn(min = 48.dp)) { Text("完成") }
+                            modifier = Modifier.heightIn(min = 48.dp)) { Text(stringResource(R.string.action_done)) }
                     }
                 }
             }
@@ -303,8 +308,8 @@ internal fun NoteEditorSheet(
                 modifier = Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)
                     .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 16.dp),
             ) {
-                Text("备注", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                Text("为这笔账单添加说明", style = MaterialTheme.typography.bodyMedium,
+                Text(stringResource(R.string.add_field_note), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.add_note_subtitle), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 3.dp))
                 Spacer(Modifier.height(12.dp))
@@ -314,7 +319,7 @@ internal fun NoteEditorSheet(
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 180.dp),
                     minLines = 3,
                     maxLines = 5,
-                    label = { Text("备注内容") },
+                    label = { Text(stringResource(R.string.add_note_label)) },
                     keyboardOptions = KeyboardOptions(
                         capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
@@ -332,7 +337,7 @@ internal fun NoteEditorSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = close, modifier = Modifier.heightIn(min = 48.dp)) {
-                        Text("取消")
+                        Text(stringResource(R.string.action_cancel))
                     }
                     Button(
                         onClick = {
@@ -341,7 +346,7 @@ internal fun NoteEditorSheet(
                             onConfirm(note)
                         },
                         modifier = Modifier.heightIn(min = 48.dp),
-                    ) { Text("完成") }
+                    ) { Text(stringResource(R.string.action_done)) }
                 }
             }
         }

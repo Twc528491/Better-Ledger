@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Personal Ledger</string>
+    <string name="error_unknown">Something went wrong. Please try again.</string>
+
+    <!-- Language -->
+    <string name="settings_language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="language_note">The interface updates right away. Names you created (categories, accounts and so on) are your data and are not translated; preset categories for new ledgers follow the current language.</string>
+</resources>

@@ -1,10 +1,12 @@
 package com.personal.ledger.ui.transaction
 
+import com.personal.ledger.util.DateLabels
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.YearMonth
+import java.util.Locale
 
 /** Material DatePicker exchanges UTC-midnight dates, not local instants. */
 internal object DatePickerSelection {
@@ -22,11 +24,13 @@ internal object DatePickerSelection {
         return date.atTime(time).atZone(zone).toInstant().toEpochMilli()
     }
 
-    private val weekdayLabels = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-
-    /** 滚轮顶部的完整日期，如“2026年9月27日 周日”。 */
-    fun longLabel(date: LocalDate): String =
-        "${date.year}年${date.monthValue}月${date.dayOfMonth}日 ${weekdayLabels[date.dayOfWeek.value - 1]}"
+    /** 滚轮顶部的完整日期：中文“2026年9月27日 周日”，英文“Sun, Sep 27, 2026”。 */
+    fun longLabel(date: LocalDate, locale: Locale = Locale.getDefault()): String =
+        if (locale.language == Locale.CHINESE.language) {
+            DateLabels.fullDate(date, locale) + " " + DateLabels.weekday(date.dayOfWeek, locale)
+        } else {
+            DateLabels.weekday(date.dayOfWeek, locale) + ", " + DateLabels.fullDate(date, locale)
+        }
 
     fun monthLength(year: Int, month: Int): Int = YearMonth.of(year, month).lengthOfMonth()
 

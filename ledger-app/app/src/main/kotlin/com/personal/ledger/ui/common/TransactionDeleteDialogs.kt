@@ -9,6 +9,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.domain.model.Transaction
 
 /** 长按账单后的操作层，并在真正删除前保留第二次确认。 */
@@ -28,20 +30,20 @@ fun TransactionDeleteDialogs(
             onDismissRequest = {
                 onDismiss()
             },
-            title = { Text("账单操作") },
-            text = { Text("要对这笔账单做什么？") },
+            title = { Text(stringResource(R.string.core_tx_actions_title)) },
+            text = { Text(stringResource(R.string.core_tx_actions_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     hapticConfirm()
                     awaitingConfirmation = true
                 }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = {
                     onDismiss()
-                }) { Text("取消") }
+                }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     } else {
@@ -49,20 +51,20 @@ fun TransactionDeleteDialogs(
             onDismissRequest = {
                 onDismiss()
             },
-            title = { Text("确认删除") },
-            text = { Text("删除后账单会进入回收站，仍可恢复。") },
+            title = { Text(stringResource(R.string.action_confirm_delete)) },
+            text = { Text(stringResource(R.string.core_tx_delete_message)) },
             confirmButton = {
                 TextButton(onClick = {
                     hapticDelete()
                     onDelete(transaction, onDismiss)
                 }) {
-                    Text("确认删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_confirm_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = {
                     awaitingConfirmation = false
-                }) { Text("返回") }
+                }) { Text(stringResource(R.string.action_back)) }
             },
         )
     }

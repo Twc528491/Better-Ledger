@@ -81,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.TransactionType
@@ -96,7 +97,27 @@ import com.personal.ledger.ui.common.rememberHapticSave
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.util.Money
+import com.personal.ledger.util.asString
+import com.personal.ledger.util.userMessage
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.personal.ledger.viewmodel.AddTransactionViewModel
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLongPress
+import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.ui.settings.CategoryIconSheet
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.launch
@@ -124,8 +145,18 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     var showNoteEditor by remember { mutableStateOf(false) }
     var expandedRootId by remember(state.type) { mutableStateOf<String?>(null) }
     var initialExpandDone by remember(state.type) { mutableStateOf(false) }
+    // 记一笔中新建二级分类：长按一级分类弹出的菜单、新建面板所属的一级分类、创建后需滚动到的新分类。
+    var rootMenuId by remember(state.type) { mutableStateOf<String?>(null) }
+    var addChildRootId by remember { mutableStateOf<String?>(null) }
+    var addChildError by remember { mutableStateOf<String?>(null) }
+    var addChildBusy by remember { mutableStateOf(false) }
+    var scrollToChildId by remember { mutableStateOf<String?>(null) }
     val pagerScope = rememberCoroutineScope()
     val hapticSave = rememberHapticSave()
+    val hapticLongPress = rememberHapticLongPress()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
+    val context = LocalContext.current
     val fontScale = LocalDensity.current.fontScale
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     // 键盘尺寸只取决于屏幕与字号，与弹层 / 输入法无关，整页布局因此保持稳定。
@@ -147,7 +178,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -190,7 +221,8 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 currency = state.baseCurrency,
                 editing = state.editing != null,
                 category = allCategories.firstOrNull { it.id == state.categoryId },
-                categoryLabel = CategorySelection.label(allCategories, state.categoryId),
+                categoryLabel = CategorySelection.label(allCategories, state.categoryId)
+                    ?: stringResource(R.string.add_choose_root_category),
             )
 
             if (state.type != TransactionType.TRANSFER) {
@@ -232,9 +264,9 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                 onClick = { expandedRootId = null },
                                 modifier = Modifier.size(44.dp),
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回一级分类")
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.add_back_to_root_categories))
                             }
-                            Text("一级分类", style = MaterialTheme.typography.labelLarge,
+                            Text(stringResource(R.string.add_root_categories), style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("/", modifier = Modifier.padding(horizontal = 6.dp),
                                 color = MaterialTheme.colorScheme.outline)
@@ -242,7 +274,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                 style = MaterialTheme.typography.titleSmall, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis)
                         } else {
-                            Text("分类", style = MaterialTheme.typography.titleSmall,
+                            Text(stringResource(R.string.add_category), style = MaterialTheme.typography.titleSmall,
                                 modifier = Modifier.padding(start = 8.dp).weight(1f))
                             if (pageCount > 1) {
                                 IconButton(
@@ -253,7 +285,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                     modifier = Modifier.size(40.dp),
                                 ) {
                                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                        contentDescription = "上一页分类")
+                                        contentDescription = stringResource(R.string.add_previous_category_page))
                                 }
                                 PageDots(count = pageCount, current = shownPage)
                                 IconButton(
@@ -264,7 +296,7 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                     modifier = Modifier.size(40.dp),
                                 ) {
                                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                        contentDescription = "下一页分类")
+                                        contentDescription = stringResource(R.string.add_next_category_page))
                                 }
                             }
                         }
@@ -282,10 +314,10 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                             if (roots.isEmpty()) {
                                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center,
                                     horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text("暂无可用分类", style = MaterialTheme.typography.bodyMedium,
+                                    Text(stringResource(R.string.add_no_categories), style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     TextButton(onClick = { navController.navigate(Routes.CATEGORIES) }) {
-                                        Text("前往分类管理")
+                                        Text(stringResource(R.string.add_manage_categories))
                                     }
                                 }
                             } else {
@@ -296,7 +328,30 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                             Row(modifier = Modifier.fillMaxWidth()) {
                                                 row.forEach { category ->
                                                     CategoryTile(category, selectedRootId == category.id, compactCategory,
-                                                        Modifier.weight(1f).height(tileHeight)) {
+                                                        Modifier.weight(1f).height(tileHeight),
+                                                        onLongClick = {
+                                                            hapticLongPress()
+                                                            rootMenuId = category.id
+                                                        },
+                                                        menu = {
+                                                            DropdownMenu(
+                                                                expanded = rootMenuId == category.id,
+                                                                onDismissRequest = { rootMenuId = null },
+                                                            ) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text(stringResource(R.string.add_add_subcategory)) },
+                                                                    leadingIcon = {
+                                                                        Icon(Icons.Filled.Add, contentDescription = null)
+                                                                    },
+                                                                    onClick = {
+                                                                        rootMenuId = null
+                                                                        addChildError = null
+                                                                        addChildRootId = category.id
+                                                                    },
+                                                                )
+                                                            }
+                                                        },
+                                                    ) {
                                                         val activeChildren = CategorySelection.children(categories, category.id)
                                                         val selectedArchivedChild = categories.any {
                                                             it.parentId == category.id && it.id == state.categoryId && it.isArchived
@@ -335,11 +390,27 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                     item(key = "direct-${root.id}", contentType = "category") {
                                         CategoryTile(root, state.categoryId == root.id, compactCategory,
                                             Modifier.fillMaxWidth().height(tileHeight),
-                                            labelOverride = "直接记入") { vm.setCategoryId(root.id) }
+                                            labelOverride = stringResource(R.string.add_direct_root)) { vm.setCategoryId(root.id) }
                                     }
                                     items(childItems, key = { it.id }, contentType = { "category" }) { child ->
                                         CategoryTile(child, state.categoryId == child.id, compactCategory,
                                             Modifier.fillMaxWidth().height(tileHeight)) { vm.setCategoryId(child.id) }
+                                    }
+                                    if (!root.isArchived) {
+                                        item(key = "add-${root.id}", contentType = "category-add") {
+                                            AddCategoryTile(compactCategory, Modifier.fillMaxWidth().height(tileHeight)) {
+                                                addChildError = null
+                                                addChildRootId = root.id
+                                            }
+                                        }
+                                    }
+                                }
+                                // 新建的二级分类排在末尾，可能落在可见行之外：创建后滚动到它。
+                                LaunchedEffect(scrollToChildId, childItems) {
+                                    val index = childItems.indexOfFirst { it.id == scrollToChildId }
+                                    if (index >= 0) {
+                                        childGridState.animateScrollToItem(index + 1)
+                                        scrollToChildId = null
                                     }
                                 }
                             }
@@ -349,58 +420,60 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                 }
             }
 
-            val selectedTagText = remember(state.tags, state.selectedTagIds) {
-                state.tags.filter { it.id in state.selectedTagIds }.joinToString("、") { it.name }
+            val tagSeparator = stringResource(R.string.add_tag_separator)
+            val selectedTagText = remember(state.tags, state.selectedTagIds, tagSeparator) {
+                state.tags.filter { it.id in state.selectedTagIds }.joinToString(tagSeparator) { it.name }
             }
             val accountName = state.accounts.firstOrNull { it.id == state.accountId }?.name
             val merchantName = state.merchants.firstOrNull { it.id == state.merchantId }?.name
             if (state.type != TransactionType.TRANSFER) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EntryField("账户", accountName, "选择", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_account), accountName, stringResource(R.string.add_placeholder_choose), Modifier.weight(1f)) {
                         pickTarget = false; showAccountPicker = true
                     }
-                    EntryField("日期", dateLabel(state.time), "选择", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_date), dateLabel(state.time), stringResource(R.string.add_placeholder_choose), Modifier.weight(1f)) {
                         showDatePicker = true
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EntryField("商家", merchantName, "可选", Modifier.weight(1f)) { showMerchantPicker = true }
-                    EntryField("备注", state.note.ifEmpty { null }, "可选", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_merchant), merchantName, stringResource(R.string.add_placeholder_optional), Modifier.weight(1f)) { showMerchantPicker = true }
+                    EntryField(stringResource(R.string.add_field_note), state.note.ifEmpty { null }, stringResource(R.string.add_placeholder_optional), Modifier.weight(1f)) {
                         showNoteEditor = true
                     }
-                    EntryField("标签", selectedTagText.ifEmpty { null }, "可选", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_tags), selectedTagText.ifEmpty { null }, stringResource(R.string.add_placeholder_optional), Modifier.weight(1f)) {
                         showTagPicker = true
                     }
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EntryField("转出账户", accountName, "选择", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_from_account), accountName, stringResource(R.string.add_placeholder_choose), Modifier.weight(1f)) {
                         pickTarget = false; showAccountPicker = true
                     }
-                    EntryField("转入账户",
-                        state.accounts.firstOrNull { it.id == state.targetAccountId }?.name, "选择",
+                    EntryField(stringResource(R.string.add_field_to_account),
+                        state.accounts.firstOrNull { it.id == state.targetAccountId }?.name,
+                        stringResource(R.string.add_placeholder_choose),
                         Modifier.weight(1f)) {
                         pickTarget = true; showAccountPicker = true
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EntryField("日期", dateLabel(state.time), "选择", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_date), dateLabel(state.time), stringResource(R.string.add_placeholder_choose), Modifier.weight(1f)) {
                         showDatePicker = true
                     }
-                    EntryField("备注", state.note.ifEmpty { null }, "可选", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_note), state.note.ifEmpty { null }, stringResource(R.string.add_placeholder_optional), Modifier.weight(1f)) {
                         showNoteEditor = true
                     }
-                    EntryField("标签", selectedTagText.ifEmpty { null }, "可选", Modifier.weight(1f)) {
+                    EntryField(stringResource(R.string.add_field_tags), selectedTagText.ifEmpty { null }, stringResource(R.string.add_placeholder_optional), Modifier.weight(1f)) {
                         showTagPicker = true
                     }
                 }
             }
             state.merchantNotice?.let {
-                Text(it, color = MaterialTheme.colorScheme.primary,
+                Text(it.asString(), color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.labelMedium)
             }
             state.error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                Text(it.asString(), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
           }
         }
@@ -418,8 +491,10 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
         val otherAccountId = if (pickTarget) state.accountId else state.targetAccountId
         EntryPickerSheet(
             title = if (state.type == TransactionType.TRANSFER)
-                if (pickTarget) "选择转入账户" else "选择转出账户" else "选择账户",
-            subtitle = if (state.type == TransactionType.TRANSFER) "转出与转入账户必须不同" else null,
+                stringResource(if (pickTarget) R.string.add_choose_to_account else R.string.add_choose_from_account)
+            else stringResource(R.string.add_choose_account),
+            subtitle = if (state.type == TransactionType.TRANSFER)
+                stringResource(R.string.add_accounts_must_differ) else null,
             options = state.accounts.filter { state.type != TransactionType.TRANSFER || it.id != otherAccountId }
                 .map { account ->
                     EntryPickerOption(
@@ -450,15 +525,15 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             )
         }
         EntryPickerSheet(
-            title = "选择商家",
-            subtitle = root?.let { "${it.name}分类下的常用商家" },
+            title = stringResource(R.string.add_choose_merchant),
+            subtitle = root?.let { stringResource(R.string.add_merchants_in_category, it.name) },
             options = merchantItems.map { merchant ->
                 EntryPickerOption(merchant.id, merchant.name, emoji = merchant.name.trim().take(1),
                     selected = merchant.id == state.merchantId)
             },
-            hint = if (state.categoryId == null) "请先选择分类，再选择或新建该分类的商家" else null,
-            addLabel = if (state.categoryId != null) "新建" else null,
-            clearLabel = "不选择商家",
+            hint = if (state.categoryId == null) stringResource(R.string.add_merchant_hint_choose_category) else null,
+            addLabel = if (state.categoryId != null) stringResource(R.string.add_new) else null,
+            clearLabel = stringResource(R.string.add_no_merchant),
             onClear = {
                 vm.setMerchantId(null)
                 showMerchantPicker = false
@@ -475,15 +550,15 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
 
     if (showTagPicker) {
         EntryPickerSheet(
-            title = "选择标签",
-            subtitle = "可多选，点“完成”后生效",
+            title = stringResource(R.string.add_choose_tags),
+            subtitle = stringResource(R.string.add_tags_hint),
             options = state.tags.map { tag ->
                 EntryPickerOption(tag.id, tag.name, emoji = "#", selected = tag.id in state.selectedTagIds)
             },
             onPick = {},
             multiSelect = true,
             onDone = { ids -> vm.setSelectedTagIds(ids); showTagPicker = false },
-            addLabel = "新建",
+            addLabel = stringResource(R.string.add_new),
             onAdd = { name, done -> vm.addTag(name, done) },
             onDismiss = { showTagPicker = false },
         )
@@ -495,16 +570,68 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             onConfirm = { note -> vm.setNote(note); showNoteEditor = false },
         )
     }
+
+    val addChildRoot = addChildRootId?.let { id -> allCategoriesOf(state).firstOrNull { it.id == id } }
+    if (addChildRoot != null) {
+        key(addChildRoot.id) {
+            // 复用分类管理中的新建面板：名称 + 图标库（默认按名称自动匹配图标）。
+            CategoryIconSheet(
+                title = stringResource(R.string.add_new_subcategory),
+                subtitle = stringResource(R.string.add_subcategory_parent, addChildRoot.name),
+                type = addChildRoot.type,
+                initialName = "",
+                initialIconKey = null,
+                nameEditable = true,
+                confirmLabel = stringResource(R.string.add_create),
+                error = addChildError,
+                onDismiss = {
+                    addChildRootId = null
+                    addChildError = null
+                },
+                onConfirm = { name, iconKey ->
+                    if (!addChildBusy) {
+                        addChildBusy = true
+                        vm.addSubcategory(addChildRoot.id, name, iconKey) { result ->
+                            addChildBusy = false
+                            result.onSuccess { created ->
+                                hapticConfirm()
+                                addChildRootId = null
+                                addChildError = null
+                                // 展开到该一级分类的二级网格，新分类已被选中。
+                                expandedRootId = addChildRoot.id
+                                scrollToChildId = created.id
+                            }.onFailure {
+                                hapticReject()
+                                addChildError = it.userMessage(context, R.string.add_error_create_failed)
+                            }
+                        }
+                    }
+                },
+            )
+        }
+    }
 }
 
 private fun allCategoriesOf(state: com.personal.ledger.viewmodel.AddTransactionUiState): List<Category> =
     state.expenseCategories + state.incomeCategories
 
-private fun typeLabel(t: TransactionType): String = when (t) {
-    TransactionType.EXPENSE -> "支出"
-    TransactionType.INCOME -> "收入"
-    TransactionType.TRANSFER -> "转账"
-}
+@Composable
+private fun typeLabel(t: TransactionType): String = stringResource(
+    when (t) {
+        TransactionType.EXPENSE -> R.string.type_expense
+        TransactionType.INCOME -> R.string.type_income
+        TransactionType.TRANSFER -> R.string.type_transfer
+    },
+)
+
+@Composable
+private fun editingTypeLabel(t: TransactionType): String = stringResource(
+    when (t) {
+        TransactionType.EXPENSE -> R.string.add_editing_expense
+        TransactionType.INCOME -> R.string.add_editing_income
+        TransactionType.TRANSFER -> R.string.add_editing_transfer
+    },
+)
 
 private fun dateLabel(ms: Long): String {
     val date = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate()
@@ -529,14 +656,16 @@ private fun TypeSwitcher(selected: TransactionType, onSelect: (TransactionType) 
             Box(
                 modifier = Modifier
                     .height(36.dp)
-                    .width(64.dp)
+                    .widthIn(min = 64.dp)
                     .background(container, CircleShape)
-                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(type) }),
+                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(type) })
+                    .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     typeLabel(type),
                     style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                     color = if (isSelected) amountColor(type) else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -583,12 +712,12 @@ private fun AmountPanel(
         }
         Column(Modifier.padding(start = 10.dp).weight(1f)) {
             Text(
-                if (editing) "编辑" + typeLabel(type) else typeLabel(type),
+                if (editing) editingTypeLabel(type) else typeLabel(type),
                 style = MaterialTheme.typography.labelMedium,
                 color = accent,
             )
             Text(
-                if (type == TransactionType.TRANSFER) "账户间转移" else categoryLabel,
+                if (type == TransactionType.TRANSFER) stringResource(R.string.add_between_accounts) else categoryLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -632,7 +761,11 @@ private fun PageDots(count: Int, current: Int) {
     }
 }
 
-/** 分类格：无卡片底，只保留圆标与名称；选中时圆标加主色描边、名称变主色。 */
+/**
+ * 分类格：无卡片底，只保留圆标与名称；选中时圆标加主色描边、名称变主色。
+ * 传入 [onLongClick] 时支持长按（一级分类长按菜单），[menu] 为锚定在该格上的弹出菜单。
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CategoryTile(
     category: Category,
@@ -640,17 +773,33 @@ private fun CategoryTile(
     compact: Boolean,
     modifier: Modifier,
     labelOverride: String? = null,
+    onLongClick: (() -> Unit)? = null,
+    menu: @Composable () -> Unit = {},
     onClick: () -> Unit,
 ) {
     val badge = if (compact) 38 else 42
+    val interaction = if (onLongClick == null) {
+        Modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+    } else {
+        Modifier
+            .combinedClickable(
+                role = Role.RadioButton,
+                onLongClickLabel = stringResource(R.string.add_more_actions),
+                onLongClick = onLongClick,
+                hapticFeedbackEnabled = false,
+                onClick = onClick,
+            )
+            .semantics { this.selected = selected }
+    }
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .then(interaction)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        menu()
         Box(
             Modifier.size((badge + 6).dp)
                 .border(
@@ -675,6 +824,53 @@ private fun CategoryTile(
     }
 }
 
+/** 二级网格末尾的“新建”格：虚线圆 + 加号，尺寸与分类格一致，不打乱网格行高。 */
+@Composable
+private fun AddCategoryTile(compact: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val badge = if (compact) 38 else 42
+    val outline = MaterialTheme.colorScheme.outline
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = stringResource(R.string.add_new_subcategory), onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(Modifier.size((badge + 6).dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(badge.dp).drawBehind {
+                    val stroke = 1.5.dp.toPx()
+                    drawCircle(
+                        color = outline,
+                        radius = (size.minDimension - stroke) / 2f,
+                        style = Stroke(
+                            width = stroke,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                        ),
+                    )
+                },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size((badge * 0.5f).dp),
+                )
+            }
+        }
+        Text(
+            stringResource(R.string.add_new),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
 /** 字段格：小标签 + 值；未填写时以弱化占位显示。 */
 @Composable
 private fun EntryField(
@@ -689,12 +885,13 @@ private fun EntryField(
             .heightIn(min = 52.dp)
             .clip(MaterialTheme.shapes.medium)
             .background(cardColor())
-            .clickable(onClick = onClick, role = Role.Button, onClickLabel = "选择$label")
+            .clickable(onClick = onClick, role = Role.Button, onClickLabel = stringResource(R.string.add_field_click_label, label))
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         Text(label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             value ?: placeholder,
             style = LedgerNumerals.of(MaterialTheme.typography.bodyMedium),
@@ -733,7 +930,7 @@ private fun AmountKeyboard(
                                 onClick = { onKey(key) },
                             ) {
                                 if (key == AmountEntry.BACKSPACE) {
-                                    Icon(Icons.AutoMirrored.Outlined.Backspace, contentDescription = "退格",
+                                    Icon(Icons.AutoMirrored.Outlined.Backspace, contentDescription = stringResource(R.string.add_key_backspace),
                                         modifier = Modifier.size(22.dp))
                                 } else {
                                     Text(key, style = LedgerNumerals.of(MaterialTheme.typography.titleLarge),
@@ -750,8 +947,8 @@ private fun AmountKeyboard(
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
                     onClick = { onKey(AmountEntry.CLEAR) },
                 ) {
-                    Text("清空", style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.add_key_clear), style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
                 KeyCap(
                     modifier = Modifier.fillMaxWidth().height(keyHeight * 3 + gap * 2),
@@ -760,8 +957,9 @@ private fun AmountKeyboard(
                     enabled = !saving,
                     onClick = onSave,
                 ) {
-                    Text(if (saving) "保存中…" else "保存",
+                    Text(stringResource(if (saving) R.string.add_saving else R.string.action_save),
                         style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
                         color = if (saving) MaterialTheme.colorScheme.onSurfaceVariant
                             else MaterialTheme.colorScheme.onPrimary)
                 }

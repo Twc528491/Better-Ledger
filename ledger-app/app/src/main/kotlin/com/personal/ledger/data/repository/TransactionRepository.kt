@@ -1,6 +1,8 @@
 package com.personal.ledger.data.repository
 
+import androidx.annotation.StringRes
 import androidx.room.withTransaction
+import com.personal.ledger.R
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.TransactionEntity
 import com.personal.ledger.data.local.entity.TransactionTagEntity
@@ -8,13 +10,14 @@ import com.personal.ledger.domain.calc.TransactionRules
 import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.YearMonth
 import java.util.UUID
 
-/** 交易校验失败。 */
-class TransactionValidationException(message: String) : IllegalArgumentException(message)
+/** 交易校验失败：错误文案为字符串资源，由 UI 按当前语言解析。 */
+private fun validationError(@StringRes res: Int) = UserFacingException(res)
 
 /** 记一笔的输入草稿。 */
 data class TransactionDraft(
@@ -73,7 +76,7 @@ class TransactionRepository(
     suspend fun add(draft: TransactionDraft): Result<Transaction> {
         return try {
             val saved = database.withTransaction {
-                validate(draft)?.let { throw TransactionValidationException(it) }
+                validate(draft)?.let { throw validationError(it) }
                 val now = TimeUtils.now()
                 val entity = TransactionEntity(
                     id = UUID.randomUUID().toString(),
@@ -111,11 +114,11 @@ class TransactionRepository(
     suspend fun update(id: String, draft: TransactionDraft): Result<Transaction> {
         return try {
             val saved = database.withTransaction {
-                val existing = transactionDao.getById(id) ?: throw NoSuchElementException("交易不存在")
+                val existing = transactionDao.getById(id) ?: throw UserFacingException(R.string.err_transaction_not_found)
                 if (existing.ledgerId != draft.ledgerId) {
-                    throw TransactionValidationException("交易不能移动到其他账本")
+                    throw validationError(R.string.err_transaction_move_ledger)
                 }
-                validate(draft)?.let { throw TransactionValidationException(it) }
+                validate(draft)?.let { throw validationError(it) }
                 val updated = existing.copy(
                     type = draft.type,
                     amount = draft.amount,
@@ -178,11 +181,13 @@ class TransactionRepository(
         return income to expense
     }
 
-    private suspend fun validate(draft: TransactionDraft): String? {
+    /** 校验通过返回 null，否则返回错误文案的字符串资源 ID。 */
+    @StringRes
+    private suspend fun validate(draft: TransactionDraft): Int? {
         // 纯规则：金额、分类类型匹配、转账账户。
         TransactionRules.validateAmount(draft.amount)?.let { return it }
         if (draft.type == TransactionType.TRANSFER) {
-            if (draft.categoryId != null) return "转账不设置分类"
+            if (draft.categoryId != null) return R.string.err_transfer_no_category
             TransactionRules.validateTransferAccounts(draft.accountId, draft.targetAccountId)?.let { return it }
         } else {
             val categoryType = draft.categoryId?.let { categoryDao.getById(it)?.type }
@@ -190,32 +195,93 @@ class TransactionRepository(
         }
 
         // 依赖数据库的规则：归属账本、初始时间、币种。
-        val ledger = ledgerDao.getById(draft.ledgerId) ?: return "账本不存在"
-        if (draft.currency != ledger.baseCurrency) return "币种必须与账本一致"
+        val ledger = ledgerDao.getById(draft.ledgerId) ?: return R.string.err_ledger_not_found
+        if (draft.currency != ledger.baseCurrency) return R.string.err_currency_mismatch
 
-        val account = accountDao.getById(draft.accountId) ?: return "账户不存在"
-        if (account.ledgerId != draft.ledgerId) return "账户不属于当前账本"
-        if (draft.transactionTime < account.initialBalanceTime) return "时间不能早于账户初始时间"
+        val account = accountDao.getById(draft.accountId) ?: return R.string.err_account_not_found
+        if (account.ledgerId != draft.ledgerId) return R.string.err_account_not_in_ledger
+        if (draft.transactionTime < account.initialBalanceTime) return R.string.err_time_before_account_start
 
         if (draft.type != TransactionType.TRANSFER) {
             val category = draft.categoryId?.let { categoryDao.getById(it) }
-            if (category == null) return "请选择分类"
-            if (category.ledgerId != draft.ledgerId) return "分类不属于当前账本"
+            if (category == null) return R.string.err_select_category
+            if (category.ledgerId != draft.ledgerId) return R.string.err_category_not_in_ledger
         } else {
-            val targetId = draft.targetAccountId ?: return "请选择转入账户"
-            val target = accountDao.getById(targetId) ?: return "转入账户不存在"
-            if (target.ledgerId != draft.ledgerId) return "转入账户不属于当前账本"
-            if (draft.transactionTime < target.initialBalanceTime) return "时间不能早于转入账户初始时间"
+            val targetId = draft.targetAccountId ?: return R.string.err_select_target_account
+            val target = accountDao.getById(targetId) ?: return R.string.err_target_account_not_found
+            if (target.ledgerId != draft.ledgerId) return R.string.err_target_account_not_in_ledger
+            if (draft.transactionTime < target.initialBalanceTime) return R.string.err_time_before_target_start
         }
 
         draft.merchantId?.let { merchantId ->
-            val merchant = database.merchantDao().getById(merchantId) ?: return "商家不存在"
-            if (merchant.ledgerId != draft.ledgerId) return "商家不属于当前账本"
+            val merchant = database.merchantDao().getById(merchantId) ?: return R.string.err_merchant_not_found
+            if (merchant.ledgerId != draft.ledgerId) return R.string.err_merchant_not_in_ledger
         }
         draft.tagIds.distinct().forEach { tagId ->
-            val tag = database.tagDao().getById(tagId) ?: return "标签不存在"
-            if (tag.ledgerId != draft.ledgerId) return "标签不属于当前账本"
+            val tag = database.tagDao().getById(tagId) ?: return R.string.err_tag_not_found
+            if (tag.ledgerId != draft.ledgerId) return R.string.err_tag_not_in_ledger
         }
         return null
+    }
+
+    // ---------------------------------------------------------------------
+    // 多选批量操作：每个方法都在单个数据库事务内完成，要么全部生效、要么全部回滚。
+    // ---------------------------------------------------------------------
+
+    /** 批量软删除（进入回收站），返回实际删除的笔数；已在回收站的记录忽略。 */
+    suspend fun softDeleteAll(ids: Collection<String>): Result<Int> = batchResult {
+        val now = TimeUtils.now()
+        database.withTransaction {
+            ids.distinct().chunked(BATCH_CHUNK).sumOf { transactionDao.softDeleteByIds(it, now) }
+        }
+    }
+
+    /** 批量从回收站恢复，返回实际恢复的笔数。 */
+    suspend fun restoreAll(ids: Collection<String>): Result<Int> = batchResult {
+        val now = TimeUtils.now()
+        database.withTransaction {
+            ids.distinct().chunked(BATCH_CHUNK).sumOf { transactionDao.restoreByIds(it, now) }
+        }
+    }
+
+    /**
+     * 彻底删除回收站中的账单（不可恢复），只作用于 isDeleted = 1 的记录。
+     * 同一事务内先清理依赖行：标签关联与定时扣款执行记录（recurring_occurrence）。
+     * 执行记录对应的周期早已被规则的 nextOccurrenceIndex 越过，不会因此重新生成扣款；
+     * 保留悬空记录反而会让备份恢复校验（执行记录必须指向存在的交易）失败。
+     */
+    suspend fun purgeAll(ids: Collection<String>): Result<Int> = batchResult {
+        database.withTransaction {
+            val targets = ids.distinct().chunked(BATCH_CHUNK)
+                .flatMap { transactionDao.filterRecycledIds(it) }
+            purgeRecycled(targets)
+        }
+    }
+
+    /** 清空当前账本的回收站，返回彻底删除的笔数。 */
+    suspend fun emptyRecycleBin(ledgerId: String): Result<Int> = batchResult {
+        database.withTransaction {
+            purgeRecycled(transactionDao.getRecycledIds(ledgerId))
+        }
+    }
+
+    private suspend fun purgeRecycled(targets: List<String>): Int =
+        targets.chunked(BATCH_CHUNK).sumOf { chunk ->
+            transactionDao.deleteTagLinksOf(chunk)
+            transactionDao.deleteRecurringOccurrencesOf(chunk)
+            transactionDao.purgeRecycledByIds(chunk)
+        }
+
+    private suspend fun batchResult(block: suspend () -> Int): Result<Int> = try {
+        Result.success(block())
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+    private companion object {
+        /** 低于旧版 SQLite 999 个绑定参数上限，留出余量。 */
+        const val BATCH_CHUNK = 500
     }
 }

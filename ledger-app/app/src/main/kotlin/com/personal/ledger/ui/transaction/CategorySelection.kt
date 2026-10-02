@@ -21,8 +21,9 @@ internal object CategorySelection {
         return selected.parentId ?: selected.id
     }
 
-    fun label(categories: List<Category>, categoryId: String?): String {
-        val selected = categories.firstOrNull { it.id == categoryId } ?: return "选择一级分类"
+    /** 已选分类的显示名（"父 / 子"）；未选择时返回 null，由界面显示本地化占位文本。 */
+    fun label(categories: List<Category>, categoryId: String?): String? {
+        val selected = categories.firstOrNull { it.id == categoryId } ?: return null
         val parent = categories.firstOrNull { it.id == selected.parentId } ?: return selected.name
         return parent.name + " / " + selected.name
     }

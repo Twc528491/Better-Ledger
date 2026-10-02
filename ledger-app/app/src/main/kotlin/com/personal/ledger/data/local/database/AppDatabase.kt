@@ -12,6 +12,7 @@ import com.personal.ledger.data.local.dao.CategoryDao
 import com.personal.ledger.data.local.dao.LedgerDao
 import com.personal.ledger.data.local.dao.MerchantDao
 import com.personal.ledger.data.local.dao.MerchantCategoryDao
+import com.personal.ledger.data.local.dao.PurgeDao
 import com.personal.ledger.data.local.dao.RecurringChargeDao
 import com.personal.ledger.data.local.dao.TagDao
 import com.personal.ledger.data.local.dao.TransactionDao
@@ -60,6 +61,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun budgetDao(): BudgetDao
     abstract fun recurringChargeDao(): RecurringChargeDao
+    abstract fun purgeDao(): PurgeDao
 
     companion object {
         @Volatile

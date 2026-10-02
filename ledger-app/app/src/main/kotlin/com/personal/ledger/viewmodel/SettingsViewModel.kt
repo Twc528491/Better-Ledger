@@ -2,6 +2,7 @@ package com.personal.ledger.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.personal.ledger.R
 import com.personal.ledger.data.repository.BudgetRepository
 import com.personal.ledger.data.repository.CategoryRepository
 import com.personal.ledger.data.repository.LedgerRepository
@@ -11,6 +12,7 @@ import com.personal.ledger.domain.model.Budget
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.Ledger
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -132,7 +134,7 @@ class CategoriesViewModel(
         viewModelScope.launch {
             val ledger = ledgerRepository.currentLedger.first()
             if (ledger == null) {
-                onDone(Result.failure(IllegalStateException("当前账本不可用")))
+                onDone(Result.failure(UserFacingException(R.string.set_ledger_unavailable)))
             } else {
                 onDone(categoryRepository.supplementCommonCategories(ledger.id))
             }
@@ -142,6 +144,21 @@ class CategoriesViewModel(
     fun setArchived(id: String, archived: Boolean, onDone: (Result<Unit>) -> Unit) {
         viewModelScope.launch {
             onDone(categoryRepository.setArchived(id, archived))
+        }
+    }
+
+    /** 恢复已删除（归档）的分类；二级分类的父分类也已归档时一并恢复父分类。 */
+    fun restoreCategory(id: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val target = categoryRepository.getById(id)
+            val parent = target?.parentId?.let { categoryRepository.getById(it) }
+            val result = if (parent != null && parent.isArchived) {
+                categoryRepository.setArchived(parent.id, false)
+                    .mapCatching { categoryRepository.setArchived(id, false).getOrThrow() }
+            } else {
+                categoryRepository.setArchived(id, false)
+            }
+            onDone(result)
         }
     }
 

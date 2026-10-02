@@ -75,6 +75,10 @@ import com.personal.ledger.ui.common.transferAmountColor
 import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.ui.theme.LedgerSpacing
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.HomeViewModel
 
@@ -110,10 +114,12 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                             ledgerMenuOpen = true
                         },
                     ) {
-                        Text(state.ledgerName.ifEmpty { "个人账本" }, style = MaterialTheme.typography.titleLarge)
+                        val defaultLedgerName = stringResource(R.string.home_default_ledger_name)
+                        Text(state.ledgerName.ifEmpty { defaultLedgerName }, style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         Icon(
                             Icons.Filled.ArrowDropDown,
-                            contentDescription = "切换账本",
+                            contentDescription = stringResource(R.string.home_switch_ledger),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         DropdownMenu(expanded = ledgerMenuOpen, onDismissRequest = { ledgerMenuOpen = false }) {
@@ -155,20 +161,23 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                 val balance = state.income - state.expense
                 LedgerHeroCard {
                     HeroFigure(
-                        label = "${state.monthLabel}支出",
+                        label = stringResource(
+                            R.string.home_month_expense,
+                            DateLabels.month(state.month.monthValue, LocalConfiguration.current.locales[0]),
+                        ),
                         value = Money.formatWithCurrency(state.expense, state.baseCurrency),
                         large = true,
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
                     Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
-                            label = "收入",
+                            label = stringResource(R.string.type_income),
                             value = signedMoney(state.income, state.baseCurrency),
                             tone = HeroTone.INCOME,
                             modifier = Modifier.weight(1f),
                         )
                         HeroFigure(
-                            label = "结余",
+                            label = stringResource(R.string.label_balance),
                             value = signedMoney(balance, state.baseCurrency),
                             tone = if (balance < 0) HeroTone.NEGATIVE else HeroTone.BALANCE,
                             divider = true,
@@ -188,9 +197,9 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
 
             item {
                 LedgerSectionHeader(
-                    title = "最近交易",
+                    title = stringResource(R.string.home_recent),
                     modifier = Modifier.padding(top = LedgerSpacing.xxs, start = LedgerSpacing.xxs),
-                    actionLabel = "查看全部",
+                    actionLabel = stringResource(R.string.home_view_all),
                     onAction = {
                         hapticNavigation()
                         navController.navigate(Routes.TRANSACTIONS)
@@ -218,8 +227,8 @@ fun HomeScreen(container: AppContainer, navController: NavHostController) {
                     ) {
                         EmptyState(
                             icon = Icons.AutoMirrored.Outlined.ReceiptLong,
-                            title = "还没有交易",
-                            subtitle = "点底部中央 + 记一笔",
+                            title = stringResource(R.string.home_empty_title),
+                            subtitle = stringResource(R.string.home_empty_subtitle),
                         )
                     }
                 }
@@ -279,10 +288,10 @@ private fun BudgetSection(
         Column(modifier = Modifier.padding(horizontal = LedgerSpacing.md, vertical = 14.dp)) {
             if (progress == null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("预算", style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.home_budget), style = MaterialTheme.typography.titleSmall)
                     Spacer(Modifier.width(LedgerSpacing.sm))
                     Text(
-                        "本月未设置总预算",
+                        stringResource(R.string.home_no_budget),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -301,7 +310,7 @@ private fun BudgetSection(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("预算", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.home_budget), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                     Text(
                         "$pct%",
                         style = LedgerNumerals.of(MaterialTheme.typography.titleSmall),
@@ -339,10 +348,13 @@ private fun TransactionRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
-    val title = remember(tx, categoryNames, merchantNames) { titleOf(tx, categoryNames, merchantNames) }
+    val transferLabel = stringResource(R.string.type_transfer)
+    val title = remember(tx, categoryNames, merchantNames, transferLabel) {
+        titleOf(tx, categoryNames, merchantNames, transferLabel)
+    }
     val categoryName = remember(tx.categoryId, categoryNames) { categoryNames[tx.categoryId] }
-    val subtitle = remember(tx, categoryNames, accountNames) {
-        "${categoryNames[tx.categoryId] ?: "转账"} · ${accountNames[tx.accountId] ?: ""}"
+    val subtitle = remember(tx, categoryNames, accountNames, transferLabel) {
+        "${categoryNames[tx.categoryId] ?: transferLabel} · ${accountNames[tx.accountId] ?: ""}"
     }
     val amountText = remember(tx.amount, tx.type) {
         when (tx.type) {
@@ -372,14 +384,14 @@ private fun TransactionRow(
             ) {
                 Icon(
                     Icons.Filled.SwapHoriz,
-                    contentDescription = "转账",
+                    contentDescription = transferLabel,
                     tint = transferAmountColor(),
                     modifier = Modifier.size(22.dp),
                 )
             }
         } else {
             CategoryBadge(
-                name = categoryName ?: "其他",
+                name = categoryName ?: stringResource(R.string.label_other),
                 type = if (tx.type == TransactionType.INCOME) CategoryType.INCOME else CategoryType.EXPENSE,
                 sizeDp = 40,
                 visualKey = tx.categoryId ?: categoryName.orEmpty(),
@@ -414,8 +426,9 @@ private fun titleOf(
     tx: Transaction,
     categoryNames: Map<String, String>,
     merchantNames: Map<String, String>,
+    transferLabel: String,
 ): String = when {
     tx.merchantId != null && merchantNames[tx.merchantId] != null -> merchantNames[tx.merchantId]!!
     !tx.note.isNullOrEmpty() -> tx.note!!
-    else -> categoryNames[tx.categoryId] ?: "转账"
+    else -> categoryNames[tx.categoryId] ?: transferLabel
 }

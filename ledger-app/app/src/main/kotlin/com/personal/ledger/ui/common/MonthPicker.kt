@@ -34,16 +34,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.personal.ledger.R
 import com.personal.ledger.ui.theme.LedgerNumerals
+import com.personal.ledger.util.DateLabels
 import java.time.YearMonth
 
 /** 各主页面顶栏统一的设置入口：同一图标、同一位置（最右侧）。 */
 @Composable
 fun SettingsActionButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {
-        Icon(Icons.Outlined.Settings, contentDescription = "设置")
+        Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.action_settings))
     }
 }
 
@@ -57,12 +62,12 @@ fun MonthSwitcher(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onPrevious) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上个月")
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.core_previous_month))
         }
         Row(
             modifier = Modifier
                 .clip(CircleShape)
-                .clickable(onClickLabel = "选择月份", onClick = onOpenPicker)
+                .clickable(onClickLabel = stringResource(R.string.core_choose_month), onClick = onOpenPicker)
                 .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -70,7 +75,7 @@ fun MonthSwitcher(
             Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
         }
         IconButton(onClick = onNext) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下个月")
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.core_next_month))
         }
     }
 }
@@ -85,6 +90,7 @@ fun MonthPickerSheet(
 ) {
     var year by remember { mutableStateOf(current.year) }
     val thisMonth = remember { YearMonth.now() }
+    val locale = LocalConfiguration.current.locales[0]
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -95,16 +101,16 @@ fun MonthPickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = { year-- }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一年")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.core_previous_year))
                 }
                 Text(
-                    "${year}年",
+                    stringResource(R.string.core_year, year),
                     style = LedgerNumerals.of(MaterialTheme.typography.titleLarge),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = { year++ }, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一年")
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.core_next_year))
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -115,6 +121,7 @@ fun MonthPickerSheet(
                             val ym = YearMonth.of(year, m)
                             val selected = ym == current
                             val isThisMonth = ym == thisMonth
+                            val yearMonthLabel = DateLabels.yearMonth(ym, locale)
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
@@ -129,11 +136,11 @@ fun MonthPickerSheet(
                                             1.5.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium,
                                         ) else Modifier,
                                     )
-                                    .clickable(onClickLabel = "${year}年${m}月") { onPick(ym) },
+                                    .clickable(onClickLabel = yearMonthLabel) { onPick(ym) },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Text(
-                                    "${m}月",
+                                    DateLabels.month(m, locale),
                                     style = LedgerNumerals.of(MaterialTheme.typography.titleSmall),
                                     fontWeight = if (selected || isThisMonth) FontWeight.SemiBold else FontWeight.Normal,
                                     color = when {
@@ -152,11 +159,17 @@ fun MonthPickerSheet(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) { Text("取消") }
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) { Text(stringResource(R.string.action_cancel)) }
                 androidx.compose.material3.FilledTonalButton(
                     onClick = { onPick(thisMonth) },
                     modifier = Modifier.weight(1f).height(48.dp),
-                ) { Text("回到本月") }
+                ) {
+                    Text(
+                        stringResource(R.string.core_back_to_this_month),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

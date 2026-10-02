@@ -121,4 +121,31 @@ interface TransactionDao {
 
     @Query("UPDATE `transaction` SET isDeleted = 0, updatedAt = :now WHERE id = :id")
     suspend fun restore(id: String, now: Long)
+
+    // ---------------------------------------------------------------------
+    // 多选批量操作（账单页批量删除 / 回收站批量恢复与彻底删除）。
+    // 调用方负责分批（单条 SQL 的绑定参数有上限）并包在同一事务内。
+    // ---------------------------------------------------------------------
+
+    @Query("UPDATE `transaction` SET isDeleted = 1, updatedAt = :now WHERE id IN (:ids) AND isDeleted = 0")
+    suspend fun softDeleteByIds(ids: List<String>, now: Long): Int
+
+    @Query("UPDATE `transaction` SET isDeleted = 0, updatedAt = :now WHERE id IN (:ids) AND isDeleted = 1")
+    suspend fun restoreByIds(ids: List<String>, now: Long): Int
+
+    /** 给定 id 中仍在回收站里的那部分；彻底删除只作用于这些记录。 */
+    @Query("SELECT id FROM `transaction` WHERE id IN (:ids) AND isDeleted = 1")
+    suspend fun filterRecycledIds(ids: List<String>): List<String>
+
+    @Query("SELECT id FROM `transaction` WHERE ledgerId = :ledgerId AND isDeleted = 1")
+    suspend fun getRecycledIds(ledgerId: String): List<String>
+
+    @Query("DELETE FROM transaction_tag WHERE transactionId IN (:ids)")
+    suspend fun deleteTagLinksOf(ids: List<String>)
+
+    @Query("DELETE FROM recurring_occurrence WHERE transactionId IN (:ids)")
+    suspend fun deleteRecurringOccurrencesOf(ids: List<String>)
+
+    @Query("DELETE FROM `transaction` WHERE id IN (:ids) AND isDeleted = 1")
+    suspend fun purgeRecycledByIds(ids: List<String>): Int
 }

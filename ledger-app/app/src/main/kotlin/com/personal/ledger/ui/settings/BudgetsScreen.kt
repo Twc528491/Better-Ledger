@@ -35,10 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.domain.model.Budget
 import com.personal.ledger.domain.model.CategoryType
@@ -54,6 +58,7 @@ import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.BudgetsViewModel
 
@@ -82,13 +87,26 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("预算设置 · ${state.month}") },
+                title = {
+                    val locale = LocalConfiguration.current.locales[0]
+                    val monthLabel = runCatching { java.time.YearMonth.parse(state.month) }.getOrNull()
+                        ?.let { DateLabels.yearMonth(it, locale) }
+                    Text(
+                        if (monthLabel != null) {
+                            stringResource(R.string.set_budgets_title_month, monthLabel)
+                        } else {
+                            stringResource(R.string.set_budgets_title)
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -96,13 +114,13 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                         hapticLight()
                         vm.previousMonth()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "上一月")
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.set_budget_prev_month))
                     }
                     IconButton(onClick = {
                         hapticLight()
                         vm.nextMonth()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一月")
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.set_budget_next_month))
                     }
                 },
             )
@@ -135,7 +153,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "月总预算",
+                                stringResource(R.string.set_budget_monthly_total),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -143,7 +161,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                                 MoneyText(text = Money.formatWithSymbol(total.amount), prominent = true)
                             } else {
                                 Text(
-                                    "未设置",
+                                    stringResource(R.string.set_budget_not_set),
                                     style = MaterialTheme.typography.titleLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -159,7 +177,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             }
             item {
                 LedgerSectionHeader(
-                    title = "分类预算",
+                    title = stringResource(R.string.set_budget_category_section),
                     modifier = Modifier.padding(start = LedgerSpacing.xxs, top = LedgerSpacing.lg, bottom = LedgerSpacing.xxs),
                 )
             }
@@ -183,7 +201,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                                 MoneyText(text = Money.formatWithSymbol(budget.amount))
                             } else {
                                 Text(
-                                    "未设置",
+                                    stringResource(R.string.set_budget_not_set),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -206,7 +224,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(LedgerSpacing.xs))
-                    Text("为分类设置预算")
+                    Text(stringResource(R.string.set_budget_add_for_category))
                 }
             }
         }
@@ -217,7 +235,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             onDismissRequest = {
                 showCategoryPicker = false
             },
-            title = { Text("选择分类") },
+            title = { Text(stringResource(R.string.set_budget_pick_category)) },
             text = {
                 Column {
                     categories
@@ -240,14 +258,14 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showCategoryPicker = false }) { Text("取消") }
+                TextButton(onClick = { showCategoryPicker = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
 
     if (editingTotal) {
         BudgetAmountDialog(
-            title = "月总预算",
+            title = stringResource(R.string.set_budget_monthly_total),
             initial = state.budgets.firstOrNull { it.categoryId == null }?.amount,
             onConfirm = { minor ->
                 vm.setBudget(null, minor) { result ->
@@ -274,7 +292,7 @@ fun BudgetsScreen(container: AppContainer, navController: NavHostController) {
     editingCategoryId?.let { catId ->
         if (catId.isNotEmpty()) {
             BudgetAmountDialog(
-                title = "分类预算（${categoryNames[catId] ?: ""}）",
+                title = stringResource(R.string.set_budget_category_title, categoryNames[catId] ?: ""),
                 initial = state.budgets.firstOrNull { it.categoryId == catId }?.amount,
                 onConfirm = { minor ->
                     vm.setBudget(catId, minor) { result ->
@@ -318,11 +336,11 @@ private fun BudgetAmountDialog(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("预算金额") },
+                    label = { Text(stringResource(R.string.set_budget_amount)) },
                     singleLine = true,
                 )
                 if (initial != null) {
-                    TextButton(onClick = onDelete) { Text("删除预算") }
+                    TextButton(onClick = onDelete) { Text(stringResource(R.string.set_budget_delete)) }
                 }
             }
         },
@@ -334,10 +352,10 @@ private fun BudgetAmountDialog(
                 } else {
                     hapticReject()
                 }
-            }) { Text("保存") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

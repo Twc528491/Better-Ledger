@@ -57,4 +57,17 @@ class MonthTrendCalculatorTest {
             assertEquals(0L, m.expense)
         }
     }
+
+    @Test
+    fun `月均支出只统计有记录的月份`() {
+        val months = listOf(
+            MonthTrendCalculator.MonthTotals(YearMonth.of(2026, 6), 0, 0),
+            MonthTrendCalculator.MonthTotals(YearMonth.of(2026, 7), 5000, 0),
+            MonthTrendCalculator.MonthTotals(YearMonth.of(2026, 8), 0, 301),
+            MonthTrendCalculator.MonthTotals(YearMonth.of(2026, 9), 100, 600),
+        )
+        assertEquals(300L, MonthTrendCalculator.averageExpense(months))
+        assertEquals(0L, MonthTrendCalculator.averageExpense(months.take(1)))
+        assertEquals(0L, MonthTrendCalculator.averageExpense(emptyList()))
+    }
 }

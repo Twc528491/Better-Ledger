@@ -14,8 +14,8 @@ android {
         applicationId = "com.personal.ledger"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "0.4.2"
+        versionCode = 14
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -41,6 +41,11 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    androidResources {
+        // 生成 locales_config，Android 13+ 系统“应用语言”设置中可直接切换。
+        generateLocaleConfig = true
     }
 
     packaging {

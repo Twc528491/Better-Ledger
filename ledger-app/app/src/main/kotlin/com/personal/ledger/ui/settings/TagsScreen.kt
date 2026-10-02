@@ -1,6 +1,7 @@
 package com.personal.ledger.ui.settings
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -21,35 +22,45 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.ui.common.EmptyState
+import com.personal.ledger.domain.model.Tag
 import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.common.LedgerGroupLabel
 import com.personal.ledger.ui.common.LedgerIconTile
 import com.personal.ledger.ui.common.LedgerListRow
 import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.util.userMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagsScreen(container: AppContainer, navController: NavHostController) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val currentLedger by container.ledgerRepository.currentLedger.collectAsStateWithLifecycle(initialValue = null)
     val tags by container.tagRepository.observeByLedger(
         currentLedger?.id ?: ""
     ).collectAsStateWithLifecycle(initialValue = emptyList())
     var showAdd by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var purgeTarget by remember { mutableStateOf<Tag?>(null) }
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
     val hapticReject = rememberHapticReject()
@@ -57,13 +68,13 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("标签管理") },
+                title = { Text(stringResource(R.string.set_tags_title)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -71,7 +82,7 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                         hapticNavigation()
                         showAdd = true
                     }) {
-                        Icon(Icons.Filled.Add, contentDescription = "新建标签")
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.set_tag_new))
                     }
                 },
             )
@@ -90,41 +101,28 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                 item(key = "tags_empty") {
                     EmptyState(
                         icon = Icons.Outlined.Sell,
-                        title = "暂无标签",
-                        subtitle = "点右上角 + 新建",
+                        title = stringResource(R.string.set_tag_empty),
+                        subtitle = stringResource(R.string.set_tag_empty_hint),
                     )
                 }
             }
-            val count = tags.size
-            itemsIndexed(tags, key = { _, tag -> tag.id }) { index, tag ->
-                LedgerGroupItem(index = index, count = count) {
+            val active = tags.filterNot { it.isArchived }
+            val archived = tags.filter { it.isArchived }
+            itemsIndexed(active, key = { _, tag -> tag.id }) { index, tag ->
+                LedgerGroupItem(index = index, count = active.size) {
                     LedgerListRow(
-                        title = tag.name + if (tag.isArchived) "（已归档）" else "",
-                        titleColor = if (tag.isArchived) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        leading = {
-                            LedgerIconTile(
-                                Icons.Outlined.Sell,
-                                tint = if (tag.isArchived) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.primary
-                                },
-                            )
-                        },
+                        title = tag.name,
+                        leading = { LedgerIconTile(Icons.Outlined.Sell) },
                         trailing = {
                             Text(
-                                if (tag.isArchived) "恢复" else "归档",
+                                stringResource(R.string.action_archive),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         },
                         onClick = {
                             scope.launch {
-                                container.tagRepository.setArchived(tag.id, !tag.isArchived)
+                                container.tagRepository.setArchived(tag.id, true)
                                     .onSuccess { hapticConfirm() }
                                     .onFailure { hapticReject() }
                             }
@@ -132,20 +130,67 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                     )
                 }
             }
+            if (archived.isNotEmpty()) {
+                item(key = "tags_archived_label") {
+                    LedgerGroupLabel(stringResource(R.string.set_tag_archived_section), modifier = Modifier.padding(top = LedgerSpacing.md))
+                }
+                itemsIndexed(archived, key = { _, tag -> tag.id }) { index, tag ->
+                    LedgerGroupItem(index = index, count = archived.size) {
+                        LedgerListRow(
+                            title = tag.name,
+                            titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            leading = {
+                                LedgerIconTile(Icons.Outlined.Sell, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            },
+                            trailing = {
+                                Row {
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            container.tagRepository.setArchived(tag.id, false)
+                                                .onSuccess { hapticConfirm() }
+                                                .onFailure { hapticReject() }
+                                        }
+                                    }) { Text(stringResource(R.string.action_restore)) }
+                                    TextButton(onClick = {
+                                        hapticConfirm()
+                                        purgeTarget = tag
+                                    }) { Text(stringResource(R.string.set_purge_short), color = MaterialTheme.colorScheme.error) }
+                                }
+                            },
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    purgeTarget?.let { tag ->
+        var usage by remember(tag.id) { mutableStateOf<Int?>(null) }
+        LaunchedEffect(tag.id) { usage = container.purgeRepository.tagUsage(tag.id) }
+        PurgeDialog(
+            container = container,
+            title = stringResource(R.string.set_tag_purge_title),
+            impact = usage?.let {
+                pluralStringResource(R.plurals.set_tag_purge_impact, it, tag.name, it)
+            } ?: stringResource(R.string.set_purge_counting),
+            confirmEnabled = usage != null,
+            onDismiss = { purgeTarget = null },
+            onPurged = { purgeTarget = null },
+            purge = { container.purgeRepository.purgeTag(tag.id) },
+        )
     }
 
     if (showAdd) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAdd = false },
-            title = { Text("新建标签") },
+            title = { Text(stringResource(R.string.set_tag_new)) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("标签名称（同账本内唯一）") },
+                        label = { Text(stringResource(R.string.set_tag_name_label)) },
                         singleLine = true,
                     )
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -163,13 +208,13 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                             }
                             .onFailure {
                                 hapticReject()
-                                error = it.message
+                                error = it.userMessage(context, R.string.set_create_failed)
                             }
                     }
-                }) { Text("创建") }
+                }) { Text(stringResource(R.string.set_create)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAdd = false }) { Text("取消") }
+                TextButton(onClick = { showAdd = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
