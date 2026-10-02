@@ -1,7 +1,9 @@
 package com.personal.ledger.data.backup
 
+import com.personal.ledger.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -85,28 +87,40 @@ class BackupCatalogTest {
 
     @Test
     fun `文件大小与时间显示`() {
-        assertEquals("856 B", BackupCatalog.formatSize(856))
-        assertEquals("12.0 KB", BackupCatalog.formatSize(12 * 1024))
-        assertEquals("1.5 MB", BackupCatalog.formatSize(1536L * 1024))
-        assertEquals("未知大小", BackupCatalog.formatSize(-1))
+        assertEquals("856 B", BackupCatalog.formatSizeOrNull(856))
+        assertEquals("12.0 KB", BackupCatalog.formatSizeOrNull(12 * 1024))
+        assertEquals("1.5 MB", BackupCatalog.formatSizeOrNull(1536L * 1024))
+        assertNull(BackupCatalog.formatSizeOrNull(-1)) // 显示为“未知大小”（资源）
         val t = LocalDateTime.of(2026, 10, 2, 14, 30).atZone(utc).toInstant().toEpochMilli()
-        assertEquals("2026-10-02 14:30", BackupCatalog.formatTime(t, utc))
-        assertEquals("时间未知", BackupCatalog.formatTime(0L, utc))
+        assertEquals("2026-10-02 14:30", BackupCatalog.formatTimeOrNull(t, utc))
+        assertNull(BackupCatalog.formatTimeOrNull(0L, utc)) // 显示为“时间未知”（资源）
     }
 
     @Test
     fun `类型标签`() {
-        assertEquals("备份", BackupCatalog.typeLabel(BackupFileKind.BACKUP))
-        assertEquals("恢复前备份", BackupCatalog.typeLabel(BackupFileKind.PRE_RESTORE))
+        assertEquals(R.string.data_backup_kind_backup, BackupCatalog.typeLabelRes(BackupFileKind.BACKUP))
+        assertEquals(R.string.data_backup_kind_pre_restore, BackupCatalog.typeLabelRes(BackupFileKind.PRE_RESTORE))
     }
 
     @Test
     fun `自定义文件夹位置描述`() {
-        assertEquals("内部存储/Documents/账本", BackupCatalog.describeTreeDocumentId("primary:Documents/账本"))
-        assertEquals("内部存储", BackupCatalog.describeTreeDocumentId("primary:"))
-        assertEquals("存储卡/Backup", BackupCatalog.describeTreeDocumentId("1A2B-3C4D:Backup"))
-        assertEquals("已选择的文件夹", BackupCatalog.describeTreeDocumentId(null))
-        assertEquals("已选择的文件夹", BackupCatalog.describeTreeDocumentId("msf:1234"))
-        assertEquals("/storage/emulated/0/Download/x", BackupCatalog.describeTreeDocumentId("raw:/storage/emulated/0/Download/x"))
+        val internal = { path: String ->
+            BackupCatalog.TreeLocation.Named(R.string.data_location_internal, R.string.data_location_internal_path, path)
+        }
+        val selected = BackupCatalog.TreeLocation.Named(
+            R.string.data_location_selected_folder, R.string.data_location_selected_folder, "",
+        )
+        assertEquals(internal("Documents/账本"), BackupCatalog.treeLocation("primary:Documents/账本"))
+        assertEquals(internal(""), BackupCatalog.treeLocation("primary:"))
+        assertEquals(
+            BackupCatalog.TreeLocation.Named(R.string.data_location_sd_card, R.string.data_location_sd_card_path, "Backup"),
+            BackupCatalog.treeLocation("1A2B-3C4D:Backup"),
+        )
+        assertEquals(selected, BackupCatalog.treeLocation(null))
+        assertEquals(selected, BackupCatalog.treeLocation("msf:1234"))
+        assertEquals(
+            BackupCatalog.TreeLocation.Raw("/storage/emulated/0/Download/x"),
+            BackupCatalog.treeLocation("raw:/storage/emulated/0/Download/x"),
+        )
     }
 }

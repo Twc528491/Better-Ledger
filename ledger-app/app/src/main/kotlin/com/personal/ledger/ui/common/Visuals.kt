@@ -15,16 +15,20 @@ import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.RequestQuote
 import androidx.compose.material.icons.rounded.Savings
+import androidx.annotation.StringRes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.personal.ledger.R
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.TransactionType
@@ -200,13 +204,132 @@ object CategoryVisuals {
         listOf("礼", "红包", "赠", "人情") to "gift",
     )
 
-    /** 稳定、纯字符串映射，供图标显示和映射测试共用。 */
+    /** 英文预置分类名（values-en/strings_core.xml 中的 seed_cat_*，小写）→ 图标 key。 */
+    private val iconKeyByEnglishName = mapOf(
+        "food" to "food",
+        "transport" to "transit",
+        "shopping" to "shopping",
+        "housing" to "home",
+        "entertainment" to "movie",
+        "medical" to "medical",
+        "other" to "other",
+        "salary" to "salary",
+        "other income" to "other_income",
+        "household" to "daily",
+        "clothing" to "clothing",
+        "phone" to "phone",
+        "education" to "education",
+        "fitness" to "fitness",
+        "travel" to "travel",
+        "pets" to "pets",
+        "gifts" to "gift",
+        "car" to "car",
+        "electronics" to "devices",
+        "childcare" to "childcare",
+        "office" to "office",
+        "utilities" to "electric",
+        "beauty" to "spa",
+        "insurance" to "insurance",
+        "repairs" to "repair",
+        "taxes" to "tax",
+        "subscriptions" to "subscription",
+        "groceries" to "fresh",
+        "snacks" to "snack",
+        "coffee" to "coffee",
+        "housekeeping" to "housekeeping",
+        "shipping" to "delivery",
+        "donations" to "donation",
+        "tobacco & alcohol" to "tobacco",
+        "bonus" to "bonus",
+        "side job" to "work",
+        "business" to "business",
+        "investments" to "invest",
+        "reimbursement" to "reimburse",
+        "gift money" to "present",
+        "refunds" to "refund",
+        "rental income" to "rent",
+        "dividends" to "dividend",
+        "interest" to "interest",
+        "allowances" to "subsidy",
+        "scholarships" to "scholarship",
+        "royalties" to "royalty",
+        "commissions" to "commission",
+        "resale" to "secondhand",
+    )
+
+    /**
+     * 英文关键词（小写词干）：名称中任一单词以词干开头即命中，如 "grocer" 命中 "Groceries"；
+     * 三个字母以内的词干只匹配整词（或加 s 的复数）。
+     * 顺序即优先级：具体的在前、宽泛的在后，与中文关键词表保持一致。
+     */
+    private val englishIconKeywords = listOf(
+        listOf("subscription", "membership", "streaming", "netflix", "spotify") to "subscription",
+        listOf("grocer", "produce", "vegetable", "fruit", "fresh") to "fresh",
+        listOf("snack", "dessert", "cake", "candy", "sweets", "bakery") to "snack",
+        listOf("coffee", "cafe", "latte", "tea", "boba") to "coffee",
+        listOf("housekeep", "cleaning", "cleaner", "maid") to "housekeeping",
+        listOf("shipping", "delivery", "postage", "parcel", "courier") to "delivery",
+        listOf("donat", "charity", "charities") to "donation",
+        listOf("tobacco", "cigar", "alcohol", "liquor", "wine", "beer") to "tobacco",
+        listOf("food", "dining", "dine", "meal", "restaurant", "breakfast", "lunch", "dinner", "takeout", "takeaway", "eat") to "food",
+        listOf("taxi", "uber", "lyft", "cab") to "taxi",
+        listOf("fuel", "gas", "petrol") to "fuel",
+        listOf("parking") to "parking",
+        listOf("transport", "transit", "bus", "subway", "metro", "train", "commut", "fare") to "transit",
+        listOf("travel", "trip", "flight", "hotel", "vacation", "holiday") to "travel",
+        listOf("car", "auto", "vehicle") to "car",
+        listOf("shopping", "shop", "supermarket", "mall", "store") to "shopping",
+        listOf("cloth", "apparel", "fashion", "shoe") to "clothing",
+        listOf("rent", "mortgage", "housing", "home", "furniture", "utilit") to "home",
+        listOf("electric", "water", "power") to "electric",
+        listOf("phone", "mobile", "internet", "wifi", "broadband") to "phone",
+        listOf("electronic", "gadget", "computer", "laptop", "device") to "devices",
+        listOf("entertainment", "game", "gaming", "movie", "cinema", "film", "music", "concert") to "movie",
+        listOf("medical", "medicine", "health", "hospital", "doctor", "pharmac", "dental", "clinic") to "medical",
+        listOf("educat", "tuition", "school", "course", "class", "book") to "education",
+        listOf("gym", "fitness", "sport", "workout") to "fitness",
+        listOf("pet", "vet") to "pets",
+        listOf("child", "baby", "kid") to "childcare",
+        listOf("beauty", "salon", "cosmetic", "spa", "makeup") to "spa",
+        listOf("haircut", "barber", "hair") to "haircut",
+        listOf("insurance") to "insurance",
+        listOf("repair", "maintenance") to "repair",
+        listOf("tax", "taxes", "fee") to "tax",
+        listOf("office", "stationery") to "office",
+        listOf("refund", "cashback") to "refund",
+        listOf("dividend", "invest", "stock", "fund", "crypto") to "invest",
+        listOf("interest") to "interest",
+        listOf("salary", "wage", "payroll", "paycheck", "income", "bonus", "reimburse") to "salary",
+        listOf("gift", "present", "red packet") to "gift",
+    )
+
+    private val wordSeparator = Regex("[^\\p{L}\\p{N}&]+")
+
+    private fun englishIconKey(name: String): String? {
+        val lower = name.lowercase(java.util.Locale.ROOT)
+        iconKeyByEnglishName[lower]?.let { return it }
+        val words = lower.split(wordSeparator).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return null
+        return englishIconKeywords.firstOrNull { (stems, _) ->
+            stems.any { stem ->
+                when {
+                    ' ' in stem -> lower.contains(stem)
+                    // 短词干只做整词（含复数）匹配，避免 "car" 命中 "card"
+                    stem.length <= 3 -> words.any { it == stem || it == stem + "s" }
+                    else -> words.any { it.startsWith(stem) }
+                }
+            }
+        }?.second
+    }
+
+    /** 稳定、纯字符串映射，供图标显示和映射测试共用；中文与英文名称（不区分大小写）均可匹配。 */
     fun iconKeyFor(name: String, type: CategoryType): String {
         val normalized = name.trim()
         iconKeyByName[normalized]?.let { return it }
         iconKeywords.firstOrNull { (keywords, _) ->
             keywords.any { normalized.contains(it) }
         }?.second?.let { return it }
+        englishIconKey(normalized)?.let { return it }
         return if (type == CategoryType.INCOME) "other_income" else "other"
     }
 
@@ -301,18 +424,52 @@ object AccountVisuals {
     }
 }
 
-/** 账户类型中文标签（各界面共用）。 */
-fun accountTypeLabel(type: AccountType): String = when (type) {
-    AccountType.CASH -> "现金"
-    AccountType.BANK -> "银行卡"
-    AccountType.ALIPAY -> "支付宝"
-    AccountType.WECHAT -> "微信"
-    AccountType.CREDIT_CARD -> "信用卡"
-    AccountType.SAVINGS -> "储蓄"
-    AccountType.INVESTMENT -> "投资"
-    AccountType.LOAN -> "贷款"
-    AccountType.OTHER -> "其他"
-}
+/** 账户类型显示名资源（各界面共用）。 */
+@get:StringRes
+val AccountType.labelRes: Int
+    get() = when (this) {
+        AccountType.CASH -> R.string.core_account_type_cash
+        AccountType.BANK -> R.string.core_account_type_bank
+        AccountType.ALIPAY -> R.string.core_account_type_alipay
+        AccountType.WECHAT -> R.string.core_account_type_wechat
+        AccountType.CREDIT_CARD -> R.string.core_account_type_credit_card
+        AccountType.SAVINGS -> R.string.core_account_type_savings
+        AccountType.INVESTMENT -> R.string.core_account_type_investment
+        AccountType.LOAN -> R.string.core_account_type_loan
+        AccountType.OTHER -> R.string.core_account_type_other
+    }
+
+/** 账户类型显示名（当前语言）。 */
+@Composable
+@ReadOnlyComposable
+fun accountTypeLabel(type: AccountType): String = stringResource(type.labelRes)
+
+/** 交易类型显示名资源：支出 / 收入 / 转账。 */
+@get:StringRes
+val TransactionType.labelRes: Int
+    get() = when (this) {
+        TransactionType.EXPENSE -> R.string.type_expense
+        TransactionType.INCOME -> R.string.type_income
+        TransactionType.TRANSFER -> R.string.type_transfer
+    }
+
+/** 交易类型显示名（当前语言）。 */
+@Composable
+@ReadOnlyComposable
+fun transactionTypeLabel(type: TransactionType): String = stringResource(type.labelRes)
+
+/** 分类类型显示名资源：支出 / 收入。 */
+@get:StringRes
+val CategoryType.labelRes: Int
+    get() = when (this) {
+        CategoryType.EXPENSE -> R.string.core_category_type_expense
+        CategoryType.INCOME -> R.string.core_category_type_income
+    }
+
+/** 分类类型显示名（当前语言）。 */
+@Composable
+@ReadOnlyComposable
+fun categoryTypeLabel(type: CategoryType): String = stringResource(type.labelRes)
 
 /** 带色底圆标的 emoji 图标。 */
 @Composable
@@ -383,7 +540,7 @@ fun CategoryBadge(
     TonalIconBadge(
         icon = CategoryVisuals.iconFor(name, type, iconKey),
         hue = categoryHue(visualKey),
-        contentDescription = name + "分类图标",
+        contentDescription = stringResource(R.string.core_cd_category_icon, name),
         modifier = modifier,
         sizeDp = sizeDp,
     )
@@ -395,7 +552,7 @@ fun AccountBadge(type: AccountType, modifier: Modifier = Modifier, sizeDp: Int =
     TonalIconBadge(
         icon = AccountVisuals.iconFor(type),
         hue = AccountVisuals.hueFor(type),
-        contentDescription = accountTypeLabel(type) + "账户图标",
+        contentDescription = stringResource(R.string.core_cd_account_icon, accountTypeLabel(type)),
         modifier = modifier,
         sizeDp = sizeDp,
     )

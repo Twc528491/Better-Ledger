@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.personal.ledger.data.TextResolver
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.database.RecurringDatabaseGate
 import com.personal.ledger.data.repository.RecurringChargeRepository
@@ -26,7 +27,11 @@ class RecurringChargeWorker(
         val summary = RecurringDatabaseGate.mutex.withLock {
             // Resolve the singleton after taking the gate: SQLite restore closes and clears it.
             val database = AppDatabase.getInstance(applicationContext)
-            RecurringChargeRepository(database, TransactionRepository(database)).processDue()
+            RecurringChargeRepository(
+                database,
+                TransactionRepository(database),
+                TextResolver.of(applicationContext),
+            ).processDue()
         }
         if (summary.hasMoreDue) {
             RecurringChargeScheduler.enqueueCatchUp(applicationContext, ExistingWorkPolicy.APPEND_OR_REPLACE)

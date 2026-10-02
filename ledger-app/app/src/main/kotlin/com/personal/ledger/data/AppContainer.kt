@@ -23,12 +23,15 @@ class AppContainer(context: Context) {
     val database: AppDatabase = AppDatabase.getInstance(context)
     val settings: SettingsRepository = SettingsRepository(context)
 
-    val categoryRepository = CategoryRepository(database)
+    /** 预置数据 / 生成文本按创建时的应用语言解析。 */
+    val textResolver: TextResolver = TextResolver.of(context)
+
+    val categoryRepository = CategoryRepository(database, textResolver)
     val merchantRepository = MerchantRepository(database)
     val tagRepository = TagRepository(database.tagDao())
     val accountRepository = AccountRepository(database.accountDao(), database.transactionDao())
     val transactionRepository = TransactionRepository(database)
-    val recurringChargeRepository = RecurringChargeRepository(database, transactionRepository)
+    val recurringChargeRepository = RecurringChargeRepository(database, transactionRepository, textResolver)
     val budgetRepository = BudgetRepository(
         database = database,
         categoryRepository = categoryRepository,
@@ -38,6 +41,7 @@ class AppContainer(context: Context) {
         accountDao = database.accountDao(),
         categoryDao = database.categoryDao(),
         settings = settings,
+        text = textResolver,
     )
     val purgeRepository = PurgeRepository(database)
     val backupRepository = BackupRepository(

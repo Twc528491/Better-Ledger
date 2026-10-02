@@ -1,5 +1,7 @@
 package com.personal.ledger.domain.calc
 
+import androidx.annotation.StringRes
+import com.personal.ledger.R
 import com.personal.ledger.domain.model.Category
 
 /**
@@ -45,20 +47,21 @@ object PurgeRules {
         }
     }
 
-    /** 校验替代分类；合法返回 null，否则返回错误文案。 */
+    /** 校验替代分类；合法返回 null，否则返回错误文案的字符串资源 ID。 */
+    @StringRes
     fun validateReplacement(
         target: Category,
         replacement: Category?,
         all: List<Category>,
         removedIds: Collection<String>,
-    ): String? = when {
-        replacement == null -> "请选择替代分类"
-        replacement.id in removedIds -> "替代分类不能是将被删除的分类"
-        replacement.ledgerId != target.ledgerId -> "替代分类必须属于同一账本"
-        replacement.type != target.type -> "替代分类类型必须一致"
-        replacement.isArchived -> "替代分类已归档"
+    ): Int? = when {
+        replacement == null -> R.string.err_select_replacement
+        replacement.id in removedIds -> R.string.err_replacement_removed
+        replacement.ledgerId != target.ledgerId -> R.string.err_replacement_other_ledger
+        replacement.type != target.type -> R.string.err_replacement_type
+        replacement.isArchived -> R.string.err_replacement_archived
         replacement.parentId != null &&
-            all.firstOrNull { it.id == replacement.parentId }?.isArchived != false -> "替代分类的上级分类已归档"
+            all.firstOrNull { it.id == replacement.parentId }?.isArchived != false -> R.string.err_replacement_parent_archived
         else -> null
     }
 

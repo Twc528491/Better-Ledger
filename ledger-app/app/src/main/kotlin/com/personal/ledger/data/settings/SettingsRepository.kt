@@ -1,6 +1,7 @@
 package com.personal.ledger.data.settings
 
 import android.content.Context
+import com.personal.ledger.data.StoredMessages
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -56,8 +57,14 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.data.map { it[Keys.LAST_BACKUP_AT] }
 
     /** 最近一次备份的警告 / 失败说明（如自定义文件夹不可用已改存默认目录）；正常时为 null。 */
+    /**
+     * 最近一次备份警告，已按当前应用语言解析（存储的是 [StoredMessages] 代码；旧版中文原文原样显示）。
+     * 切换语言会重建界面并重新收集，因此总是显示当前语言。
+     */
     val lastBackupWarning: Flow<String?> =
-        context.dataStore.data.map { it[Keys.LAST_BACKUP_WARNING] }
+        context.dataStore.data.map { prefs ->
+            prefs[Keys.LAST_BACKUP_WARNING]?.let { StoredMessages.describe(context, it) }
+        }
 
     suspend fun setCurrentLedgerId(id: String?) {
         context.dataStore.edit { if (id == null) it.remove(Keys.CURRENT_LEDGER_ID) else it[Keys.CURRENT_LEDGER_ID] = id }
@@ -83,7 +90,10 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { if (id == null) it.remove(Keys.LAST_USED_ACCOUNT_ID) else it[Keys.LAST_USED_ACCOUNT_ID] = id }
     }
 
-    /** 记录一次备份结果：[succeededAt] 非空时更新最近备份时间；[warning] 为 null 时清除警告。 */
+    /**
+     * 记录一次备份结果：[succeededAt] 非空时更新最近备份时间；[warning] 为 null 时清除警告。
+     * [warning] 应为 [StoredMessages.encode] 生成的代码，显示时再按当前语言解析。
+     */
     suspend fun recordBackupResult(succeededAt: Long?, warning: String?) {
         context.dataStore.edit {
             if (succeededAt != null) it[Keys.LAST_BACKUP_AT] = succeededAt

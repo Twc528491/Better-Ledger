@@ -1,5 +1,6 @@
 package com.personal.ledger.data.repository
 
+import com.personal.ledger.R
 import com.personal.ledger.data.local.dao.AccountDao
 import com.personal.ledger.data.local.dao.TransactionDao
 import com.personal.ledger.data.local.entity.AccountEntity
@@ -8,6 +9,7 @@ import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.AccountWithBalance
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -83,11 +85,11 @@ class AccountRepository(
         newIsArchived: Boolean = account.isArchived,
     ): Result<Account> {
         val entity = accountDao.getById(account.id)
-            ?: return Result.failure(NoSuchElementException("账户不存在"))
+            ?: return Result.failure(UserFacingException(R.string.err_account_not_found))
         val txs = transactionDao.getByAccount(entity.ledgerId, entity.id)
         val earliestTx = txs.minOfOrNull { it.transactionTime }
         if (earliestTx != null && newInitialBalanceTime > earliestTx) {
-            return Result.failure(IllegalArgumentException("初始时间不能晚于已有交易时间"))
+            return Result.failure(UserFacingException(R.string.err_initial_time_after_transactions))
         }
         val updated = entity.copy(
             name = newName.trim(),
@@ -106,7 +108,7 @@ class AccountRepository(
     }
 
     suspend fun setArchived(id: String, archived: Boolean): Result<Unit> {
-        val entity = accountDao.getById(id) ?: return Result.failure(NoSuchElementException("账户不存在"))
+        val entity = accountDao.getById(id) ?: return Result.failure(UserFacingException(R.string.err_account_not_found))
         return try {
             accountDao.update(entity.copy(isArchived = archived, updatedAt = TimeUtils.now()))
             Result.success(Unit)

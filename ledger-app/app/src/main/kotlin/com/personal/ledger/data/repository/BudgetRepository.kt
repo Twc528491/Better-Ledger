@@ -1,11 +1,13 @@
 package com.personal.ledger.data.repository
 
 import androidx.room.withTransaction
+import com.personal.ledger.R
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.BudgetEntity
 import com.personal.ledger.domain.calc.BudgetCalculator
 import com.personal.ledger.domain.model.Budget
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.YearMonth
@@ -50,14 +52,14 @@ class BudgetRepository(
     ): Result<Budget> {
         return try {
             val budget = database.withTransaction {
-                if (amount <= 0) throw IllegalArgumentException("预算金额必须大于 0")
-                if (!month.matches(Regex("""\d{4}-\d{2}"""))) throw IllegalArgumentException("月份格式错误")
+                if (amount <= 0) throw UserFacingException(R.string.err_budget_amount_positive)
+                if (!month.matches(Regex("""\d{4}-\d{2}"""))) throw UserFacingException(R.string.err_month_format)
                 if (categoryId != null) {
                     val category = categoryRepository.getById(categoryId)
-                        ?: throw IllegalArgumentException("分类不存在")
-                    if (category.ledgerId != ledgerId) throw IllegalArgumentException("分类不属于当前账本")
+                        ?: throw UserFacingException(R.string.err_category_not_found)
+                    if (category.ledgerId != ledgerId) throw UserFacingException(R.string.err_category_not_in_ledger)
                     if (category.type != com.personal.ledger.domain.model.CategoryType.EXPENSE) {
-                        throw IllegalArgumentException("预算只能关联支出分类")
+                        throw UserFacingException(R.string.err_budget_expense_only)
                     }
                 }
                 val now = TimeUtils.now()

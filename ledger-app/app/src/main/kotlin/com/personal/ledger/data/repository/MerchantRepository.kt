@@ -1,12 +1,14 @@
 package com.personal.ledger.data.repository
 
 import androidx.room.withTransaction
+import com.personal.ledger.R
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.CategoryEntity
 import com.personal.ledger.data.local.entity.MerchantCategoryEntity
 import com.personal.ledger.data.local.entity.MerchantEntity
 import com.personal.ledger.domain.model.Merchant
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -48,7 +50,7 @@ class MerchantRepository(private val database: AppDatabase) {
         categoryIds: Set<String> = emptySet(),
     ): Result<Merchant> {
         val trimmed = name.trim()
-        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("名称不能为空"))
+        if (trimmed.isEmpty()) return Result.failure(UserFacingException(R.string.err_name_empty))
         return try {
             val entity = database.withTransaction {
                 val roots = categoryIds.map { activeRoot(it, ledgerId) }.toSet()
@@ -75,8 +77,8 @@ class MerchantRepository(private val database: AppDatabase) {
     suspend fun assignToCategory(merchantId: String, categoryId: String): Result<Unit> = try {
         database.withTransaction {
             val merchant = merchantDao.getById(merchantId)
-                ?: throw NoSuchElementException("商家不存在")
-            if (merchant.isArchived) throw IllegalArgumentException("商家已删除")
+                ?: throw UserFacingException(R.string.err_merchant_not_found)
+            if (merchant.isArchived) throw UserFacingException(R.string.err_merchant_deleted)
             val rootId = activeRoot(categoryId, merchant.ledgerId)
             linkDao.insert(MerchantCategoryEntity(merchantId, rootId))
         }
@@ -89,8 +91,8 @@ class MerchantRepository(private val database: AppDatabase) {
     suspend fun replaceCategories(merchantId: String, categoryIds: Set<String>): Result<Unit> = try {
         database.withTransaction {
             val merchant = merchantDao.getById(merchantId)
-                ?: throw NoSuchElementException("商家不存在")
-            if (merchant.isArchived) throw IllegalArgumentException("商家已删除")
+                ?: throw UserFacingException(R.string.err_merchant_not_found)
+            if (merchant.isArchived) throw UserFacingException(R.string.err_merchant_deleted)
             val selected = categoryIds.map { activeRoot(it, merchant.ledgerId) }.toSet()
             val archived = linkDao.getByMerchant(merchantId).mapNotNull { link ->
                 categoryDao.getById(link.categoryId)?.takeIf { it.isArchived }?.id
@@ -105,24 +107,24 @@ class MerchantRepository(private val database: AppDatabase) {
 
     private suspend fun activeRoot(categoryId: String, ledgerId: String): String {
         val selected = categoryDao.getById(categoryId)
-            ?: throw IllegalArgumentException("分类不存在")
+            ?: throw UserFacingException(R.string.err_category_not_found)
         if (selected.ledgerId != ledgerId || selected.isArchived) {
-            throw IllegalArgumentException("分类与账本不匹配或已删除")
+            throw UserFacingException(R.string.err_category_ledger_mismatch)
         }
         val root: CategoryEntity = selected.parentId?.let {
-            categoryDao.getById(it) ?: throw IllegalArgumentException("一级分类不存在")
+            categoryDao.getById(it) ?: throw UserFacingException(R.string.err_root_category_not_found)
         } ?: selected
         if (root.ledgerId != ledgerId || root.parentId != null ||
             root.type != selected.type || root.isArchived
         ) {
-            throw IllegalArgumentException("一级分类与账本不匹配或已删除")
+            throw UserFacingException(R.string.err_root_category_ledger_mismatch)
         }
         return root.id
     }
 
     suspend fun setArchived(id: String, archived: Boolean): Result<Unit> {
         val entity = merchantDao.getById(id)
-            ?: return Result.failure(NoSuchElementException("商家不存在"))
+            ?: return Result.failure(UserFacingException(R.string.err_merchant_not_found))
         return try {
             merchantDao.update(entity.copy(isArchived = archived))
             Result.success(Unit)
@@ -134,9 +136,9 @@ class MerchantRepository(private val database: AppDatabase) {
     /** 重命名商家；保留 id，历史交易仍能解析到新名称。 */
     suspend fun rename(id: String, newName: String): Result<Unit> {
         val entity = merchantDao.getById(id)
-            ?: return Result.failure(NoSuchElementException("商家不存在"))
+            ?: return Result.failure(UserFacingException(R.string.err_merchant_not_found))
         val trimmed = newName.trim()
-        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("名称不能为空"))
+        if (trimmed.isEmpty()) return Result.failure(UserFacingException(R.string.err_name_empty))
         return try {
             merchantDao.update(entity.copy(name = trimmed))
             Result.success(Unit)

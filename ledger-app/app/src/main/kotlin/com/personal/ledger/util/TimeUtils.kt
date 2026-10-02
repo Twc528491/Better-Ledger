@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import java.util.Locale
 
 object TimeUtils {
 
@@ -26,9 +27,7 @@ object TimeUtils {
     fun localDateOf(epochMs: Long): LocalDate =
         Instant.ofEpochMilli(epochMs).atZone(zone).toLocalDate()
 
-    /** 显示用日期，如 "9月2日"。 */
-    fun formatMonthDay(epochMs: Long): String {
-        val d = localDateOf(epochMs)
-        return "${d.monthValue}月${d.dayOfMonth}日"
-    }
+    /** 显示用日期：中文 "9月2日"，英文 "Sep 2"。Compose 中传 `LocalConfiguration.current.locales[0]`。 */
+    fun formatMonthDay(epochMs: Long, locale: Locale = Locale.getDefault()): String =
+        DateLabels.monthDay(localDateOf(epochMs), locale)
 }
