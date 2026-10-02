@@ -79,6 +79,10 @@ import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.signedMoney
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.ui.theme.LedgerSpacing
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.CategoryStat
 import com.personal.ledger.viewmodel.StatisticsViewModel
@@ -105,6 +109,8 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     val topCategories = state.expenseByCategory.take(5)
     // 「其他」使用中性色，避免与任一分类色相混淆。
     val remainderColor = MaterialTheme.colorScheme.outline
+    val remainderLabel = stringResource(if (topCategories.isEmpty()) R.string.label_uncategorized else R.string.label_other)
+    val monthLabel = DateLabels.yearMonth(state.month, LocalConfiguration.current.locales[0])
     val chartSlices = buildList {
         topCategories.forEach { stat ->
             add(ChartSlice(stat.category.name, stat.amount, categoryChartColor(stat.category.id)))
@@ -114,7 +120,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
         if (remainder > 0L) {
             add(
                 ChartSlice(
-                    label = if (topCategories.isEmpty()) "未分类" else "其他",
+                    label = remainderLabel,
                     value = remainder,
                     color = remainderColor,
                 ),
@@ -134,7 +140,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("统计") },
+                title = { Text(stringResource(R.string.stats_title)) },
                 actions = {
                     SettingsActionButton {
                         hapticNavigation()
@@ -153,7 +159,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             item {
                 Box(Modifier.fillMaxWidth().padding(bottom = LedgerSpacing.xs), contentAlignment = Alignment.Center) {
                     MonthSwitcher(
-                        label = state.monthLabel,
+                        label = monthLabel,
                         onPrevious = {
                             hapticLight()
                             vm.previousMonth()
@@ -173,38 +179,43 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             item {
                 val expenseText = Money.formatWithCurrency(state.expense, state.baseCurrency)
                 val balance = state.income - state.expense
+                val expenseDescription = stringResource(R.string.stats_month_expense_cd, monthLabel, expenseText)
+                val incomeDescription = stringResource(
+                    R.string.stats_income_cd, Money.formatWithCurrency(state.income, state.baseCurrency),
+                )
+                val balanceDescription = stringResource(
+                    R.string.stats_balance_cd, Money.formatWithCurrency(balance, state.baseCurrency),
+                )
                 LedgerHeroCard(modifier = Modifier.padding(horizontal = LedgerSpacing.md)) {
                     HeroFigure(
-                        label = "${state.monthLabel}支出",
+                        label = stringResource(R.string.stats_month_expense, monthLabel),
                         value = expenseText,
                         large = true,
                         modifier = Modifier.clearAndSetSemantics {
-                            contentDescription = "${state.monthLabel}支出 $expenseText"
+                            contentDescription = expenseDescription
                         },
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
                     Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
-                            label = "收入",
+                            label = stringResource(R.string.type_income),
                             value = signedMoney(state.income, state.baseCurrency),
                             tone = HeroTone.INCOME,
                             modifier = Modifier
                                 .weight(1f)
                                 .clearAndSetSemantics {
-                                    contentDescription =
-                                        "收入 ${Money.formatWithCurrency(state.income, state.baseCurrency)}"
+                                    contentDescription = incomeDescription
                                 },
                         )
                         HeroFigure(
-                            label = "结余",
+                            label = stringResource(R.string.label_balance),
                             value = signedMoney(balance, state.baseCurrency),
                             tone = if (balance < 0) HeroTone.NEGATIVE else HeroTone.BALANCE,
                             divider = true,
                             modifier = Modifier
                                 .weight(1f)
                                 .clearAndSetSemantics {
-                                    contentDescription =
-                                        "结余 ${Money.formatWithCurrency(balance, state.baseCurrency)}"
+                                    contentDescription = balanceDescription
                                 },
                         )
                     }
@@ -212,7 +223,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             }
 
             item {
-                SectionHeader("收支图表", Modifier.padding(top = LedgerSpacing.lg))
+                SectionHeader(stringResource(R.string.stats_charts), Modifier.padding(top = LedgerSpacing.lg))
             }
             item {
                 ScrollableTabRow(
@@ -231,7 +242,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             text = {
                                 Text(
-                                    title,
+                                    stringResource(title),
                                     maxLines = 1,
                                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                 )
@@ -256,8 +267,8 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                         0 -> if (chartSlices.isEmpty()) {
                             EmptyChartPanel(
                                 icon = Icons.Outlined.DonutLarge,
-                                title = "本月暂无支出",
-                                subtitle = "记一笔后这里会出现分类占比",
+                                title = stringResource(R.string.stats_empty_month_expense),
+                                subtitle = stringResource(R.string.stats_empty_breakdown_hint),
                             )
                         } else {
                             RingChartWithLegend(
@@ -271,8 +282,8 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                         1 -> if (state.trend.all { it.income == 0L && it.expense == 0L }) {
                             EmptyChartPanel(
                                 icon = Icons.Outlined.BarChart,
-                                title = "近 12 个月暂无收支",
-                                subtitle = "记账后这里会显示每月收入与支出",
+                                title = stringResource(R.string.stats_empty_trend),
+                                subtitle = stringResource(R.string.stats_empty_trend_hint),
                             )
                         } else {
                             IncomeExpenseTrendChart(
@@ -287,13 +298,13 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                             when {
                                 daily == null || daily.elapsedDays <= 0 -> EmptyChartPanel(
                                     icon = Icons.AutoMirrored.Outlined.ShowChart,
-                                    title = "这个月还没有开始",
-                                    subtitle = "到了这个月后会显示每日支出",
+                                    title = stringResource(R.string.stats_month_not_started),
+                                    subtitle = stringResource(R.string.stats_month_not_started_hint),
                                 )
                                 daily.total == 0L && daily.previousTotal == 0L -> EmptyChartPanel(
                                     icon = Icons.AutoMirrored.Outlined.ShowChart,
-                                    title = "本月暂无支出",
-                                    subtitle = "记一笔后这里会出现累计支出曲线",
+                                    title = stringResource(R.string.stats_empty_month_expense),
+                                    subtitle = stringResource(R.string.stats_empty_daily_hint),
                                 )
                                 else -> DailySpendingChart(
                                     comparison = daily,
@@ -305,8 +316,8 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                         else -> if (state.expense == 0L && state.previousExpense == 0L) {
                             EmptyChartPanel(
                                 icon = Icons.Outlined.SwapVert,
-                                title = "近两个月暂无支出",
-                                subtitle = "有了支出记录后这里会对比各分类的变化",
+                                title = stringResource(R.string.stats_empty_changes),
+                                subtitle = stringResource(R.string.stats_empty_changes_hint),
                             )
                         } else {
                             CategoryChangeChart(
@@ -333,11 +344,13 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 )
             }
 
-            item { SectionHeader("完整分类明细", Modifier.padding(top = LedgerSpacing.md)) }
+            item { SectionHeader(stringResource(R.string.stats_category_details), Modifier.padding(top = LedgerSpacing.md)) }
             if (state.expenseByCategory.isEmpty()) {
                 item {
                     PlainNoteCard(
-                        if (state.expense > 0L) "本月支出暂未关联到可用分类" else "本月暂无分类支出",
+                        stringResource(
+                            if (state.expense > 0L) R.string.stats_expense_unlinked else R.string.stats_no_category_expense,
+                        ),
                     )
                 }
             } else {
@@ -353,9 +366,9 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                 }
             }
 
-            item { SectionHeader("预算执行", Modifier.padding(top = LedgerSpacing.lg)) }
+            item { SectionHeader(stringResource(R.string.stats_budgets), Modifier.padding(top = LedgerSpacing.lg)) }
             if (state.budgets.isEmpty()) {
-                item { PlainNoteCard("本月未设置预算") }
+                item { PlainNoteCard(stringResource(R.string.stats_no_budget)) }
             } else {
                 val count = state.budgets.size
                 itemsIndexed(state.budgets, key = { _, b -> b.budget.id }) { index, b ->
@@ -387,7 +400,12 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     }
 }
 
-private val STATISTICS_CHART_TABS = listOf("分类占比", "收支趋势", "每日支出", "分类环比")
+private val STATISTICS_CHART_TABS = listOf(
+    R.string.stats_tab_breakdown,
+    R.string.stats_tab_trend,
+    R.string.stats_tab_daily,
+    R.string.stats_tab_changes,
+)
 
 @Composable
 private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
@@ -499,7 +517,7 @@ private fun BudgetRow(b: BudgetProgress, categoryName: String?, currency: String
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                categoryName ?: "总预算",
+                categoryName ?: stringResource(R.string.stats_total_budget),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,

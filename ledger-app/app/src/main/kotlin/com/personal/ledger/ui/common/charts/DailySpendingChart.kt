@@ -33,7 +33,10 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.domain.calc.DailyExpenseComparison
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.expenseAmountColor
 import com.personal.ledger.ui.common.incomeAmountColor
@@ -54,7 +57,7 @@ fun DailySpendingChart(
     val elapsed = comparison.elapsedDays.coerceIn(1, comparison.days.size)
     var selectedDay by rememberSaveable(comparison.month, elapsed) { mutableIntStateOf(elapsed) }
     val day = selectedDay.coerceIn(1, elapsed)
-    val month = comparison.month.monthValue
+    val locale = chartLocale()
     val hasPrevious = comparison.previousTotal > 0L
     val dayExpense = comparison.days[day - 1].expense
     val cumulative = comparison.cumulativeAt(day)
@@ -70,8 +73,10 @@ fun DailySpendingChart(
     val textMeasurer = rememberTextMeasurer()
     val maxCumulative = maxOf(comparison.cumulativeAt(elapsed), comparison.previousTotal)
     val ticks = ChartAxis.ticks(maxCumulative)
-    val tickLabels = remember(ticks, labelStyle) { textMeasurer.measureTicks(ticks, labelStyle) }
-    val stripLabel = remember(labelStyle) { textMeasurer.measure("每日", labelStyle) }
+    val tickLabels = remember(ticks, labelStyle, locale) { textMeasurer.measureTicks(ticks, labelStyle, locale) }
+    val stripText = stringResource(R.string.chart_daily_strip)
+    val stripLabel = remember(labelStyle, stripText) { textMeasurer.measure(stripText, labelStyle) }
+    val dayAxisFormat = stringResource(R.string.chart_day_axis)
     val density = LocalDensity.current
     val gutterPx = maxOf(tickLabels.maxLabelWidth(), stripLabel.size.width) + with(density) { 10.dp.toPx() }
     // 横轴按两个月中较长的一个铺满，保证 31 号也有位置。
@@ -89,30 +94,47 @@ fun DailySpendingChart(
     }
 
     val deltaText = when {
-        !hasPrevious -> "上月无支出"
-        delta > 0L -> "▲${ChartAxis.readoutMoney(delta, currency)}"
-        delta < 0L -> "▼${ChartAxis.readoutMoney(-delta, currency)}"
-        else -> "持平"
+        !hasPrevious -> stringResource(R.string.chart_no_prev_expense)
+        delta > 0L -> "▲${ChartAxis.readoutMoney(delta, currency, locale = locale)}"
+        delta < 0L -> "▼${ChartAxis.readoutMoney(-delta, currency, locale = locale)}"
+        else -> stringResource(R.string.chart_flat)
     }
     val deltaColor = when {
         !hasPrevious || delta == 0L -> MaterialTheme.colorScheme.onSurfaceVariant
         delta > 0L -> expenseAmountColor()
         else -> incomeAmountColor()
     }
-    val description = buildString {
-        append("每日支出，截至${month}月${elapsed}日累计${ChartAxis.readoutMoney(comparison.cumulativeAt(elapsed), currency)}")
-        if (hasPrevious) {
-            append("，上月同期${ChartAxis.readoutMoney(comparison.previousAt(elapsed), currency)}")
-        }
-        append("，日均${ChartAxis.readoutMoney(comparison.dailyAverage, currency)}")
-        peak?.let { append("，最高单日${month}月${it.day}日${ChartAxis.readoutMoney(it.expense, currency)}") }
+    val descriptionBase = stringResource(
+        R.string.chart_daily_cd_base,
+        DateLabels.monthDay(comparison.month.atDay(elapsed), locale),
+        ChartAxis.readoutMoney(comparison.cumulativeAt(elapsed), currency, locale = locale),
+    )
+    val descriptionPrevious = if (hasPrevious) {
+        stringResource(
+            R.string.chart_daily_cd_previous,
+            ChartAxis.readoutMoney(comparison.previousAt(elapsed), currency, locale = locale),
+        )
+    } else {
+        ""
     }
+    val descriptionAverage = stringResource(
+        R.string.chart_daily_cd_average,
+        ChartAxis.readoutMoney(comparison.dailyAverage, currency, locale = locale),
+    )
+    val descriptionPeak = peak?.let {
+        stringResource(
+            R.string.chart_daily_cd_peak,
+            DateLabels.monthDay(comparison.month.atDay(it.day), locale),
+            ChartAxis.readoutMoney(it.expense, currency, locale = locale),
+        )
+    }.orEmpty()
+    val description = descriptionBase + descriptionPrevious + descriptionAverage + descriptionPeak
 
     ChartCard(modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize().padding(LedgerSpacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${month}月${day}日",
+                    DateLabels.monthDay(comparison.month.atDay(day), locale),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -121,24 +143,24 @@ fun DailySpendingChart(
                     horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    LegendKey(lineColor, "本月", LegendShape.LINE)
-                    if (hasPrevious) LegendKey(contextColor, "上月", LegendShape.LINE)
+                    LegendKey(lineColor, stringResource(R.string.chart_this_month), LegendShape.LINE)
+                    if (hasPrevious) LegendKey(contextColor, stringResource(R.string.chart_last_month), LegendShape.LINE)
                 }
             }
             Spacer(Modifier.height(LedgerSpacing.xs))
             Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xs)) {
                 ReadoutFigure(
-                    label = "当日支出",
-                    value = ChartAxis.readoutMoney(dayExpense, currency),
+                    label = stringResource(R.string.chart_day_expense),
+                    value = ChartAxis.readoutMoney(dayExpense, currency, locale = locale),
                     modifier = Modifier.weight(1f),
                 )
                 ReadoutFigure(
-                    label = "累计",
-                    value = ChartAxis.readoutMoney(cumulative, currency),
+                    label = stringResource(R.string.chart_cumulative),
+                    value = ChartAxis.readoutMoney(cumulative, currency, locale = locale),
                     modifier = Modifier.weight(1f),
                 )
                 ReadoutFigure(
-                    label = "比上月同期",
+                    label = stringResource(R.string.chart_vs_last_month),
                     value = deltaText,
                     valueColor = deltaColor,
                     modifier = Modifier.weight(1f),
@@ -241,7 +263,7 @@ fun DailySpendingChart(
                 // 横轴：1 / 8 / 15 / 22 / 月末。
                 val lastDay = comparison.days.size
                 listOf(1, 8, 15, 22, lastDay).distinct().forEach { d ->
-                    val label = textMeasurer.measure("${d}日", labelStyle)
+                    val label = textMeasurer.measure(String.format(locale, dayAxisFormat, d), labelStyle)
                     drawText(
                         label,
                         topLeft = Offset(
@@ -253,11 +275,18 @@ fun DailySpendingChart(
             }
             Spacer(Modifier.height(LedgerSpacing.xs))
             Text(
-                buildString {
-                    append("日均 ${ChartAxis.readoutMoney(comparison.dailyAverage, currency)}")
-                    if (peak != null) {
-                        append(" · 最高单日 ${ChartAxis.readoutMoney(peak.expense, currency)}（${peak.day}日）")
-                    }
+                if (peak != null) {
+                    stringResource(
+                        R.string.chart_daily_footer_with_peak,
+                        ChartAxis.readoutMoney(comparison.dailyAverage, currency, locale = locale),
+                        ChartAxis.readoutMoney(peak.expense, currency, locale = locale),
+                        peak.day,
+                    )
+                } else {
+                    stringResource(
+                        R.string.chart_daily_footer,
+                        ChartAxis.readoutMoney(comparison.dailyAverage, currency, locale = locale),
+                    )
                 },
                 style = LedgerNumerals.of(MaterialTheme.typography.labelMedium),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

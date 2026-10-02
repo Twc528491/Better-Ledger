@@ -43,7 +43,6 @@ data class StatisticsUiState(
     val ledgerName: String = "",
     val baseCurrency: String = "CNY",
     val month: YearMonth = YearMonth.now(),
-    val monthLabel: String = "",
     val income: Long = 0L,
     val expense: Long = 0L,
     val expenseByCategory: List<CategoryStat> = emptyList(),
@@ -73,7 +72,7 @@ class StatisticsViewModel(
     ) { ledger, ym -> ledger to ym }
         .flatMapLatest { (ledger, ym) ->
             if (ledger == null) {
-                flowOf(StatisticsUiState(month = ym, monthLabel = labelOf(ym)))
+                flowOf(StatisticsUiState(month = ym))
             } else {
                 combine(
                     transactionRepository.observeMonth(ledger.id, ym),
@@ -156,7 +155,6 @@ class StatisticsViewModel(
                         ledgerName = ledger.name,
                         baseCurrency = ledger.baseCurrency,
                         month = ym,
-                        monthLabel = labelOf(ym),
                         income = income,
                         expense = expense,
                         expenseByCategory = stats,
@@ -183,8 +181,6 @@ class StatisticsViewModel(
     fun setMonth(ym: YearMonth) {
         month.value = ym
     }
-
-    private fun labelOf(ym: YearMonth) = "${ym.year}年${ym.monthValue}月"
 
     private companion object {
         const val TREND_MONTHS = 12

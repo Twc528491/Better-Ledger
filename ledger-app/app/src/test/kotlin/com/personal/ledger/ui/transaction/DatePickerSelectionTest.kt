@@ -3,6 +3,7 @@ package com.personal.ledger.ui.transaction
 import java.time.LocalDateTime
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -33,7 +34,14 @@ class DatePickerSelectionTest {
     }
 
     @Test fun `long label shows chinese date and weekday`() {
-        assertEquals("2026年9月27日 周日", DatePickerSelection.longLabel(LocalDate.of(2026, 9, 27)))
-        assertEquals("2024年2月29日 周四", DatePickerSelection.longLabel(LocalDate.of(2024, 2, 29)))
+        val zh = Locale.SIMPLIFIED_CHINESE
+        assertEquals("2026年9月27日 周日", DatePickerSelection.longLabel(LocalDate.of(2026, 9, 27), zh))
+        assertEquals("2024年2月29日 周四", DatePickerSelection.longLabel(LocalDate.of(2024, 2, 29), zh))
+    }
+
+    @Test fun `long label shows english weekday and date`() {
+        val en = Locale.ENGLISH
+        assertEquals("Sun, Sep 27, 2026", DatePickerSelection.longLabel(LocalDate.of(2026, 9, 27), en))
+        assertEquals("Thu, Feb 29, 2024", DatePickerSelection.longLabel(LocalDate.of(2024, 2, 29), en))
     }
 }

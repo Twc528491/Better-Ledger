@@ -21,6 +21,7 @@ class CategorySelectionTest {
         assertEquals(listOf("food"), CategorySelection.roots(categories).map { it.id })
         assertEquals("food", CategorySelection.selectedRootId(categories, persistedId))
         assertEquals("餐饮 / 面食", CategorySelection.label(categories, persistedId))
+        assertEquals(null, CategorySelection.label(categories, null))
         assertEquals("noodles", persistedId)
     }
 

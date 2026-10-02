@@ -40,7 +40,11 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.domain.calc.MonthTrendCalculator
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.expenseAmountColor
 import com.personal.ledger.ui.theme.LedgerSpacing
@@ -71,6 +75,7 @@ fun IncomeExpenseTrendChart(
         average,
     )
     val ticks = ChartAxis.ticks(maxValue)
+    val locale = chartLocale()
 
     val incomeColor = chartIncomeColor()
     val expenseColor = chartExpenseColor()
@@ -83,7 +88,7 @@ fun IncomeExpenseTrendChart(
         fontWeight = FontWeight.SemiBold,
     )
     val textMeasurer = rememberTextMeasurer()
-    val tickLabels = remember(ticks, labelStyle) { textMeasurer.measureTicks(ticks, labelStyle) }
+    val tickLabels = remember(ticks, labelStyle, locale) { textMeasurer.measureTicks(ticks, labelStyle, locale) }
     val density = LocalDensity.current
     val gutterPx = tickLabels.maxLabelWidth() + with(density) { 10.dp.toPx() }
     val reveal by rememberChartReveal(viewedMonth to span)
@@ -99,21 +104,33 @@ fun IncomeExpenseTrendChart(
         selectedMonth = target
     }
 
+    val descriptionIntro = pluralStringResource(R.plurals.chart_trend_cd_intro, months.size, months.size)
+    val monthFormat = stringResource(R.string.chart_trend_cd_month)
+    val averageDescription = if (average > 0L) {
+        stringResource(R.string.chart_trend_cd_average, ChartAxis.readoutMoney(average, currency, locale = locale))
+    } else {
+        ""
+    }
     val description = buildString {
-        append("收支趋势，近${months.size}个月。")
+        append(descriptionIntro)
         months.forEach { m ->
-            append("${m.yearMonth.year}年${m.yearMonth.monthValue}月")
-            append("收入${ChartAxis.readoutMoney(m.income, currency)}，")
-            append("支出${ChartAxis.readoutMoney(m.expense, currency)}；")
+            append(
+                String.format(
+                    monthFormat,
+                    DateLabels.yearMonth(m.yearMonth, locale),
+                    ChartAxis.readoutMoney(m.income, currency, locale = locale),
+                    ChartAxis.readoutMoney(m.expense, currency, locale = locale),
+                ),
+            )
         }
-        if (average > 0L) append("月均支出${ChartAxis.readoutMoney(average, currency)}")
+        append(averageDescription)
     }
 
     ChartCard(modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize().padding(LedgerSpacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    selected?.let { "${it.yearMonth.year}年${it.yearMonth.monthValue}月" } ?: "",
+                    selected?.let { DateLabels.yearMonth(it.yearMonth, locale) } ?: "",
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -124,20 +141,20 @@ fun IncomeExpenseTrendChart(
             val balance = (selected?.income ?: 0L) - (selected?.expense ?: 0L)
             Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xs)) {
                 ReadoutFigure(
-                    label = "收入",
-                    value = ChartAxis.readoutMoney(selected?.income ?: 0L, currency),
+                    label = stringResource(R.string.type_income),
+                    value = ChartAxis.readoutMoney(selected?.income ?: 0L, currency, locale = locale),
                     keyColor = incomeColor,
                     modifier = Modifier.weight(1f),
                 )
                 ReadoutFigure(
-                    label = "支出",
-                    value = ChartAxis.readoutMoney(selected?.expense ?: 0L, currency),
+                    label = stringResource(R.string.type_expense),
+                    value = ChartAxis.readoutMoney(selected?.expense ?: 0L, currency, locale = locale),
                     keyColor = expenseColor,
                     modifier = Modifier.weight(1f),
                 )
                 ReadoutFigure(
-                    label = "结余",
-                    value = ChartAxis.readoutMoney(balance, currency, explicitPlus = true),
+                    label = stringResource(R.string.label_balance),
+                    value = ChartAxis.readoutMoney(balance, currency, explicitPlus = true, locale = locale),
                     valueColor = if (balance < 0L) expenseAmountColor() else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
@@ -194,7 +211,7 @@ fun IncomeExpenseTrendChart(
                     if (showLabel) {
                         val isViewed = m.yearMonth == viewedMonth
                         val label = textMeasurer.measure(
-                            "${m.yearMonth.monthValue}月",
+                            DateLabels.month(m.yearMonth.monthValue, locale),
                             if (isViewed) strongLabelStyle else labelStyle,
                         )
                         drawText(
@@ -223,10 +240,14 @@ fun IncomeExpenseTrendChart(
                 horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                LegendKey(incomeColor, "收入")
-                LegendKey(expenseColor, "支出")
+                LegendKey(incomeColor, stringResource(R.string.type_income))
+                LegendKey(expenseColor, stringResource(R.string.type_expense))
                 if (average > 0L) {
-                    LegendKey(contextColor, "月均支出 ${ChartAxis.readoutMoney(average, currency)}", LegendShape.DASHED)
+                    LegendKey(
+                        contextColor,
+                        stringResource(R.string.chart_monthly_average, ChartAxis.readoutMoney(average, currency, locale = locale)),
+                        LegendShape.DASHED,
+                    )
                 }
             }
         }
@@ -245,7 +266,7 @@ private fun SpanToggle(span: Int, onChange: (Int) -> Unit) {
         listOf(6, 12).forEach { option ->
             val isSelected = option == span
             Text(
-                "${option}个月",
+                stringResource(R.string.chart_span_months, option),
                 modifier = Modifier
                     .heightIn(min = 28.dp)
                     .clip(CircleShape)
