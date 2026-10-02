@@ -2,6 +2,7 @@ package com.personal.ledger.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.personal.ledger.R
 import com.personal.ledger.data.repository.BudgetRepository
 import com.personal.ledger.data.repository.CategoryRepository
 import com.personal.ledger.data.repository.LedgerRepository
@@ -11,6 +12,7 @@ import com.personal.ledger.domain.model.Budget
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.Ledger
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -132,7 +134,7 @@ class CategoriesViewModel(
         viewModelScope.launch {
             val ledger = ledgerRepository.currentLedger.first()
             if (ledger == null) {
-                onDone(Result.failure(IllegalStateException("当前账本不可用")))
+                onDone(Result.failure(UserFacingException(R.string.set_ledger_unavailable)))
             } else {
                 onDone(categoryRepository.supplementCommonCategories(ledger.id))
             }

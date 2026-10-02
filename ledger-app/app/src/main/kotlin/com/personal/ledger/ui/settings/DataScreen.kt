@@ -37,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.backup.BackupCatalog
 import com.personal.ledger.data.backup.BackupConstants
@@ -51,6 +53,7 @@ import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.userMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,12 +71,14 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
     var message by remember { mutableStateOf<String?>(null) }
     var pendingRestore by remember { mutableStateOf<RestoreRequest?>(null) }
     var backingUp by remember { mutableStateOf(false) }
-    var locationLabel by remember { mutableStateOf("") }
+    // (是否自定义文件夹, 位置说明)；未加载时为 null
+    var location by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
 
     LaunchedEffect(backupDirUri) {
-        val location = container.backupRepository.currentLocation()
-        locationLabel = (if (location.isCustom) "自定义文件夹：" else "默认目录：") + location.store.describe()
+        val current = container.backupRepository.currentLocation()
+        location = current.isCustom to current.store.describe()
     }
+    val locationLabel = location?.let { (isCustom, described) -> backupLocationLabel(isCustom, described) } ?: ""
 
     fun toast(text: String) {
         message = text
@@ -88,7 +93,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 context.contentResolver.openOutputStream(uri)?.use { it.write(container.backupRepository.buildCsv()) } != null
             }.getOrDefault(false)
             if (ok) hapticConfirm() else hapticReject()
-            toast(if (ok) "CSV 已导出" else "CSV 导出失败")
+            toast(context.getString(if (ok) R.string.set_export_csv_done else R.string.set_export_csv_failed))
         }
     }
     val jsonLauncher = rememberLauncherForActivityResult(
@@ -99,7 +104,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 context.contentResolver.openOutputStream(uri)?.use { it.write(container.backupRepository.buildBackupJson()) } != null
             }.getOrDefault(false)
             if (ok) hapticConfirm() else hapticReject()
-            toast(if (ok) "JSON 备份已导出" else "JSON 导出失败")
+            toast(context.getString(if (ok) R.string.set_export_json_done else R.string.set_export_json_failed))
         }
     }
     val sqliteLauncher = rememberLauncherForActivityResult(
@@ -115,7 +120,11 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 tmp.delete()
             }
             if (result.isSuccess) hapticConfirm() else hapticReject()
-            toast(if (result.isSuccess) "SQLite 备份已导出" else "SQLite 导出失败")
+            toast(
+                context.getString(
+                    if (result.isSuccess) R.string.set_export_sqlite_done else R.string.set_export_sqlite_failed,
+                ),
+            )
         }
     }
     // 从文件恢复：OpenDocument
@@ -131,13 +140,13 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("数据管理") },
+                title = { Text(stringResource(R.string.set_data_title)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -156,11 +165,12 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 ),
             verticalArrangement = Arrangement.spacedBy(LedgerSpacing.lg),
         ) {
-            LedgerGroup(title = "备份") {
+            LedgerGroup(title = stringResource(R.string.set_group_backup)) {
                 ActionRow(
                     icon = Icons.Outlined.Backup,
-                    title = if (backingUp) "正在备份…" else "立即备份",
-                    subtitle = lastBackupAt?.let { "上次备份：" + BackupCatalog.formatTime(it) } ?: "尚未备份",
+                    title = stringResource(if (backingUp) R.string.set_backup_working else R.string.set_backup_now),
+                    subtitle = lastBackupAt?.let { stringResource(R.string.set_backup_last, backupTimeLabel(it)) }
+                        ?: stringResource(R.string.set_backup_never),
                 ) {
                     if (backingUp) return@ActionRow
                     hapticNavigation()
@@ -171,22 +181,22 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                                 hapticConfirm()
                                 toast(
                                     if (it.fellBackToDefault) {
-                                        "自定义文件夹无法访问，备份已保存到默认目录：${it.locationLabel}"
+                                        context.getString(R.string.set_backup_fell_back, it.locationLabel)
                                     } else {
-                                        "已备份到 ${it.locationLabel}"
+                                        context.getString(R.string.set_backup_done, it.locationLabel)
                                     },
                                 )
                             }
                             .onFailure {
                                 hapticReject()
-                                toast("备份失败：${it.message}")
+                                toast(context.getString(R.string.set_backup_failed, it.userMessage(context)))
                             }
                         backingUp = false
                     }
                 }
                 ActionRow(
                     icon = Icons.Outlined.FolderOpen,
-                    title = "备份管理",
+                    title = stringResource(R.string.set_backups_title),
                     subtitle = backupWarning ?: locationLabel,
                     tint = if (backupWarning != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                     containerColor = if (backupWarning != null) {
@@ -200,27 +210,39 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
 
-            LedgerGroup(title = "导出到…") {
-                ActionRow(Icons.Outlined.TableChart, "导出 CSV 到…", "Excel 可直接打开") {
+            LedgerGroup(title = stringResource(R.string.set_group_export)) {
+                ActionRow(
+                    Icons.Outlined.TableChart,
+                    stringResource(R.string.set_export_csv),
+                    stringResource(R.string.set_export_csv_subtitle),
+                ) {
                     hapticNavigation()
                     csvLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.csv")
                 }
-                ActionRow(Icons.Outlined.DataObject, "导出 JSON 到…", "完整备份，自选保存位置") {
+                ActionRow(
+                    Icons.Outlined.DataObject,
+                    stringResource(R.string.set_export_json),
+                    stringResource(R.string.set_export_json_subtitle),
+                ) {
                     hapticNavigation()
                     jsonLauncher.launch("ledger-backup-${TimeUtils.currentMonthKey()}.json")
                 }
-                ActionRow(Icons.Outlined.Storage, "导出 SQLite 到…", "数据库文件") {
+                ActionRow(
+                    Icons.Outlined.Storage,
+                    stringResource(R.string.set_export_sqlite),
+                    stringResource(R.string.set_export_sqlite_subtitle),
+                ) {
                     hapticNavigation()
                     sqliteLauncher.launch("ledger-export-${TimeUtils.currentMonthKey()}.db")
                 }
             }
 
             Column {
-                LedgerGroup(title = "恢复") {
+                LedgerGroup(title = stringResource(R.string.set_group_restore)) {
                     ActionRow(
                         icon = Icons.Outlined.SettingsBackupRestore,
-                        title = "从文件恢复",
-                        subtitle = "选择 JSON 或 SQLite 备份，整库覆盖",
+                        title = stringResource(R.string.set_restore_from_file),
+                        subtitle = stringResource(R.string.set_restore_from_file_subtitle),
                         tint = MaterialTheme.colorScheme.error,
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                     ) {
@@ -228,7 +250,7 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
                         restoreLauncher.launch(arrayOf(BackupConstants.MIME_JSON, BackupConstants.MIME_SQLITE, "*/*"))
                     }
                 }
-                GroupFootnote("恢复为整库覆盖，不做合并；恢复前会自动备份当前数据。")
+                GroupFootnote(stringResource(R.string.set_restore_footnote))
             }
         }
     }
@@ -238,12 +260,12 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
             onDismissRequest = {
                 message = null
             },
-            title = { Text("提示") },
+            title = { Text(stringResource(R.string.dialog_notice)) },
             text = { Text(it) },
             confirmButton = {
                 TextButton(onClick = {
                     message = null
-                }) { Text("好的") }
+                }) { Text(stringResource(R.string.action_ok)) }
             },
         )
     }
@@ -258,6 +280,19 @@ fun DataScreen(container: AppContainer, navController: NavHostController) {
         },
     )
 }
+
+/** 备份位置说明：“默认目录：…” / “自定义文件夹：…”。 */
+@Composable
+internal fun backupLocationLabel(isCustom: Boolean, described: String): String =
+    stringResource(
+        if (isCustom) R.string.set_backup_location_custom else R.string.set_backup_location_default,
+        described,
+    )
+
+/** 备份时间显示（如 “2026-10-02 14:30”）；未知时间按当前语言显示。 */
+@Composable
+internal fun backupTimeLabel(epochMs: Long): String =
+    if (epochMs <= 0L) stringResource(R.string.set_backup_time_unknown) else BackupCatalog.formatTime(epochMs)
 
 @Composable
 internal fun GroupFootnote(text: String, color: Color = MaterialTheme.colorScheme.onSurfaceVariant) {

@@ -47,12 +47,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.repository.CategoryPurgePlan
 import com.personal.ledger.domain.calc.PurgeRules
@@ -68,6 +72,7 @@ import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticLongPress
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.util.userMessage
 import com.personal.ledger.viewmodel.CategoriesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -77,6 +82,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
         CategoriesViewModel(container.ledgerRepository, container.categoryRepository)
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     var showAddDialog by remember { mutableStateOf(false) }
     var addParentId by remember { mutableStateOf<String?>(null) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
@@ -107,13 +113,13 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("分类管理") },
+                title = { Text(stringResource(R.string.set_categories_title)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -123,7 +129,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                         error = null
                         showAddDialog = true
                     }) {
-                        Icon(Icons.Filled.Add, contentDescription = "新建一级分类")
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.set_category_new_root))
                     }
                 },
             )
@@ -143,7 +149,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                         hapticLight()
                         vm.setType(CategoryType.EXPENSE)
                     },
-                    label = { Text("支出") },
+                    label = { Text(stringResource(R.string.type_expense)) },
                 )
                 FilterChip(
                     selected = state.type == CategoryType.INCOME,
@@ -151,7 +157,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                         hapticLight()
                         vm.setType(CategoryType.INCOME)
                     },
-                    label = { Text("收入") },
+                    label = { Text(stringResource(R.string.type_income)) },
                 )
                 Spacer(Modifier.weight(1f))
                 TextButton(
@@ -160,7 +166,11 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                         showSupplementDialog = true
                     },
                 ) {
-                    Text("补充常用分类")
+                    Text(
+                        stringResource(R.string.set_category_supplement_button),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
             supplementMessage?.let {
@@ -236,7 +246,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                 // 已删除（归档）的分类：可恢复或彻底删除
                 if (archivedCategories.isNotEmpty()) {
                     item(key = "archived_label") {
-                        LedgerGroupLabel("已删除的分类", modifier = Modifier.padding(top = LedgerSpacing.md))
+                        LedgerGroupLabel(stringResource(R.string.set_category_deleted_section), modifier = Modifier.padding(top = LedgerSpacing.md))
                     }
                     archivedCategories.forEachIndexed { index, cat ->
                         item(key = "archived_" + cat.id) {
@@ -273,31 +283,31 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     if (showSupplementDialog) {
         AlertDialog(
             onDismissRequest = { showSupplementDialog = false },
-            title = { Text("补充常用分类") },
+            title = { Text(stringResource(R.string.set_category_supplement_title)) },
             text = {
-                Text("只添加账本中尚未存在的常用分类。已归档或已改名的分类会保留，不会恢复或覆盖。")
+                Text(stringResource(R.string.set_category_supplement_message))
             },
             confirmButton = {
                 TextButton(onClick = {
                     vm.supplementCommonCategories { result ->
                         result.onSuccess { count ->
                             supplementMessage = if (count == 0) {
-                                "常用分类已齐全"
+                                context.getString(R.string.set_category_supplement_none)
                             } else {
-                                "已补充 " + count + " 个常用分类"
+                                context.resources.getQuantityString(R.plurals.set_category_supplement_done, count, count)
                             }
                             showSupplementDialog = false
                         }.onFailure {
-                            supplementMessage = it.message ?: "补充失败"
+                            supplementMessage = it.userMessage(context, R.string.set_category_supplement_failed)
                             showSupplementDialog = false
                         }
                     }
                 }) {
-                    Text("补充")
+                    Text(stringResource(R.string.set_category_supplement_confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSupplementDialog = false }) { Text("取消") }
+                TextButton(onClick = { showSupplementDialog = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -305,13 +315,13 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     if (showAddDialog) {
         val parentName = addParentId?.let { id -> state.categories.firstOrNull { it.id == id }?.name }
         CategoryIconSheet(
-            title = if (addParentId == null) "新建一级分类" else "新建二级分类",
-            subtitle = parentName?.let { "属于“$it”" },
+            title = stringResource(if (addParentId == null) R.string.set_category_new_root else R.string.set_category_new_sub),
+            subtitle = parentName?.let { stringResource(R.string.set_category_parent, it) },
             type = state.type,
             initialName = "",
             initialIconKey = null,
             nameEditable = true,
-            confirmLabel = "创建",
+            confirmLabel = stringResource(R.string.set_create),
             error = error,
             onDismiss = {
                 showAddDialog = false
@@ -326,7 +336,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                     }
                         .onFailure {
                             hapticReject()
-                            error = it.message ?: "创建失败"
+                            error = it.userMessage(context, R.string.set_create_failed)
                         }
                 }
             },
@@ -336,13 +346,13 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     iconCategory?.let { category ->
         key(category.id) {
             CategoryIconSheet(
-                title = "更换图标",
+                title = stringResource(R.string.set_change_icon),
                 type = category.type,
                 initialName = category.name,
                 initialIconKey = category.iconKey,
                 nameEditable = false,
                 visualKey = category.id,
-                confirmLabel = "保存",
+                confirmLabel = stringResource(R.string.action_save),
                 error = error,
                 onDismiss = {
                     iconCategory = null
@@ -356,7 +366,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                             error = null
                         }.onFailure {
                             hapticReject()
-                            error = it.message ?: "保存失败"
+                            error = it.userMessage(context, R.string.set_save_failed)
                         }
                     }
                 },
@@ -368,12 +378,12 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
         var name by remember(category.id) { mutableStateOf(category.name) }
         AlertDialog(
             onDismissRequest = { editingCategory = null },
-            title = { Text("重命名分类") },
+            title = { Text(stringResource(R.string.set_category_rename_title)) },
             text = {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("分类名称") },
+                    label = { Text(stringResource(R.string.set_category_name)) },
                     singleLine = true,
                 )
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -389,14 +399,14 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                             }
                                 .onFailure {
                                     hapticReject()
-                                    error = it.message ?: "保存失败"
+                                    error = it.userMessage(context, R.string.set_save_failed)
                                 }
                         }
                     }
-                }) { Text("保存") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
             dismissButton = {
-                TextButton(onClick = { editingCategory = null }) { Text("取消") }
+                TextButton(onClick = { editingCategory = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -407,13 +417,13 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
             title = { Text(category.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             text = {
                 Column {
-                    CategoryActionItem(icon = Icons.Outlined.Palette, label = "更换图标") {
+                    CategoryActionItem(icon = Icons.Outlined.Palette, label = stringResource(R.string.set_change_icon)) {
                         hapticNavigation()
                         actionCategory = null
                         error = null
                         iconCategory = category
                     }
-                    CategoryActionItem(icon = Icons.Outlined.Edit, label = "重命名") {
+                    CategoryActionItem(icon = Icons.Outlined.Edit, label = stringResource(R.string.action_rename)) {
                         hapticNavigation()
                         actionCategory = null
                         error = null
@@ -421,7 +431,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                     }
                     CategoryActionItem(
                         icon = Icons.Outlined.Delete,
-                        label = "删除",
+                        label = stringResource(R.string.action_delete),
                         color = MaterialTheme.colorScheme.error,
                     ) {
                         hapticConfirm()
@@ -432,7 +442,7 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                 }
             },
             confirmButton = {
-                TextButton(onClick = { actionCategory = null }) { Text("取消") }
+                TextButton(onClick = { actionCategory = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -440,12 +450,17 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     deleteCandidate?.let { category ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
-            title = { Text("确认删除") },
+            title = { Text(stringResource(R.string.action_confirm_delete)) },
             text = {
                 Text(
-                    "删除“${category.name}”后，历史账单和预算仍会保留分类引用。" +
-                        (if (category.parentId == null) "其二级分类也会一并停用。" else "") +
-                        "之后可在列表底部“已删除的分类”中恢复或彻底删除。",
+                    stringResource(
+                        if (category.parentId == null) {
+                            R.string.set_category_delete_message_root
+                        } else {
+                            R.string.set_category_delete_message_sub
+                        },
+                        category.name,
+                    ),
                 )
             },
             confirmButton = {
@@ -457,15 +472,15 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                             error = null
                         }.onFailure {
                             hapticReject()
-                            error = it.message ?: "删除失败"
+                            error = it.userMessage(context, R.string.set_delete_failed)
                         }
                     }
                 }) {
-                    Text("确认删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_confirm_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { deleteCandidate = null }) { Text("取消") }
+                TextButton(onClick = { deleteCandidate = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -513,14 +528,14 @@ private fun CategoryRow(
         IconButton(onClick = onMoveUp, enabled = canMoveUp) {
             Icon(
                 Icons.Filled.KeyboardArrowUp,
-                contentDescription = "上移${category.name}",
+                contentDescription = stringResource(R.string.set_category_move_up, category.name),
                 tint = if (canMoveUp) actionTint else actionTint.copy(alpha = 0.3f),
             )
         }
         IconButton(onClick = onMoveDown, enabled = canMoveDown) {
             Icon(
                 Icons.Filled.KeyboardArrowDown,
-                contentDescription = "下移${category.name}",
+                contentDescription = stringResource(R.string.set_category_move_down, category.name),
                 tint = if (canMoveDown) actionTint else actionTint.copy(alpha = 0.3f),
             )
         }
@@ -528,7 +543,7 @@ private fun CategoryRow(
             IconButton(onClick = onAddChild) {
                 Icon(
                     Icons.Filled.Add,
-                    contentDescription = "为${category.name}添加二级分类",
+                    contentDescription = stringResource(R.string.set_category_add_sub_for, category.name),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
@@ -591,8 +606,8 @@ private fun ArchivedCategoryRow(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        TextButton(onClick = onRestore) { Text("恢复") }
-        TextButton(onClick = onPurge) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+        TextButton(onClick = onRestore) { Text(stringResource(R.string.action_restore)) }
+        TextButton(onClick = onPurge) { Text(stringResource(R.string.set_purge_short), color = MaterialTheme.colorScheme.error) }
     }
 }
 
@@ -607,37 +622,53 @@ private fun CategoryPurgeDialog(
     var loadError by remember(category.id) { mutableStateOf<String?>(null) }
     var replacementId by remember(category.id) { mutableStateOf<String?>(null) }
     val hapticLight = rememberHapticLight()
+    val context = LocalContext.current
     LaunchedEffect(category.id) {
         runCatching { container.purgeRepository.categoryPlan(category.id) }
             .onSuccess { plan = it }
-            .onFailure { loadError = it.message ?: "无法读取分类" }
+            .onFailure { loadError = it.userMessage(context, R.string.set_category_load_failed) }
     }
     val current = plan
     val impact = when {
         loadError != null -> loadError.orEmpty()
-        current == null -> "正在统计影响范围…"
-        current.blocked -> "“${category.name}”下还有 ${current.activeChildren.size} 个使用中的二级分类（" +
-            current.activeChildren.joinToString("、") { it.name } +
-            "），请先删除或停用它们，再彻底删除这个一级分类。"
-        else -> buildString {
-            append("将永久删除分类“${category.name}”")
+        current == null -> stringResource(R.string.set_purge_counting)
+        current.blocked -> pluralStringResource(
+            R.plurals.set_category_purge_blocked,
+            current.activeChildren.size,
+            category.name,
+            current.activeChildren.size,
+            current.activeChildren.joinToString(stringResource(R.string.set_list_separator)) { it.name },
+        )
+        else -> {
+            val sentences = mutableListOf<String>()
             val children = current.removed.filter { it.id != category.id }
-            if (children.isNotEmpty()) {
-                append("及其已删除的二级分类（")
-                append(children.joinToString("、") { it.name })
-                append("）")
-            }
-            append("。")
-            if (current.needsReplacement) {
-                append("有 ${current.transactionCount} 笔账单（含回收站）和 ${current.recurringCount} 条定时扣款使用这些分类，")
-                append("需要迁移到下面选择的替代分类。")
-            }
-            if (current.budgetCount > 0) {
-                append("相关的 ${current.budgetCount} 条分类预算将被删除。")
+            sentences += if (children.isNotEmpty()) {
+                stringResource(
+                    R.string.set_category_purge_head_with_children,
+                    category.name,
+                    children.joinToString(stringResource(R.string.set_list_separator)) { it.name },
+                )
             } else {
-                append("这些分类的预算（如有）将被删除。")
+                stringResource(R.string.set_category_purge_head, category.name)
             }
-            append("商家与这些分类的关联也会被移除。")
+            if (current.needsReplacement) {
+                sentences += stringResource(
+                    R.string.set_category_purge_usage,
+                    pluralStringResource(
+                        R.plurals.set_count_transactions_incl_bin,
+                        current.transactionCount,
+                        current.transactionCount,
+                    ),
+                    pluralStringResource(R.plurals.set_count_recurring, current.recurringCount, current.recurringCount),
+                )
+            }
+            sentences += if (current.budgetCount > 0) {
+                pluralStringResource(R.plurals.set_category_purge_budgets, current.budgetCount, current.budgetCount)
+            } else {
+                stringResource(R.string.set_category_purge_budgets_unknown)
+            }
+            sentences += stringResource(R.string.set_category_purge_merchants)
+            sentences.joinToString(stringResource(R.string.set_sentence_separator))
         }
     }
     val confirmEnabled = current != null && !current.blocked &&
@@ -645,7 +676,7 @@ private fun CategoryPurgeDialog(
 
     PurgeDialog(
         container = container,
-        title = "彻底删除分类",
+        title = stringResource(R.string.set_category_purge_title),
         impact = impact,
         confirmEnabled = confirmEnabled,
         onDismiss = onDismiss,
@@ -655,13 +686,13 @@ private fun CategoryPurgeDialog(
         if (current != null && !current.blocked && current.needsReplacement) {
             if (current.replacementCandidates.isEmpty()) {
                 Text(
-                    "没有可用的同类型分类，请先新建一个分类。",
+                    stringResource(R.string.set_category_no_replacement),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else {
                 Text(
-                    "替代分类",
+                    stringResource(R.string.set_category_replacement),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
