@@ -42,6 +42,7 @@ import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticStrong
 import com.personal.ledger.ui.home.HomeScreen
+import com.personal.ledger.ui.settings.BackupsScreen
 import com.personal.ledger.ui.settings.BookkeepingSettingsScreen
 import com.personal.ledger.ui.settings.CategoriesScreen
 import com.personal.ledger.ui.settings.BudgetsScreen
@@ -67,6 +68,7 @@ object Routes {
     const val CATEGORIES = "categories"
     const val BUDGETS = "budgets"
     const val DATA = "data"
+    const val BACKUPS = "backups"
     const val MERCHANTS = "merchants"
     const val TAGS = "tags"
     const val RECURRING_CHARGES = "recurring_charges"
@@ -199,6 +201,7 @@ fun LedgerApp(container: AppContainer) {
             composable(Routes.CATEGORIES) { CategoriesScreen(container, navController) }
             composable(Routes.BUDGETS) { BudgetsScreen(container, navController) }
             composable(Routes.DATA) { DataScreen(container, navController) }
+            composable(Routes.BACKUPS) { BackupsScreen(container, navController) }
             composable(Routes.MERCHANTS) { MerchantsScreen(container, navController) }
             composable(Routes.TAGS) { TagsScreen(container, navController) }
             composable(Routes.ACCOUNT_DETAIL) { entry ->

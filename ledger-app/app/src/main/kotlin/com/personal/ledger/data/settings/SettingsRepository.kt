@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,8 @@ class SettingsRepository(private val context: Context) {
         val BACKUP_DIR_URI = stringPreferencesKey("backup_dir_uri")
         val AUTO_BACKUP_ENABLED = booleanPreferencesKey("auto_backup_enabled")
         val LAST_USED_ACCOUNT_ID = stringPreferencesKey("last_used_account_id")
+        val LAST_BACKUP_AT = longPreferencesKey("last_backup_at")
+        val LAST_BACKUP_WARNING = stringPreferencesKey("last_backup_warning")
     }
 
     val currentLedgerId: Flow<String?> =
@@ -47,6 +50,14 @@ class SettingsRepository(private val context: Context) {
 
     val lastUsedAccountId: Flow<String?> =
         context.dataStore.data.map { it[Keys.LAST_USED_ACCOUNT_ID] }
+
+    /** 最近一次成功写入备份（自动或立即备份）的时间；从未备份为 null。 */
+    val lastBackupAt: Flow<Long?> =
+        context.dataStore.data.map { it[Keys.LAST_BACKUP_AT] }
+
+    /** 最近一次备份的警告 / 失败说明（如自定义文件夹不可用已改存默认目录）；正常时为 null。 */
+    val lastBackupWarning: Flow<String?> =
+        context.dataStore.data.map { it[Keys.LAST_BACKUP_WARNING] }
 
     suspend fun setCurrentLedgerId(id: String?) {
         context.dataStore.edit { if (id == null) it.remove(Keys.CURRENT_LEDGER_ID) else it[Keys.CURRENT_LEDGER_ID] = id }
@@ -70,5 +81,13 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setLastUsedAccountId(id: String?) {
         context.dataStore.edit { if (id == null) it.remove(Keys.LAST_USED_ACCOUNT_ID) else it[Keys.LAST_USED_ACCOUNT_ID] = id }
+    }
+
+    /** 记录一次备份结果：[succeededAt] 非空时更新最近备份时间；[warning] 为 null 时清除警告。 */
+    suspend fun recordBackupResult(succeededAt: Long?, warning: String?) {
+        context.dataStore.edit {
+            if (succeededAt != null) it[Keys.LAST_BACKUP_AT] = succeededAt
+            if (warning == null) it.remove(Keys.LAST_BACKUP_WARNING) else it[Keys.LAST_BACKUP_WARNING] = warning
+        }
     }
 }

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,11 +30,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -50,10 +54,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.data.repository.CategoryPurgePlan
+import com.personal.ledger.domain.calc.PurgeRules
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.ui.common.CategoryBadge
 import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.common.LedgerGroupLabel
 import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticDelete
@@ -88,6 +95,14 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
     val activeCategories = remember(state.categories) {
         state.categories.filterNot { it.isArchived }
     }
+    // 已归档的一级分类在前，其已归档二级分类紧随其后；父分类仍在使用的已归档二级分类排在最后
+    val archivedCategories = remember(state.categories) {
+        val archived = state.categories.filter { it.isArchived }
+        val roots = archived.filter { it.parentId == null }
+        val grouped = roots.flatMap { root -> listOf(root) + archived.filter { it.parentId == root.id } }
+        grouped + archived.filter { it !in grouped }
+    }
+    var purgeCategory by remember { mutableStateOf<Category?>(null) }
 
     Scaffold(
         topBar = {
@@ -217,8 +232,42 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
                         }
                     }
                 }
+
+                // 已删除（归档）的分类：可恢复或彻底删除
+                if (archivedCategories.isNotEmpty()) {
+                    item(key = "archived_label") {
+                        LedgerGroupLabel("已删除的分类", modifier = Modifier.padding(top = LedgerSpacing.md))
+                    }
+                    archivedCategories.forEachIndexed { index, cat ->
+                        item(key = "archived_" + cat.id) {
+                            LedgerGroupItem(index = index, count = archivedCategories.size) {
+                                ArchivedCategoryRow(
+                                    category = cat,
+                                    displayName = PurgeRules.displayName(cat, state.categories),
+                                    onRestore = {
+                                        vm.restoreCategory(cat.id) { result ->
+                                            result.onSuccess { hapticConfirm() }.onFailure { hapticReject() }
+                                        }
+                                    },
+                                    onPurge = {
+                                        hapticConfirm()
+                                        purgeCategory = cat
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+
+    purgeCategory?.let { category ->
+        CategoryPurgeDialog(
+            container = container,
+            category = category,
+            onDismiss = { purgeCategory = null },
+        )
     }
 
     if (showSupplementDialog) {
@@ -395,7 +444,8 @@ fun CategoriesScreen(container: AppContainer, navController: NavHostController) 
             text = {
                 Text(
                     "删除“${category.name}”后，历史账单和预算仍会保留分类引用。" +
-                        if (category.parentId == null) "其二级分类也会一并停用。" else "",
+                        (if (category.parentId == null) "其二级分类也会一并停用。" else "") +
+                        "之后可在列表底部“已删除的分类”中恢复或彻底删除。",
                 )
             },
             confirmButton = {
@@ -509,5 +559,139 @@ private fun CategoryActionItem(
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(start = LedgerSpacing.md),
         )
+    }
+}
+
+@Composable
+private fun ArchivedCategoryRow(
+    category: Category,
+    displayName: String,
+    onRestore: () -> Unit,
+    onPurge: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(start = LedgerSpacing.md, end = LedgerSpacing.xxs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CategoryBadge(
+            name = category.name,
+            type = category.type,
+            visualKey = category.id,
+            sizeDp = 32,
+            iconKey = category.iconKey,
+        )
+        Text(
+            displayName,
+            modifier = Modifier.weight(1f).padding(start = LedgerSpacing.sm),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        TextButton(onClick = onRestore) { Text("恢复") }
+        TextButton(onClick = onPurge) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+/** 彻底删除分类：被交易 / 定时扣款引用时必须选择同类型的替代分类。 */
+@Composable
+private fun CategoryPurgeDialog(
+    container: AppContainer,
+    category: Category,
+    onDismiss: () -> Unit,
+) {
+    var plan by remember(category.id) { mutableStateOf<CategoryPurgePlan?>(null) }
+    var loadError by remember(category.id) { mutableStateOf<String?>(null) }
+    var replacementId by remember(category.id) { mutableStateOf<String?>(null) }
+    val hapticLight = rememberHapticLight()
+    LaunchedEffect(category.id) {
+        runCatching { container.purgeRepository.categoryPlan(category.id) }
+            .onSuccess { plan = it }
+            .onFailure { loadError = it.message ?: "无法读取分类" }
+    }
+    val current = plan
+    val impact = when {
+        loadError != null -> loadError.orEmpty()
+        current == null -> "正在统计影响范围…"
+        current.blocked -> "“${category.name}”下还有 ${current.activeChildren.size} 个使用中的二级分类（" +
+            current.activeChildren.joinToString("、") { it.name } +
+            "），请先删除或停用它们，再彻底删除这个一级分类。"
+        else -> buildString {
+            append("将永久删除分类“${category.name}”")
+            val children = current.removed.filter { it.id != category.id }
+            if (children.isNotEmpty()) {
+                append("及其已删除的二级分类（")
+                append(children.joinToString("、") { it.name })
+                append("）")
+            }
+            append("。")
+            if (current.needsReplacement) {
+                append("有 ${current.transactionCount} 笔账单（含回收站）和 ${current.recurringCount} 条定时扣款使用这些分类，")
+                append("需要迁移到下面选择的替代分类。")
+            }
+            if (current.budgetCount > 0) {
+                append("相关的 ${current.budgetCount} 条分类预算将被删除。")
+            } else {
+                append("这些分类的预算（如有）将被删除。")
+            }
+            append("商家与这些分类的关联也会被移除。")
+        }
+    }
+    val confirmEnabled = current != null && !current.blocked &&
+        (!current.needsReplacement || replacementId != null)
+
+    PurgeDialog(
+        container = container,
+        title = "彻底删除分类",
+        impact = impact,
+        confirmEnabled = confirmEnabled,
+        onDismiss = onDismiss,
+        onPurged = onDismiss,
+        purge = { container.purgeRepository.purgeCategory(category.id, replacementId) },
+    ) {
+        if (current != null && !current.blocked && current.needsReplacement) {
+            if (current.replacementCandidates.isEmpty()) {
+                Text(
+                    "没有可用的同类型分类，请先新建一个分类。",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Text(
+                    "替代分类",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 220.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    current.replacementCandidates.forEach { candidate ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable {
+                                    hapticLight()
+                                    replacementId = candidate.id
+                                }
+                                .heightIn(min = 44.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = replacementId == candidate.id, onClick = null)
+                            Text(
+                                PurgeRules.displayName(candidate, current.allCategories),
+                                modifier = Modifier.padding(start = LedgerSpacing.xs),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

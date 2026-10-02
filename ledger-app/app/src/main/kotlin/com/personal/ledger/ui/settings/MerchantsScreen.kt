@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,6 +77,7 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
     var linkingMerchant by remember { mutableStateOf<Merchant?>(null) }
     var actionMerchant by remember { mutableStateOf<Merchant?>(null) }
     var deleteCandidate by remember { mutableStateOf<Merchant?>(null) }
+    var purgeTarget by remember { mutableStateOf<Merchant?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val hapticNavigation = rememberHapticNavigation()
     val hapticLongPress = rememberHapticLongPress()
@@ -83,11 +85,13 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
     val hapticDelete = rememberHapticDelete()
     val hapticReject = rememberHapticReject()
     val activeMerchants = remember(merchants) { merchants.filterNot { it.isArchived } }
+    val archivedMerchants = remember(merchants) { merchants.filter { it.isArchived } }
     val activeRoots = remember(categories) { categories.filter { !it.isArchived && it.parentId == null } }
     val linksByMerchant = remember(links) { links.groupBy({ it.merchantId }, { it.categoryId }) }
-    val visibleMerchants = remember(activeMerchants, linksByMerchant, activeRoots, selectedFilter) {
+    val visibleMerchants = remember(activeMerchants, archivedMerchants, linksByMerchant, activeRoots, selectedFilter) {
         when (selectedFilter) {
             null -> activeMerchants
+            ARCHIVED_FILTER -> archivedMerchants
             "unlinked" -> activeMerchants.filter { merchant ->
                 linksByMerchant[merchant.id].orEmpty().none { id -> activeRoots.any { it.id == id } }
             }
@@ -134,6 +138,11 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
                         onClick = { selectedFilter = category.id },
                         label = { Text(category.name) })
                 }
+                if (archivedMerchants.isNotEmpty() || selectedFilter == ARCHIVED_FILTER) {
+                    FilterChip(selected = selectedFilter == ARCHIVED_FILTER,
+                        onClick = { selectedFilter = ARCHIVED_FILTER },
+                        label = { Text("已删除（${archivedMerchants.size}）") })
+                }
             }
             if (visibleMerchants.isEmpty()) {
                 EmptyState(
@@ -141,6 +150,7 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
                     title = when (selectedFilter) {
                         null -> "暂无商家，可点击右上角新建"
                         "unlinked" -> "暂无未关联商家"
+                        ARCHIVED_FILTER -> "没有已删除的商家"
                         else -> "该分类暂无商家，可新建或长按已有商家分配类别"
                     },
                 )
@@ -157,7 +167,11 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
                 if (visibleMerchants.isNotEmpty()) {
                     item(key = "merchant_hint") {
                         Text(
-                            "长按商家可分配分类、重命名或删除",
+                            if (selectedFilter == ARCHIVED_FILTER) {
+                                "已删除的商家仍保留在历史账单中；可恢复，或彻底删除"
+                            } else {
+                                "长按商家可分配分类、重命名或删除"
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = LedgerSpacing.xxs, bottom = LedgerSpacing.xs),
@@ -173,6 +187,35 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
                         }
                     }
                     LedgerGroupItem(index = index, count = count) {
+                        if (merchant.isArchived) {
+                            LedgerListRow(
+                                title = merchant.name,
+                                titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                subtitle = labels.joinToString("、").ifEmpty { "未关联分类" },
+                                leading = {
+                                    LedgerIconTile(
+                                        Icons.Outlined.Storefront,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                trailing = {
+                                    Row {
+                                        TextButton(onClick = {
+                                            scope.launch {
+                                                container.merchantRepository.setArchived(merchant.id, false)
+                                                    .onSuccess { hapticConfirm() }
+                                                    .onFailure { hapticReject() }
+                                            }
+                                        }) { Text("恢复") }
+                                        TextButton(onClick = {
+                                            hapticConfirm()
+                                            purgeTarget = merchant
+                                        }) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+                                    }
+                                },
+                            )
+                            return@LedgerGroupItem
+                        }
                         MerchantRow(
                             merchant = merchant,
                             subtitle = labels.joinToString("、").ifEmpty { "未关联分类" },
@@ -348,11 +391,27 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
         )
     }
 
+    purgeTarget?.let { merchant ->
+        var usage by remember(merchant.id) { mutableStateOf<Int?>(null) }
+        LaunchedEffect(merchant.id) { usage = container.purgeRepository.merchantUsage(merchant.id) }
+        PurgeDialog(
+            container = container,
+            title = "彻底删除商家",
+            impact = usage?.let {
+                "将永久删除商家“${merchant.name}”及其分类关联。$it 笔账单（含回收站）将不再显示商家，账单本身会保留。"
+            } ?: "正在统计影响范围…",
+            confirmEnabled = usage != null,
+            onDismiss = { purgeTarget = null },
+            onPurged = { purgeTarget = null },
+            purge = { container.purgeRepository.purgeMerchant(merchant.id) },
+        )
+    }
+
     deleteCandidate?.let { merchant ->
         AlertDialog(
             onDismissRequest = { deleteCandidate = null },
             title = { Text("确认删除") },
-            text = { Text("删除“${merchant.name}”后，历史账单仍会保留商家名称。") },
+            text = { Text("删除“${merchant.name}”后，历史账单仍会保留商家名称；之后可在“已删除”中恢复或彻底删除。") },
             confirmButton = {
                 TextButton(onClick = {
                     hapticDelete()
@@ -377,6 +436,9 @@ fun MerchantsScreen(container: AppContainer, navController: NavHostController) {
         )
     }
 }
+
+/** 商家筛选中的“已删除（已归档）”选项。 */
+private const val ARCHIVED_FILTER = "archived"
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

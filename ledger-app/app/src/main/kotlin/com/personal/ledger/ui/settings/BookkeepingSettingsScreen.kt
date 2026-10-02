@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +41,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.data.local.dao.LedgerPurgeCounts
+import com.personal.ledger.domain.calc.PurgeRules
+import com.personal.ledger.domain.model.Ledger
 import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.LedgerGroup
 import com.personal.ledger.ui.common.LedgerIconTile
@@ -64,6 +69,7 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showLedgerDialog by remember { mutableStateOf(false) }
     var showCreateLedger by remember { mutableStateOf(false) }
+    var purgeLedger by remember { mutableStateOf<Ledger?>(null) }
     val hapticLight = rememberHapticLight()
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
@@ -172,6 +178,15 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                                     Text(if (ledger.isArchived) "恢复" else "归档")
                                 }
                             }
+                            if (ledger.isArchived) {
+                                TextButton(onClick = {
+                                    hapticConfirm()
+                                    showLedgerDialog = false
+                                    purgeLedger = ledger
+                                }) {
+                                    Text("删除", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
                         }
                     }
                     TextButton(onClick = {
@@ -187,6 +202,14 @@ fun BookkeepingSettingsScreen(container: AppContainer, navController: NavHostCon
                     showLedgerDialog = false
                 }) { Text("关闭") }
             },
+        )
+    }
+
+    purgeLedger?.let { ledger ->
+        LedgerPurgeDialog(
+            container = container,
+            ledger = ledger,
+            onDismiss = { purgeLedger = null },
         )
     }
 
@@ -241,4 +264,43 @@ private fun SettingsRow(
         showChevron = true,
         onClick = onClick,
     )
+}
+
+/** 彻底删除已归档账本：列出数据量，并要求输入账本名称确认。 */
+@Composable
+private fun LedgerPurgeDialog(
+    container: AppContainer,
+    ledger: Ledger,
+    onDismiss: () -> Unit,
+) {
+    var counts by remember(ledger.id) { mutableStateOf<LedgerPurgeCounts?>(null) }
+    var typedName by remember(ledger.id) { mutableStateOf("") }
+    LaunchedEffect(ledger.id) { counts = container.purgeRepository.ledgerCounts(ledger.id) }
+    val c = counts
+    PurgeDialog(
+        container = container,
+        title = "彻底删除账本",
+        impact = if (c == null) {
+            "正在统计影响范围…"
+        } else {
+            "将永久删除账本“${ledger.name}”及其全部数据：${c.transactions} 笔账单（含回收站）、" +
+                "${c.accounts} 个账户、${c.categories} 个分类、${c.merchants} 个商家、${c.tags} 个标签、" +
+                "${c.budgets} 条预算、${c.recurringCharges} 条定时扣款。"
+        },
+        confirmEnabled = c != null && PurgeRules.ledgerNameConfirmed(typedName, ledger.name),
+        onDismiss = onDismiss,
+        onPurged = onDismiss,
+        purge = {
+            container.purgeRepository.purgeLedger(ledger.id)
+                .onSuccess { container.ledgerRepository.fallbackCurrentLedgerIfInvalid() }
+        },
+    ) {
+        OutlinedTextField(
+            value = typedName,
+            onValueChange = { typedName = it },
+            label = { Text("输入账本名称“${ledger.name}”以确认") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
 }
