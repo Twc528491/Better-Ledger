@@ -25,7 +25,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ShowChart
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.DonutLarge
+import androidx.compose.material.icons.outlined.SwapVert
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,11 +68,13 @@ import com.personal.ledger.ui.common.LedgerSectionHeader
 import com.personal.ledger.ui.common.budgetColor
 import com.personal.ledger.ui.common.cardColor
 import com.personal.ledger.ui.common.categoryChartColor
+import com.personal.ledger.ui.common.charts.CategoryChangeChart
+import com.personal.ledger.ui.common.charts.CategoryChangeRow
+import com.personal.ledger.ui.common.charts.ChartPageHeight
 import com.personal.ledger.ui.common.charts.ChartSlice
-import com.personal.ledger.ui.common.charts.DailyExpenseChart
-import com.personal.ledger.ui.common.charts.HorizontalRankingChart
+import com.personal.ledger.ui.common.charts.DailySpendingChart
+import com.personal.ledger.ui.common.charts.IncomeExpenseTrendChart
 import com.personal.ledger.ui.common.charts.RingChartWithLegend
-import com.personal.ledger.ui.common.charts.TrendBarChart
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.signedMoney
 import com.personal.ledger.ui.theme.LedgerNumerals
@@ -116,8 +121,14 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
             )
         }
     }
-    val rankingSlices = state.expenseByCategory.map { stat ->
-        ChartSlice(stat.category.name, stat.amount, categoryChartColor(stat.category.id))
+    val changeRows = state.categoryChanges.map { stat ->
+        CategoryChangeRow(
+            label = stat.category.name,
+            color = categoryChartColor(stat.category.id),
+            current = stat.change.current,
+            previous = stat.change.previous,
+            percent = stat.change.percent,
+        )
     }
 
     Scaffold(
@@ -234,12 +245,13 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                     state = pagerState,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 324.dp)
                         .padding(top = LedgerSpacing.sm),
                     contentPadding = PaddingValues(horizontal = LedgerSpacing.md),
                     pageSpacing = LedgerSpacing.sm,
                     verticalAlignment = Alignment.Top,
                 ) { page ->
+                    // 所有分页同一高度，左右切换时页面不跳动。
+                    val pageModifier = Modifier.fillMaxWidth().height(ChartPageHeight)
                     when (page) {
                         0 -> if (chartSlices.isEmpty()) {
                             EmptyChartPanel(
@@ -252,23 +264,60 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
                                 slices = chartSlices,
                                 total = state.expense,
                                 currency = state.baseCurrency,
-                                modifier = Modifier.heightIn(min = 324.dp),
+                                revealKey = state.month,
+                                modifier = pageModifier,
                             )
                         }
-                        1 -> TrendBarChart(
-                            months = state.trend.map { it.yearMonth },
-                            incomes = state.trend.map { it.income },
-                            expenses = state.trend.map { it.expense },
-                            currency = state.baseCurrency,
-                        )
-                        2 -> DailyExpenseChart(
-                            days = state.dailyExpense,
-                            currency = state.baseCurrency,
-                        )
-                        else -> HorizontalRankingChart(
-                            items = rankingSlices,
-                            currency = state.baseCurrency,
-                        )
+                        1 -> if (state.trend.all { it.income == 0L && it.expense == 0L }) {
+                            EmptyChartPanel(
+                                icon = Icons.Outlined.BarChart,
+                                title = "近 12 个月暂无收支",
+                                subtitle = "记账后这里会显示每月收入与支出",
+                            )
+                        } else {
+                            IncomeExpenseTrendChart(
+                                trend = state.trend,
+                                viewedMonth = state.month,
+                                currency = state.baseCurrency,
+                                modifier = pageModifier,
+                            )
+                        }
+                        2 -> {
+                            val daily = state.dailyComparison
+                            when {
+                                daily == null || daily.elapsedDays <= 0 -> EmptyChartPanel(
+                                    icon = Icons.AutoMirrored.Outlined.ShowChart,
+                                    title = "这个月还没有开始",
+                                    subtitle = "到了这个月后会显示每日支出",
+                                )
+                                daily.total == 0L && daily.previousTotal == 0L -> EmptyChartPanel(
+                                    icon = Icons.AutoMirrored.Outlined.ShowChart,
+                                    title = "本月暂无支出",
+                                    subtitle = "记一笔后这里会出现累计支出曲线",
+                                )
+                                else -> DailySpendingChart(
+                                    comparison = daily,
+                                    currency = state.baseCurrency,
+                                    modifier = pageModifier,
+                                )
+                            }
+                        }
+                        else -> if (state.expense == 0L && state.previousExpense == 0L) {
+                            EmptyChartPanel(
+                                icon = Icons.Outlined.SwapVert,
+                                title = "近两个月暂无支出",
+                                subtitle = "有了支出记录后这里会对比各分类的变化",
+                            )
+                        } else {
+                            CategoryChangeChart(
+                                rows = changeRows,
+                                currentTotal = state.expense,
+                                previousTotal = state.previousExpense,
+                                currency = state.baseCurrency,
+                                revealKey = state.month,
+                                modifier = pageModifier,
+                            )
+                        }
                     }
                 }
             }
@@ -338,7 +387,7 @@ fun StatisticsScreen(container: AppContainer, navController: NavHostController) 
     }
 }
 
-private val STATISTICS_CHART_TABS = listOf("分类占比", "月度收支", "每日支出", "分类排行")
+private val STATISTICS_CHART_TABS = listOf("分类占比", "收支趋势", "每日支出", "分类环比")
 
 @Composable
 private fun SectionHeader(title: String, modifier: Modifier = Modifier) {
@@ -369,13 +418,13 @@ private fun PlainNoteCard(text: String) {
 @Composable
 private fun EmptyChartPanel(icon: ImageVector, title: String, subtitle: String) {
     Surface(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 324.dp),
+        modifier = Modifier.fillMaxWidth().height(ChartPageHeight),
         shape = MaterialTheme.shapes.large,
         color = cardColor(),
         tonalElevation = 0.dp,
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 324.dp),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
             EmptyState(icon = icon, title = title, subtitle = subtitle)
