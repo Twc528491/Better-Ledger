@@ -50,8 +50,15 @@ class LedgerComponentsTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("支出，餐饮，¥25.36，100%")
-            .assertContentDescriptionEquals("支出，餐饮，¥25.36，100%")
+        // 按设备当前语言拼出期望文本：中文为“支出，餐饮，¥25.36，100%”，英文为“Expense: 餐饮, ¥25.36, 100%”。
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val expected = context.getString(
+            com.personal.ledger.R.string.chart_ring_description,
+            context.getString(com.personal.ledger.R.string.chart_expense),
+            context.getString(com.personal.ledger.R.string.chart_ring_item, "餐饮", "¥25.36", 100),
+        )
+        composeRule.onNodeWithContentDescription(expected)
+            .assertContentDescriptionEquals(expected)
     }
 
     @Test

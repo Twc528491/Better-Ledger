@@ -73,6 +73,12 @@ import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.ui.common.rememberMultiSelection
 import com.personal.ledger.ui.common.selectionHighlightColor
 import com.personal.ledger.ui.theme.LedgerSpacing
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.flow.flatMapLatest
@@ -94,6 +100,7 @@ private sealed interface RecyclePurgeRequest {
 @Composable
 fun RecycleBinScreen(container: AppContainer, navController: NavHostController) {
     val scope = rememberCoroutineScope()
+    val resources = LocalContext.current.resources
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
     val hapticReject = rememberHapticReject()
@@ -163,30 +170,30 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
                             val ids = selection.selectedIn(visibleIds)
                             runBatch(
                                 action = { repository.restoreAll(ids) },
-                                success = { n -> "已恢复 $n 笔" },
-                                failure = "恢复失败，请重试",
+                                success = { n -> resources.getQuantityString(R.plurals.tx_recycle_restored, n, n) },
+                                failure = resources.getString(R.string.tx_recycle_restore_failed),
                             )
                         },
                         enabled = selection.count > 0 && !busy,
                     ) {
-                        Icon(Icons.Filled.Restore, contentDescription = "恢复所选账单")
+                        Icon(Icons.Filled.Restore, contentDescription = stringResource(R.string.tx_recycle_restore_selected))
                     }
                     IconButton(
                         onClick = { purgeRequest = RecyclePurgeRequest.Selected(selection.selectedIn(visibleIds)) },
                         enabled = selection.count > 0 && !busy,
                     ) {
-                        Icon(Icons.Filled.DeleteForever, contentDescription = "彻底删除所选账单")
+                        Icon(Icons.Filled.DeleteForever, contentDescription = stringResource(R.string.tx_recycle_purge_selected))
                     }
                 }
             } else {
                 TopAppBar(
-                    title = { Text("回收站") },
+                    title = { Text(stringResource(R.string.tx_recycle_title)) },
                     navigationIcon = {
                         IconButton(onClick = {
                             hapticNavigation()
                             navController.popBackStack()
                         }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                         }
                     },
                     actions = {
@@ -195,7 +202,7 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
                                 onClick = { purgeRequest = RecyclePurgeRequest.All(ledgerId, items.size) },
                                 enabled = !busy,
                             ) {
-                                Icon(Icons.Filled.DeleteSweep, contentDescription = "清空回收站")
+                                Icon(Icons.Filled.DeleteSweep, contentDescription = stringResource(R.string.tx_recycle_empty_bin))
                             }
                         }
                     },
@@ -210,7 +217,7 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
             ) {
                 EmptyState(
                     icon = Icons.Outlined.DeleteOutline,
-                    title = "回收站为空",
+                    title = stringResource(R.string.tx_recycle_empty_state),
                     modifier = Modifier.padding(top = LedgerSpacing.xxl),
                 )
             }
@@ -226,7 +233,7 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
             ) {
                 item(key = "hint", contentType = "hint") {
                     Text(
-                        if (selection.active) "点按账单切换选择" else "长按账单可多选，批量恢复或彻底删除",
+                        stringResource(if (selection.active) R.string.tx_recycle_hint_selecting else R.string.tx_recycle_hint),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = LedgerSpacing.xxs, bottom = LedgerSpacing.xs),
@@ -273,16 +280,16 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
             title = {
                 Text(
                     when (request) {
-                        is RecyclePurgeRequest.Selected -> "彻底删除 $n 笔账单？"
-                        is RecyclePurgeRequest.All -> "清空回收站？"
+                        is RecyclePurgeRequest.Selected -> pluralStringResource(R.plurals.tx_recycle_purge_title, n, n)
+                        is RecyclePurgeRequest.All -> stringResource(R.string.tx_recycle_empty_title)
                     },
                 )
             },
             text = {
                 Text(
                     when (request) {
-                        is RecyclePurgeRequest.Selected -> "彻底删除后无法恢复，此操作不可撤销。"
-                        is RecyclePurgeRequest.All -> "回收站中的 $n 笔账单将被彻底删除，无法恢复，此操作不可撤销。"
+                        is RecyclePurgeRequest.Selected -> stringResource(R.string.tx_recycle_purge_message)
+                        is RecyclePurgeRequest.All -> pluralStringResource(R.plurals.tx_recycle_empty_message, n, n)
                     },
                 )
             },
@@ -293,24 +300,24 @@ fun RecycleBinScreen(container: AppContainer, navController: NavHostController) 
                     when (request) {
                         is RecyclePurgeRequest.Selected -> runBatch(
                             action = { repository.purgeAll(request.ids) },
-                            success = { deleted -> "已彻底删除 $deleted 笔" },
-                            failure = "删除失败，请重试",
+                            success = { deleted -> resources.getQuantityString(R.plurals.tx_recycle_purged, deleted, deleted) },
+                            failure = resources.getString(R.string.tx_delete_failed),
                         )
                         is RecyclePurgeRequest.All -> runBatch(
                             action = { repository.emptyRecycleBin(request.ledgerId) },
-                            success = { deleted -> "已清空回收站，共 $deleted 笔" },
-                            failure = "清空失败，请重试",
+                            success = { deleted -> resources.getQuantityString(R.plurals.tx_recycle_emptied, deleted, deleted) },
+                            failure = resources.getString(R.string.tx_recycle_empty_failed),
                         )
                     }
                 }) {
                     Text(
-                        if (request is RecyclePurgeRequest.All) "清空" else "彻底删除",
+                        stringResource(if (request is RecyclePurgeRequest.All) R.string.tx_recycle_empty_action else R.string.tx_recycle_purge_action),
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { purgeRequest = null }) { Text("取消") }
+                TextButton(onClick = { purgeRequest = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -338,8 +345,8 @@ private fun RecycleBinRow(
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
-                onClickLabel = if (selectionActive) (if (selected) "取消选择" else "选择") else null,
-                onLongClickLabel = if (selectionActive) null else "多选",
+                onClickLabel = if (selectionActive) stringResource(if (selected) R.string.tx_deselect else R.string.tx_select) else null,
+                onLongClickLabel = if (selectionActive) null else stringResource(R.string.tx_multi_select),
                 hapticFeedbackEnabled = false,
             )
             .then(if (selectionActive) Modifier.semantics { this.selected = selected } else Modifier)
@@ -359,13 +366,13 @@ private fun RecycleBinRow(
         }
         Column(modifier = Modifier.weight(1f).padding(end = LedgerSpacing.sm)) {
             Text(
-                tx.note ?: "无备注",
+                tx.note ?: stringResource(R.string.tx_no_note),
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                TimeUtils.formatMonthDay(tx.transactionTime),
+                DateLabels.monthDay(TimeUtils.localDateOf(tx.transactionTime), LocalConfiguration.current.locales[0]),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -384,7 +391,7 @@ private fun RecycleBinRow(
             IconButton(onClick = onRestore) {
                 Icon(
                     Icons.Filled.Restore,
-                    contentDescription = "恢复",
+                    contentDescription = stringResource(R.string.action_restore),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }

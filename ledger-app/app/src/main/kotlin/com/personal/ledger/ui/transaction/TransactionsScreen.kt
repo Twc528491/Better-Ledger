@@ -83,6 +83,12 @@ import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberMultiSelection
 import com.personal.ledger.ui.common.selectionHighlightColor
 import com.personal.ledger.ui.common.transferContainerColor
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.viewmodel.TransactionsViewModel
@@ -123,6 +129,8 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
     var confirmBatchDelete by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    val resources = LocalContext.current.resources
+    val locale = LocalConfiguration.current.locales[0]
     val hapticLight = rememberHapticLight()
     val hapticLongPress = rememberHapticLongPress()
     val hapticNavigation = rememberHapticNavigation()
@@ -150,25 +158,25 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     onClick = { confirmBatchDelete = true },
                     enabled = selection.count > 0,
                 ) {
-                    Icon(Icons.Filled.DeleteOutline, contentDescription = "删除所选账单")
+                    Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.tx_delete_selected))
                 }
             }
           } else {
             TopAppBar(
-                title = { Text("账单") },
+                title = { Text(stringResource(R.string.tx_title)) },
                 actions = {
                     IconButton(onClick = {
                         hapticLight()
                         searchOpen = !searchOpen
                     }) {
-                        Icon(Icons.Filled.Search, contentDescription = "搜索")
+                        Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.action_search))
                     }
                     IconButton(onClick = {
                         hapticLight()
                         showFilterSheet = true
                     }) {
                         Box(modifier = Modifier.size(28.dp), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.FilterList, contentDescription = "筛选")
+                            Icon(Icons.Filled.FilterList, contentDescription = stringResource(R.string.action_filter))
                             if (state.hasActiveFilter) {
                                 Box(
                                     modifier = Modifier
@@ -183,7 +191,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                         hapticNavigation()
                         navController.navigate(Routes.RECYCLE)
                     }) {
-                        Icon(Icons.Filled.DeleteOutline, contentDescription = "回收站")
+                        Icon(Icons.Filled.DeleteOutline, contentDescription = stringResource(R.string.tx_recycle_title))
                     }
                     SettingsActionButton {
                         hapticNavigation()
@@ -197,7 +205,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 MonthSwitcher(
-                    label = state.monthLabel,
+                    label = DateLabels.yearMonth(state.selectedMonth, locale),
                     onPrevious = {
                         hapticLight()
                         vm.setMonth(state.selectedMonth.minusMonths(1))
@@ -217,7 +225,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 OutlinedTextField(
                     value = state.query,
                     onValueChange = { vm.setQuery(it) },
-                    label = { Text("搜索备注 / 商家") },
+                    label = { Text(stringResource(R.string.tx_search_hint)) },
                     singleLine = true,
                     trailingIcon = {
                         if (state.query.isNotEmpty()) {
@@ -225,7 +233,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 hapticLight()
                                 vm.setQuery("")
                             }) {
-                                Icon(Icons.Filled.Close, contentDescription = "清除搜索")
+                                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.tx_clear_search))
                             }
                         }
                     },
@@ -248,11 +256,14 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                         activeFilterSummary(state),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
                     TextButton(onClick = {
                         hapticLight()
                         vm.clearFilters()
-                    }) { Text("清除筛选") }
+                    }) { Text(stringResource(R.string.tx_clear_filters), maxLines = 1) }
                 }
             }
 
@@ -266,8 +277,8 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
             if (state.transactions.isEmpty()) {
                 EmptyState(
                     emoji = if (state.hasActiveFilter) "🔍" else "🧾",
-                    title = if (state.hasActiveFilter) "没有符合条件的账单" else "本月暂无交易",
-                    subtitle = if (state.hasActiveFilter) "试试调整或清除筛选条件" else "",
+                    title = stringResource(if (state.hasActiveFilter) R.string.tx_empty_filtered else R.string.tx_empty_month),
+                    subtitle = if (state.hasActiveFilter) stringResource(R.string.tx_empty_filtered_hint) else "",
                     modifier = Modifier.padding(16.dp),
                 )
             } else {
@@ -286,9 +297,12 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                         list.asSequence().filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
                     }
                 }
-                val dayLabels = remember(grouped) {
+                val todayLabel = stringResource(R.string.label_today)
+                val yesterdayLabel = stringResource(R.string.label_yesterday)
+                val dayHeaderFormat = stringResource(R.string.tx_day_header)
+                val dayLabels = remember(grouped, locale, todayLabel, yesterdayLabel, dayHeaderFormat) {
                     grouped.keys.associateWith { date ->
-                        dayHeaderLabel(date)
+                        dayHeaderLabel(date, locale, todayLabel, yesterdayLabel, dayHeaderFormat)
                     }
                 }
                 val dayIds = remember(grouped) { grouped.mapValues { (_, list) -> list.map { it.id } } }
@@ -305,7 +319,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                     .then(
                                         if (selection.active) {
                                             Modifier
-                                                .clickable(onClickLabel = if (dayAllSelected) "取消选择当天" else "选择当天") {
+                                                .clickable(onClickLabel = stringResource(if (dayAllSelected) R.string.tx_deselect_day else R.string.tx_select_day)) {
                                                     hapticLight()
                                                     selection = selection.toggleAll(ids)
                                                 }
@@ -334,7 +348,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 }
                                 if (dayExpense > 0) {
                                     Text(
-                                        "支出 ${Money.formatMinor(dayExpense)}",
+                                        stringResource(R.string.tx_day_expense, Money.formatMinor(dayExpense)),
                                         style = LedgerNumerals.of(MaterialTheme.typography.labelMedium),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -400,10 +414,10 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 24.dp),
             ) {
-                Text("筛选", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.action_filter), style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.padding(4.dp))
 
-                Text("类型", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.tx_filter_type), style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
                         selected = state.filter == null,
@@ -411,12 +425,12 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             hapticLight()
                             vm.setFilter(null)
                         },
-                        label = { Text("全部") },
+                        label = { Text(stringResource(R.string.tx_filter_all)) },
                     )
                     listOf(
-                        TransactionType.EXPENSE to "支出",
-                        TransactionType.INCOME to "收入",
-                        TransactionType.TRANSFER to "转账",
+                        TransactionType.EXPENSE to R.string.type_expense,
+                        TransactionType.INCOME to R.string.type_income,
+                        TransactionType.TRANSFER to R.string.type_transfer,
                     ).forEach { (t, label) ->
                         FilterChip(
                             selected = state.filter == t,
@@ -424,13 +438,13 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                 hapticLight()
                                 vm.setFilter(t)
                             },
-                            label = { Text(label) },
+                            label = { Text(stringResource(label)) },
                         )
                     }
                 }
 
                 Text(
-                    "账户",
+                    stringResource(R.string.tx_filter_account),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 12.dp),
                 )
@@ -441,7 +455,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             hapticLight()
                             vm.setAccountFilter(null)
                         },
-                        label = { Text("全部") },
+                        label = { Text(stringResource(R.string.tx_filter_all)) },
                     )
                     state.accounts.forEach { acc ->
                         FilterChip(
@@ -456,7 +470,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 }
 
                 Text(
-                    "分类",
+                    stringResource(R.string.tx_filter_category),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 12.dp),
                 )
@@ -467,7 +481,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             hapticLight()
                             vm.setCategoryFilter(null)
                         },
-                        label = { Text("全部") },
+                        label = { Text(stringResource(R.string.tx_filter_all)) },
                     )
                     state.categories.forEach { cat ->
                         FilterChip(
@@ -482,7 +496,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                 }
 
                 Text(
-                    "标签",
+                    stringResource(R.string.tx_filter_tag),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(top = 12.dp),
                 )
@@ -493,7 +507,7 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                             hapticLight()
                             vm.setTagFilter(null)
                         },
-                        label = { Text("全部") },
+                        label = { Text(stringResource(R.string.tx_filter_all)) },
                     )
                     state.tags.forEach { tag ->
                         FilterChip(
@@ -514,11 +528,11 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                     TextButton(onClick = {
                         hapticLight()
                         vm.clearFilters()
-                    }) { Text("清除全部") }
+                    }) { Text(stringResource(R.string.tx_filter_clear_all)) }
                     TextButton(onClick = {
                         hapticLight()
                         showFilterSheet = false
-                    }) { Text("完成") }
+                    }) { Text(stringResource(R.string.action_done)) }
                 }
             }
         }
@@ -529,8 +543,8 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
         val n = ids.size
         AlertDialog(
             onDismissRequest = { confirmBatchDelete = false },
-            title = { Text("删除 $n 笔账单？") },
-            text = { Text("删除后进入回收站，仍可恢复。") },
+            title = { Text(pluralStringResource(R.plurals.tx_delete_title, n, n)) },
+            text = { Text(stringResource(R.string.tx_delete_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -542,56 +556,68 @@ fun TransactionsScreen(container: AppContainer, navController: NavHostController
                                     selection = MultiSelection.None
                                     snackbarHostState.currentSnackbarData?.dismiss()
                                     val action = snackbarHostState.showSnackbar(
-                                        message = "已删除 $deleted 笔",
-                                        actionLabel = "撤销",
+                                        message = resources.getQuantityString(R.plurals.tx_deleted, deleted, deleted),
+                                        actionLabel = resources.getString(R.string.action_undo),
                                         duration = SnackbarDuration.Long,
                                     )
                                     if (action == SnackbarResult.ActionPerformed) vm.restoreAll(ids)
                                 }.onFailure {
                                     snackbarHostState.currentSnackbarData?.dismiss()
-                                    snackbarHostState.showSnackbar("删除失败，请重试")
+                                    snackbarHostState.showSnackbar(resources.getString(R.string.tx_delete_failed))
                                 }
                             }
                         }
                     },
                     enabled = n > 0,
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmBatchDelete = false }) { Text("取消") }
+                TextButton(onClick = { confirmBatchDelete = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
 }
 
+@Composable
 private fun activeFilterSummary(state: com.personal.ledger.viewmodel.TransactionsUiState): String {
     val parts = mutableListOf<String>()
-    if (state.query.isNotEmpty()) parts.add("搜索“${state.query}”")
+    if (state.query.isNotEmpty()) parts.add(stringResource(R.string.tx_filter_search_summary, state.query))
     state.filter?.let { parts.add(typeLabel(it)) }
-    if (state.accountId != null) parts.add(state.accounts.firstOrNull { it.id == state.accountId }?.name ?: "账户")
-    if (state.categoryId != null) parts.add(state.categories.firstOrNull { it.id == state.categoryId }?.name ?: "分类")
-    if (state.tagId != null) parts.add(state.tags.firstOrNull { it.id == state.tagId }?.name ?: "标签")
+    if (state.accountId != null) parts.add(state.accounts.firstOrNull { it.id == state.accountId }?.name
+        ?: stringResource(R.string.tx_filter_account))
+    if (state.categoryId != null) parts.add(state.categories.firstOrNull { it.id == state.categoryId }?.name
+        ?: stringResource(R.string.tx_filter_category))
+    if (state.tagId != null) parts.add(state.tags.firstOrNull { it.id == state.tagId }?.name
+        ?: stringResource(R.string.tx_filter_tag))
     return parts.joinToString(" · ")
 }
 
-private fun typeLabel(t: TransactionType): String = when (t) {
-    TransactionType.EXPENSE -> "支出"
-    TransactionType.INCOME -> "收入"
-    TransactionType.TRANSFER -> "转账"
-}
+@Composable
+private fun typeLabel(t: TransactionType): String = stringResource(
+    when (t) {
+        TransactionType.EXPENSE -> R.string.type_expense
+        TransactionType.INCOME -> R.string.type_income
+        TransactionType.TRANSFER -> R.string.type_transfer
+    },
+)
 
-private val weekdayNames = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-
-private fun dayHeaderLabel(date: java.time.LocalDate): String {
+/** 日期分组头：中文“9月27日  今天”，英文“Sep 27 · Today”。 */
+private fun dayHeaderLabel(
+    date: java.time.LocalDate,
+    locale: java.util.Locale,
+    todayLabel: String,
+    yesterdayLabel: String,
+    format: String,
+): String {
     val today = java.time.LocalDate.now()
     val suffix = when (date) {
-        today -> "今天"
-        today.minusDays(1) -> "昨天"
-        else -> weekdayNames[date.dayOfWeek.value - 1]
+        today -> todayLabel
+        today.minusDays(1) -> yesterdayLabel
+        else -> DateLabels.weekday(date.dayOfWeek, locale)
     }
-    return "${date.monthValue}月${date.dayOfMonth}日  $suffix"
+    return String.format(locale, format, DateLabels.monthDay(date, locale), suffix)
 }
 
 /** 当月汇总：支出 / 收入 / 结余三栏，数字等宽。 */
@@ -603,11 +629,11 @@ private fun MonthSummary(expense: Long, income: Long, currency: String, modifier
             .background(cardColor(), MaterialTheme.shapes.large)
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        SummaryCell("支出", Money.formatWithCurrency(expense, currency), expenseAmountColor(), Modifier.weight(1f))
-        SummaryCell("收入", Money.formatWithCurrency(income, currency), incomeAmountColor(), Modifier.weight(1f))
+        SummaryCell(stringResource(R.string.type_expense), Money.formatWithCurrency(expense, currency), expenseAmountColor(), Modifier.weight(1f))
+        SummaryCell(stringResource(R.string.type_income), Money.formatWithCurrency(income, currency), incomeAmountColor(), Modifier.weight(1f))
         val balance = income - expense
         SummaryCell(
-            "结余",
+            stringResource(R.string.label_balance),
             signedMoney(balance, currency, explicitPlus = false),
             MaterialTheme.colorScheme.onSurface,
             Modifier.weight(1f),
@@ -624,7 +650,8 @@ private fun SummaryCell(
 ) {
     Column(modifier) {
         Text(label, style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Text(value, style = LedgerNumerals.of(MaterialTheme.typography.titleMedium), color = color,
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
@@ -651,7 +678,10 @@ private fun TransactionItem(
         animationSpec = tween(150),
         label = "tx-selected-bg",
     )
-    val title = remember(tx, categoryNames, merchantNameOf) { titleOf(tx, categoryNames, merchantNameOf) }
+    val transferLabel = stringResource(R.string.type_transfer)
+    val title = remember(tx, categoryNames, merchantNameOf, transferLabel) {
+        titleOf(tx, categoryNames, merchantNameOf, transferLabel)
+    }
     val time = remember(tx.transactionTime) { timeOfDay(tx.transactionTime) }
     val tags = remember(tx.id, tagIdsOf[tx.id], tagNames) {
         (tagIdsOf[tx.id].orEmpty()).mapNotNull { tagNames[it] }
@@ -678,8 +708,9 @@ private fun TransactionItem(
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
-                onClickLabel = if (selectionActive) (if (selected) "取消选择" else "选择") else "编辑账单",
-                onLongClickLabel = if (selectionActive) null else "多选",
+                onClickLabel = if (selectionActive) stringResource(if (selected) R.string.tx_deselect else R.string.tx_select)
+                    else stringResource(R.string.tx_edit),
+                onLongClickLabel = if (selectionActive) null else stringResource(R.string.tx_multi_select),
                 hapticFeedbackEnabled = false,
             )
             .then(if (selectionActive) Modifier.semantics { this.selected = selected } else Modifier)
@@ -705,11 +736,11 @@ private fun TransactionItem(
                         .background(transferContainerColor(), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Filled.SwapHoriz, contentDescription = "转账",
+                    Icon(Icons.Filled.SwapHoriz, contentDescription = stringResource(R.string.type_transfer),
                         tint = transferAmountColor(), modifier = Modifier.size(20.dp))
                 }
               } else {
-                val categoryName = categoryNames[tx.categoryId] ?: "其他"
+                val categoryName = categoryNames[tx.categoryId] ?: stringResource(R.string.label_other)
                 CategoryBadge(
                     name = categoryName,
                     type = if (tx.type == TransactionType.EXPENSE) {
@@ -768,8 +799,9 @@ private fun titleOf(
     tx: Transaction,
     categoryNames: Map<String, String>,
     merchantNameOf: Map<String, String>,
+    transferLabel: String,
 ): String = when {
     tx.merchantId != null && merchantNameOf[tx.merchantId] != null -> merchantNameOf[tx.merchantId]!!
     !tx.note.isNullOrEmpty() -> tx.note!!
-    else -> categoryNames[tx.categoryId] ?: "转账"
+    else -> categoryNames[tx.categoryId] ?: transferLabel
 }

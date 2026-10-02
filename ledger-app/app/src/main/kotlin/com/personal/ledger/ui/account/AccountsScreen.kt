@@ -61,6 +61,8 @@ import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.ui.common.signedMoney
 import com.personal.ledger.ui.theme.LedgerSpacing
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.AccountsViewModel
 
@@ -80,13 +82,13 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("资产") },
+                title = { Text(stringResource(R.string.account_title)) },
                 actions = {
                     IconButton(onClick = {
                         hapticNavigation()
                         showAddDialog = true
                     }) {
-                        Icon(Icons.Filled.Add, contentDescription = "新建账户")
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.account_new))
                     }
                     SettingsActionButton {
                         hapticNavigation()
@@ -113,20 +115,20 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 val liabilityTotal = state.liabilities.sumOf { it.balance }
                 LedgerHeroCard {
                     HeroFigure(
-                        label = "净资产",
+                        label = stringResource(R.string.account_net_worth),
                         value = signedMoney(state.netWorth, explicitPlus = false),
                         large = true,
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
                     Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
-                            label = "资产",
+                            label = stringResource(R.string.account_assets),
                             value = signedMoney(assetTotal, explicitPlus = false),
                             tone = HeroTone.INCOME,
                             modifier = Modifier.weight(1f),
                         )
                         HeroFigure(
-                            label = "负债",
+                            label = stringResource(R.string.account_liabilities),
                             value = signedMoney(liabilityTotal, explicitPlus = false),
                             tone = HeroTone.NEGATIVE,
                             divider = true,
@@ -136,9 +138,14 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
 
-            item { AccountSectionHeader("资产") }
+            item { AccountSectionHeader(stringResource(R.string.account_assets)) }
             if (state.assets.isEmpty()) {
-                item { SectionEmptyCard(title = "暂无资产账户", subtitle = "点右上角 + 新建") }
+                item {
+                    SectionEmptyCard(
+                        title = stringResource(R.string.account_no_assets),
+                        subtitle = stringResource(R.string.account_no_assets_hint),
+                    )
+                }
             } else {
                 val count = state.assets.size
                 itemsIndexed(state.assets, key = { _, awb -> awb.account.id }) { index, awb ->
@@ -154,9 +161,14 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
 
-            item { AccountSectionHeader("负债") }
+            item { AccountSectionHeader(stringResource(R.string.account_liabilities)) }
             if (state.liabilities.isEmpty()) {
-                item { SectionEmptyCard(title = "无负债账户", subtitle = "信用卡 / 贷款类账户会显示在这里") }
+                item {
+                    SectionEmptyCard(
+                        title = stringResource(R.string.account_no_liabilities),
+                        subtitle = stringResource(R.string.account_no_liabilities_hint),
+                    )
+                }
             } else {
                 val count = state.liabilities.size
                 itemsIndexed(state.liabilities, key = { _, awb -> awb.account.id }) { index, awb ->
@@ -174,7 +186,7 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
 
             // 已归档账户：点击进入详情，可恢复或彻底删除
             if (state.archived.isNotEmpty()) {
-                item { AccountSectionHeader("已归档") }
+                item { AccountSectionHeader(stringResource(R.string.account_archived)) }
                 val count = state.archived.size
                 itemsIndexed(state.archived, key = { _, awb -> "archived_" + awb.account.id }) { index, awb ->
                     LedgerGroupItem(index = index, count = count) {
@@ -285,13 +297,13 @@ private fun AddAccountDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("新建账户") },
+        title = { Text(stringResource(R.string.account_new)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("账户名称") },
+                    label = { Text(stringResource(R.string.account_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -299,13 +311,13 @@ private fun AddAccountDialog(
                 OutlinedTextField(
                     value = initialText,
                     onValueChange = { initialText = it },
-                    label = { Text("初始余额（负数表示负债）") },
+                    label = { Text(stringResource(R.string.account_initial_balance)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "类型",
+                    stringResource(R.string.account_type),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -327,10 +339,10 @@ private fun AddAccountDialog(
                 } else {
                     hapticReject()
                 }
-            }) { Text("创建") }
+            }) { Text(stringResource(R.string.account_create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -385,6 +397,8 @@ private fun AccountTypeOptionCard(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
     }

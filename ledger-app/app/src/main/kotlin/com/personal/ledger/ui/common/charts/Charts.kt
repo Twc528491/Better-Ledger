@@ -61,7 +61,11 @@ import com.personal.ledger.ui.common.rememberHapticTick
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.theme.LocalLedgerDarkTheme
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.util.Money
+import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.hypot
 
@@ -220,6 +224,10 @@ internal fun ReadoutFigure(
     }
 }
 
+/** 图表文字使用的当前界面语言（轴标签、读数的紧凑写法随语言变化）。 */
+@Composable
+internal fun chartLocale(): Locale = LocalConfiguration.current.locales[0]
+
 /** 坐标轴文字样式（等宽数字）。 */
 @Composable
 internal fun axisLabelStyle(): TextStyle =
@@ -231,14 +239,14 @@ fun RingChart(
     slices: List<ChartSlice>,
     total: Long,
     modifier: Modifier = Modifier,
-    centerLabel: String = "支出",
+    centerLabel: String = stringResource(R.string.chart_expense),
     currency: String = "CNY",
     selectedIndex: Int? = null,
     revealKey: Any? = Unit,
 ) {
     if (slices.isEmpty() || total <= 0) {
         Text(
-            "暂无数据",
+            stringResource(R.string.chart_no_data),
             modifier = modifier.padding(24.dp),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyMedium,
@@ -246,13 +254,16 @@ fun RingChart(
         )
         return
     }
-    val chartDescription = slices.joinToString("，") {
+    val separator = stringResource(R.string.chart_list_separator)
+    val itemFormat = stringResource(R.string.chart_ring_item)
+    val chartDescription = slices.joinToString(separator) {
         val percentage = (it.value.toDouble() / total.toDouble() * 100).toInt()
-        "${it.label}，${Money.formatWithCurrency(it.value, currency)}，$percentage%"
+        String.format(itemFormat, it.label, Money.formatWithCurrency(it.value, currency), percentage)
     }
+    val fullDescription = stringResource(R.string.chart_ring_description, centerLabel, chartDescription)
     val trackColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val reveal by rememberChartReveal(revealKey)
-    Canvas(modifier = modifier.semantics { contentDescription = "$centerLabel，$chartDescription" }) {
+    Canvas(modifier = modifier.semantics { contentDescription = fullDescription }) {
         val stroke = Stroke(width = size.minDimension * 0.14f, cap = StrokeCap.Butt)
         val inset = stroke.width / 2
         val arcSize = Size(size.minDimension - stroke.width, size.minDimension - stroke.width)
@@ -315,11 +326,13 @@ private fun ringSliceAt(offset: Offset, size: Size, slices: List<ChartSlice>, to
 fun RingChartWithLegend(
     slices: List<ChartSlice>,
     total: Long,
-    centerLabel: String = "支出",
+    centerLabel: String = stringResource(R.string.chart_expense),
     currency: String = "CNY",
     modifier: Modifier = Modifier,
     revealKey: Any? = Unit,
 ) {
+    val locale = chartLocale()
+    val legendItemFormat = stringResource(R.string.chart_ring_legend_item)
     var selected by rememberSaveable(revealKey, slices.size) { mutableStateOf<Int?>(null) }
     val tick = rememberSelectionTick()
     val select: (Int?) -> Unit = { index ->
@@ -366,7 +379,7 @@ fun RingChartWithLegend(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        ChartAxis.readoutMoney(selectedSlice?.value ?: total, currency),
+                        ChartAxis.readoutMoney(selectedSlice?.value ?: total, currency, locale = locale),
                         style = LedgerNumerals.of(MaterialTheme.typography.labelLarge),
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -375,7 +388,7 @@ fun RingChartWithLegend(
                     )
                     if (selectedSlice != null && total > 0L) {
                         Text(
-                            "占 ${percentOf(selectedSlice.value, total)}%",
+                            stringResource(R.string.chart_share, percentOf(selectedSlice.value, total)),
                             style = LedgerNumerals.of(MaterialTheme.typography.labelSmall),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -402,9 +415,12 @@ fun RingChartWithLegend(
                             .clickable(role = Role.Button) { select(index) }
                             .semantics(mergeDescendants = true) {
                                 this.selected = isSelected
-                                contentDescription =
-                                    "${slice.label}，${Money.formatWithCurrency(slice.value, currency)}，" +
-                                        "占${percentOf(slice.value, total)}%"
+                                contentDescription = String.format(
+                                    legendItemFormat,
+                                    slice.label,
+                                    Money.formatWithCurrency(slice.value, currency),
+                                    percentOf(slice.value, total),
+                                )
                             }
                             .padding(horizontal = 6.dp),
                     ) {
@@ -424,7 +440,7 @@ fun RingChartWithLegend(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            ChartAxis.readoutMoney(slice.value, currency),
+                            ChartAxis.readoutMoney(slice.value, currency, locale = locale),
                             style = LedgerNumerals.of(MaterialTheme.typography.bodySmall),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -494,5 +510,9 @@ internal fun DrawScope.drawValueGrid(
 internal fun List<TextLayoutResult>.maxLabelWidth(): Int = maxOfOrNull { it.size.width } ?: 0
 
 /** 在 [ticks] 上测量刻度文字。 */
-internal fun TextMeasurer.measureTicks(ticks: List<Long>, style: TextStyle): List<TextLayoutResult> =
-    ticks.map { measure(ChartAxis.compactLabel(it), style) }
+internal fun TextMeasurer.measureTicks(
+    ticks: List<Long>,
+    style: TextStyle,
+    locale: Locale = Locale.getDefault(),
+): List<TextLayoutResult> =
+    ticks.map { measure(ChartAxis.compactLabel(it, locale), style) }

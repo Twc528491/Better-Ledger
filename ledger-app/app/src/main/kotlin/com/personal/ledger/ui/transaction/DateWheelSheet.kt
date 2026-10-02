@@ -46,7 +46,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.ui.common.rememberHapticTick
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.ui.theme.LedgerNumerals
 import java.time.Instant
 import java.time.LocalDate
@@ -82,8 +86,15 @@ internal fun DateWheelSheet(
     val safeDay = day.coerceAtMost(lastDay)
     val selectedDate = LocalDate.of(year, month, safeDay)
     val shortcuts = remember(today) {
-        listOf("今天" to today, "昨天" to today.minusDays(1), "前天" to today.minusDays(2))
+        listOf(
+            R.string.label_today to today,
+            R.string.label_yesterday to today.minusDays(1),
+            R.string.label_day_before_yesterday to today.minusDays(2),
+        )
     }
+    val locale = LocalConfiguration.current.locales[0]
+    val yearFormat = stringResource(R.string.add_wheel_year_value)
+    val dayFormat = stringResource(R.string.add_wheel_day_value)
     val tick = rememberHapticTick()
 
     ModalBottomSheet(
@@ -94,9 +105,9 @@ internal fun DateWheelSheet(
             modifier = Modifier.fillMaxWidth()
                 .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 20.dp),
         ) {
-            Text("选择日期", style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.add_choose_date), style = MaterialTheme.typography.titleLarge)
             Text(
-                DatePickerSelection.longLabel(selectedDate),
+                DatePickerSelection.longLabel(selectedDate, locale),
                 style = LedgerNumerals.of(MaterialTheme.typography.bodyLarge),
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 2.dp),
@@ -114,7 +125,7 @@ internal fun DateWheelSheet(
                             day = date.dayOfMonth
                         },
                         label = {
-                            Text(label, modifier = Modifier.fillMaxWidth(),
+                            Text(stringResource(label), modifier = Modifier.fillMaxWidth(), maxLines = 1,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         },
                         modifier = Modifier.weight(1f).height(40.dp),
@@ -132,8 +143,8 @@ internal fun DateWheelSheet(
                     WheelColumn(
                         count = years.count(),
                         selectedIndex = year - years.first,
-                        label = { "${years.first + it}年" },
-                        description = "年",
+                        label = { yearFormat.format(years.first + it) },
+                        description = stringResource(R.string.add_wheel_year),
                         onSelected = { index ->
                             val y = years.first + index
                             if (y != year) { year = y; tick() }
@@ -143,8 +154,8 @@ internal fun DateWheelSheet(
                     WheelColumn(
                         count = 12,
                         selectedIndex = month - 1,
-                        label = { "${it + 1}月" },
-                        description = "月",
+                        label = { DateLabels.month(it + 1, locale) },
+                        description = stringResource(R.string.add_wheel_month),
                         onSelected = { index ->
                             if (index + 1 != month) { month = index + 1; tick() }
                         },
@@ -153,8 +164,8 @@ internal fun DateWheelSheet(
                     WheelColumn(
                         count = lastDay,
                         selectedIndex = safeDay - 1,
-                        label = { "${it + 1}日" },
-                        description = "日",
+                        label = { dayFormat.format(it + 1) },
+                        description = stringResource(R.string.add_wheel_day),
                         onSelected = { index ->
                             if (index + 1 != safeDay) { day = index + 1; tick() }
                         },
@@ -168,14 +179,14 @@ internal fun DateWheelSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 TextButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(48.dp)) {
-                    Text("取消")
+                    Text(stringResource(R.string.action_cancel))
                 }
                 Button(
                     onClick = {
                         onConfirm(DatePickerSelection.withPickedDate(initialTime, selectedDate, zone))
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
-                ) { Text("确定") }
+                ) { Text(stringResource(R.string.action_confirm)) }
             }
         }
     }
@@ -230,7 +241,7 @@ private fun WheelColumn(
         flingBehavior = rememberSnapFlingBehavior(state, SnapPosition.Center),
         contentPadding = PaddingValues(vertical = padding),
         modifier = modifier.height(WheelItemHeight * WheelVisibleItems)
-            .semantics { contentDescription = description + "滚轮" }
+            .semantics { contentDescription = description }
             .wheelEdgeFade(),
     ) {
         items(count = count, key = { it }) { index ->

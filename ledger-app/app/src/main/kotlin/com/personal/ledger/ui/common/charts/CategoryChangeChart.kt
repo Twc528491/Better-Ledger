@@ -33,7 +33,11 @@ import com.personal.ledger.ui.common.expenseAmountColor
 import com.personal.ledger.ui.common.incomeAmountColor
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.ui.theme.LedgerSpacing
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 import com.personal.ledger.util.Money
+import java.util.Locale
 import kotlin.math.abs
 
 /** 分类环比的一行。 */
@@ -71,25 +75,26 @@ fun CategoryChangeChart(
     val reveal by rememberChartReveal(revealKey)
     val totalDelta = currentTotal - previousTotal
     val totalPercent = if (previousTotal > 0L) Math.round(totalDelta * 100.0 / previousTotal) else null
+    val locale = chartLocale()
 
     ChartCard(modifier = modifier) {
         Column(modifier = Modifier.fillMaxSize().padding(LedgerSpacing.md)) {
             Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xs)) {
                 ReadoutFigure(
-                    label = "本月支出",
-                    value = ChartAxis.readoutMoney(currentTotal, currency),
+                    label = stringResource(R.string.chart_this_month_expense),
+                    value = ChartAxis.readoutMoney(currentTotal, currency, locale = locale),
                     modifier = Modifier.weight(1f),
                 )
                 ReadoutFigure(
-                    label = "上月支出",
-                    value = ChartAxis.readoutMoney(previousTotal, currency),
+                    label = stringResource(R.string.chart_last_month_expense),
+                    value = ChartAxis.readoutMoney(previousTotal, currency, locale = locale),
                     modifier = Modifier.weight(1f),
                 )
                 ReadoutFigure(
-                    label = "变化",
+                    label = stringResource(R.string.chart_change),
                     value = when {
-                        previousTotal <= 0L -> "上月无支出"
-                        totalPercent == null || totalDelta == 0L -> "持平"
+                        previousTotal <= 0L -> stringResource(R.string.chart_no_prev_expense)
+                        totalPercent == null || totalDelta == 0L -> stringResource(R.string.chart_flat)
                         totalDelta > 0L -> "▲${totalPercent}%"
                         else -> "▼${-totalPercent}%"
                     },
@@ -105,7 +110,7 @@ fun CategoryChangeChart(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        "各分类支出与上月持平",
+                        stringResource(R.string.chart_all_flat),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
@@ -121,6 +126,7 @@ fun CategoryChangeChart(
                     ChangeRow(
                         row = row,
                         currency = currency,
+                        locale = locale,
                         barFraction = (abs(row.delta).toDouble() / maxAbs.toDouble()).toFloat() * reveal,
                         barColor = if (row.delta > 0L) increaseColor else decreaseColor,
                         axisColor = axisColor,
@@ -130,7 +136,7 @@ fun CategoryChangeChart(
             }
             if (rows.size > visible.size) {
                 Text(
-                    "另有 ${rows.size - visible.size} 个分类有变化",
+                    pluralStringResource(R.plurals.chart_more_changes, rows.size - visible.size, rows.size - visible.size),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -139,8 +145,8 @@ fun CategoryChangeChart(
     }
 }
 
-private fun shortMoney(minor: Long, currency: String): String =
-    Money.symbolFor(currency) + ChartAxis.compactLabel(minor)
+private fun shortMoney(minor: Long, currency: String, locale: Locale): String =
+    Money.symbolFor(currency) + ChartAxis.compactLabel(minor, locale)
 
 @Composable
 private fun changeTextColor(delta: Long): Color = when {
@@ -153,24 +159,31 @@ private fun changeTextColor(delta: Long): Color = when {
 private fun ChangeRow(
     row: CategoryChangeRow,
     currency: String,
+    locale: Locale,
     barFraction: Float,
     barColor: Color,
     axisColor: Color,
     trackColor: Color,
 ) {
-    val deltaMoney = ChartAxis.readoutMoney(abs(row.delta), currency)
+    val deltaMoney = ChartAxis.readoutMoney(abs(row.delta), currency, locale = locale)
     val percentText = when {
         row.percent != null -> "${if (row.percent > 0) "+" else ""}${row.percent}%"
-        else -> "上月无"
+        else -> stringResource(R.string.chart_none_last_month)
     }
-    val direction = if (row.delta > 0L) "增加" else "减少"
+    val description = stringResource(
+        if (row.delta > 0L) R.string.chart_change_row_up else R.string.chart_change_row_down,
+        row.label,
+        ChartAxis.readoutMoney(row.current, currency, locale = locale),
+        ChartAxis.readoutMoney(row.previous, currency, locale = locale),
+        deltaMoney,
+        percentText,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 46.dp)
             .clearAndSetSemantics {
-                contentDescription = "${row.label}，本月${ChartAxis.readoutMoney(row.current, currency)}，" +
-                    "上月${ChartAxis.readoutMoney(row.previous, currency)}，$direction$deltaMoney，$percentText"
+                contentDescription = description
             },
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -185,7 +198,11 @@ private fun ChangeRow(
             )
             Text(
                 // 次要说明用紧凑金额，窄屏下也能完整显示。
-                "${shortMoney(row.current, currency)} · 上月 ${shortMoney(row.previous, currency)}",
+                stringResource(
+                    R.string.chart_change_row_detail,
+                    shortMoney(row.current, currency, locale),
+                    shortMoney(row.previous, currency, locale),
+                ),
                 style = LedgerNumerals.of(MaterialTheme.typography.labelSmall),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

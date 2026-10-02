@@ -76,7 +76,14 @@ import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.ui.settings.PurgeDialog
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
+import com.personal.ledger.util.DateLabels
 import com.personal.ledger.util.Money
+import com.personal.ledger.util.userMessage
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -86,6 +93,8 @@ import java.time.ZoneId
 @Composable
 fun AccountDetailScreen(container: AppContainer, navController: NavHostController, accountId: String) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     val account by container.accountRepository.observeByLedger(ledgerOf(container))
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val txList by container.transactionRepository.observeByLedger(ledgerOf(container))
@@ -111,13 +120,13 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(acc?.name ?: "账户详情") },
+                title = { Text(acc?.name ?: stringResource(R.string.account_details), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -125,7 +134,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         hapticNavigation()
                         showEdit = true
                     }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "编辑")
+                        Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit))
                     }
                 },
             )
@@ -147,7 +156,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         AccountBadge(type = acc?.type ?: AccountType.OTHER, sizeDp = 40)
                         Column(modifier = Modifier.padding(start = LedgerSpacing.sm)) {
                             Text(
-                                "当前余额",
+                                stringResource(R.string.account_current_balance),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -159,7 +168,11 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         }
                     }
                     Text(
-                        "类型：${accountTypeLabel(acc?.type ?: AccountType.OTHER)} · 初始余额：${Money.formatWithCurrency(acc?.initialBalance ?: 0L, currency)}",
+                        stringResource(
+                            R.string.account_detail_summary,
+                            accountTypeLabel(acc?.type ?: AccountType.OTHER),
+                            Money.formatWithCurrency(acc?.initialBalance ?: 0L, currency),
+                        ),
                         style = LedgerNumerals.of(MaterialTheme.typography.bodySmall),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -168,12 +181,12 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
             if (acc?.isArchived == true) {
                 item {
                     LedgerGroup(
-                        title = "已归档",
+                        title = stringResource(R.string.account_archived),
                         modifier = Modifier.padding(top = LedgerSpacing.lg),
                     ) {
                         LedgerListRow(
-                            title = "恢复账户",
-                            subtitle = "恢复后重新计入资产 / 负债",
+                            title = stringResource(R.string.account_restore),
+                            subtitle = stringResource(R.string.account_restore_hint),
                             leading = { LedgerIconTile(Icons.Outlined.Restore) },
                             onClick = {
                                 scope.launch {
@@ -184,9 +197,9 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                             },
                         )
                         LedgerListRow(
-                            title = "彻底删除账户",
+                            title = stringResource(R.string.account_purge),
                             titleColor = MaterialTheme.colorScheme.error,
-                            subtitle = "同时删除涉及该账户的全部账单与定时扣款",
+                            subtitle = stringResource(R.string.account_purge_hint),
                             leading = {
                                 LedgerIconTile(
                                     Icons.Outlined.DeleteForever,
@@ -204,7 +217,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
             }
             item {
                 LedgerSectionHeader(
-                    title = "交易记录",
+                    title = stringResource(R.string.account_transactions),
                     modifier = Modifier.padding(start = LedgerSpacing.xxs, top = LedgerSpacing.lg, bottom = LedgerSpacing.xxs),
                 )
             }
@@ -217,8 +230,8 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                     ) {
                         EmptyState(
                             icon = Icons.AutoMirrored.Outlined.ReceiptLong,
-                            title = "这个账户还没有交易",
-                            subtitle = "记账或转账后会显示在这里",
+                            title = stringResource(R.string.account_no_transactions),
+                            subtitle = stringResource(R.string.account_no_transactions_hint),
                         )
                     }
                 }
@@ -246,7 +259,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                TimeUtils.formatMonthDay(tx.transactionTime),
+                                DateLabels.monthDay(TimeUtils.localDateOf(tx.transactionTime), locale),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -271,13 +284,22 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
         val i = impact
         PurgeDialog(
             container = container,
-            title = "彻底删除账户",
+            title = stringResource(R.string.account_purge),
             impact = if (i == null) {
-                "正在统计影响范围…"
+                stringResource(R.string.account_purge_calculating)
             } else {
-                "将永久删除账户“${acc.name}”，以及涉及它的 ${i.transactionCount} 笔账单（含回收站，其中转账 ${i.transferCount} 笔）" +
-                    "和 ${i.recurringCount} 条定时扣款。" +
-                    if (i.transferCount > 0) "转账被删除后，转账另一端账户的余额会随之变化。" else ""
+                val summary = stringResource(
+                    R.string.account_purge_impact,
+                    acc.name,
+                    pluralStringResource(R.plurals.account_purge_tx_count, i.transactionCount, i.transactionCount, i.transferCount),
+                    pluralStringResource(R.plurals.account_purge_recurring_count, i.recurringCount, i.recurringCount),
+                )
+                if (i.transferCount > 0) {
+                    stringResource(R.string.account_purge_impact_with_note, summary,
+                        stringResource(R.string.account_purge_transfer_note))
+                } else {
+                    summary
+                }
             },
             confirmEnabled = i != null,
             onDismiss = { showPurge = false },
@@ -302,7 +324,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         error = null
                     }.onFailure {
                         hapticReject()
-                        error = it.message
+                        error = it.userMessage(context, R.string.account_update_failed)
                     }
                 }
             },
@@ -318,11 +340,14 @@ private fun ledgerOf(container: AppContainer): String {
     return ledger?.id ?: ""
 }
 
-private fun typeLabelOf(t: TransactionType) = when (t) {
-    TransactionType.EXPENSE -> "支出"
-    TransactionType.INCOME -> "收入"
-    TransactionType.TRANSFER -> "转账"
-}
+@Composable
+private fun typeLabelOf(t: TransactionType) = stringResource(
+    when (t) {
+        TransactionType.EXPENSE -> R.string.type_expense
+        TransactionType.INCOME -> R.string.type_income
+        TransactionType.TRANSFER -> R.string.type_transfer
+    },
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -343,23 +368,24 @@ private fun EditAccountDialog(
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
     val hapticReject = rememberHapticReject()
+    val nameRequiredMessage = stringResource(R.string.account_name_required)
 
         AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("编辑账户") },
+        title = { Text(stringResource(R.string.account_edit)) },
         text = {
             Column(
                 modifier = Modifier
                     .heightIn(max = 560.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                OutlinedTextField(value = name, onValueChange = { name = it; nameError = null }, label = { Text("名称") }, singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it; nameError = null }, label = { Text(stringResource(R.string.account_name_short)) }, singleLine = true)
                 nameError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = initialText, onValueChange = { initialText = it }, label = { Text("初始余额") }, singleLine = true)
+                OutlinedTextField(value = initialText, onValueChange = { initialText = it }, label = { Text(stringResource(R.string.account_opening_balance)) }, singleLine = true)
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "类型",
+                    stringResource(R.string.account_type),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -377,12 +403,12 @@ private fun EditAccountDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("初始时间", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.account_opening_date), style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
                         hapticNavigation()
                         showDatePicker = true
                     }) {
-                        Text(TimeUtils.formatMonthDay(initialTime))
+                        Text(DateLabels.monthDay(TimeUtils.localDateOf(initialTime), LocalConfiguration.current.locales[0]))
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -391,12 +417,12 @@ private fun EditAccountDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(if (archived) "已归档" else "归档账户", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(if (archived) R.string.account_archived else R.string.account_archive), style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
                         hapticLight()
                         archived = !archived
                     }) {
-                        Text(if (archived) "恢复" else "归档")
+                        Text(stringResource(if (archived) R.string.action_restore else R.string.action_archive))
                     }
                 }
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -406,7 +432,7 @@ private fun EditAccountDialog(
             Button(onClick = {
                 if (name.isBlank()) {
                     hapticReject()
-                    nameError = "名称不能为空"
+                    nameError = nameRequiredMessage
                     return@Button
                 }
                 val minor = Money.parseToMinor(initialText, allowNegative = true) ?: run {
@@ -414,10 +440,10 @@ private fun EditAccountDialog(
                     return@Button
                 }
                 onConfirm(name.trim(), type, minor, initialTime, archived)
-            }) { Text("保存") }
+            }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 
@@ -435,10 +461,10 @@ private fun EditAccountDialog(
                     }
                     hapticConfirm()
                     showDatePicker = false
-                }) { Text("确定") }
+                }) { Text(stringResource(R.string.action_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
+                TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         ) {
             DatePicker(state = datePickerState)
