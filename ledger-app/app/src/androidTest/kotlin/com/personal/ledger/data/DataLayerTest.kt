@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.personal.ledger.R
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.entity.CategoryEntity
 import com.personal.ledger.data.local.entity.LedgerEntity
@@ -21,6 +22,7 @@ import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -83,7 +85,7 @@ class DataLayerTest {
         ledgerRepo.ensureDefaultLedger()
         val ledgers = db.ledgerDao().getAll()
         assertEquals(1, ledgers.size)
-        assertEquals("个人账本", ledgers[0].name)
+        assertEquals(DefaultSeed.LEDGER_NAME_KEY, ledgers[0].name)
         assertEquals("CNY", ledgers[0].baseCurrency)
         // 固定种子规模，防止新增类别漏接到新账本初始化。
         assertEquals(32, DefaultSeed.EXPENSE_CATEGORIES.size)
@@ -146,24 +148,24 @@ class DataLayerTest {
         val salaryId = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.INCOME).first().id
         val now = TimeUtils.now()
 
-        fun msgOf(result: Result<*>) = result.exceptionOrNull()?.message
+        fun msgOf(result: Result<*>) = (result.exceptionOrNull() as? UserFacingException)?.messageRes
 
         // 金额必须为正
-        assertEquals("金额必须大于 0", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 0, "CNY", cashId, categoryId = foodId, transactionTime = now))))
+        assertEquals(R.string.err_amount_positive, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 0, "CNY", cashId, categoryId = foodId, transactionTime = now))))
         // 支出不能关联收入分类
-        assertEquals("分类类型与交易类型不一致", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, categoryId = salaryId, transactionTime = now))))
+        assertEquals(R.string.err_category_type_mismatch, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, categoryId = salaryId, transactionTime = now))))
         // 支出必须填分类
-        assertEquals("请选择分类", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, transactionTime = now))))
+        assertEquals(R.string.err_select_category, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, transactionTime = now))))
         // 转账必须有转入账户且不能相同
-        assertEquals("请选择转入账户", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 100, "CNY", cashId, transactionTime = now))))
-        assertEquals("转出与转入账户不能相同", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 100, "CNY", cashId, targetAccountId = cashId, transactionTime = now))))
+        assertEquals(R.string.err_select_target_account, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 100, "CNY", cashId, transactionTime = now))))
+        assertEquals(R.string.err_same_transfer_accounts, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 100, "CNY", cashId, targetAccountId = cashId, transactionTime = now))))
         // 转账不设置分类
-        assertEquals("转账不设置分类", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 100, "CNY", cashId, targetAccountId = "other", categoryId = foodId, transactionTime = now))))
+        assertEquals(R.string.err_transfer_no_category, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 100, "CNY", cashId, targetAccountId = "other", categoryId = foodId, transactionTime = now))))
         // 时间不能早于账户初始时间
         val early = now - 1000
-        assertEquals("时间不能早于账户初始时间", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, categoryId = foodId, transactionTime = early))))
+        assertEquals(R.string.err_time_before_account_start, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "CNY", cashId, categoryId = foodId, transactionTime = early))))
         // 币种必须与账本一致
-        assertEquals("币种必须与账本一致", msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "USD", cashId, categoryId = foodId, transactionTime = now))))
+        assertEquals(R.string.err_currency_mismatch, msgOf(txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 100, "USD", cashId, categoryId = foodId, transactionTime = now))))
     }
 
     @Test

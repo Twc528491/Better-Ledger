@@ -1,5 +1,9 @@
 package com.personal.ledger.data.backup
 
+import android.content.Context
+import androidx.annotation.StringRes
+import com.personal.ledger.R
+import com.personal.ledger.util.AppStrings
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.Locale
@@ -30,7 +34,7 @@ data class BackupEntry(
     val kind: BackupFileKind get() = BackupCatalog.classify(name)
 }
 
-/** 备份文件分类、排序与显示文案（纯函数，可 JVM 测试）。 */
+/** 备份文件分类、排序与显示文案（除按语言解析的文案外均为纯函数，可 JVM 测试）。 */
 object BackupCatalog {
 
     const val PRE_RESTORE_PREFIX = "pre-restore-"
@@ -71,46 +75,81 @@ object BackupCatalog {
         entries.map { it.name }
             .filter { classify(it) == BackupFileKind.BACKUP && BackupRotation.parseTime(it) != null }
 
-    fun typeLabel(kind: BackupFileKind): String = when (kind) {
-        BackupFileKind.BACKUP -> "备份"
-        BackupFileKind.PRE_RESTORE -> "恢复前备份"
-        BackupFileKind.OTHER -> "其他文件"
+
+    /** 文件类别的显示名资源。 */
+    @StringRes
+    fun typeLabelRes(kind: BackupFileKind): Int = when (kind) {
+        BackupFileKind.BACKUP -> R.string.data_backup_kind_backup
+        BackupFileKind.PRE_RESTORE -> R.string.data_backup_kind_pre_restore
+        BackupFileKind.OTHER -> R.string.data_backup_kind_other
     }
 
-    /** 备份时间显示，如 “2026-10-02 14:30”；0 表示未知。 */
+    /** 文件类别的显示名（当前应用语言）。Compose 中可用 stringResource([typeLabelRes])。 */
+    fun typeLabel(kind: BackupFileKind): String = AppStrings.get(typeLabelRes(kind))
+
+    /** 备份时间显示，如 “2026-10-02 14:30”；0 表示未知，返回 null。 */
+    fun formatTimeOrNull(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String? =
+        if (epochMs <= 0L) null else DISPLAY_TIME.format(java.time.Instant.ofEpochMilli(epochMs).atZone(zone))
+
+    /** 备份时间显示；未知时显示“时间未知”（当前应用语言）。 */
     fun formatTime(epochMs: Long, zone: ZoneId = ZoneId.systemDefault()): String =
-        if (epochMs <= 0L) {
-            "时间未知"
-        } else {
-            DISPLAY_TIME.format(java.time.Instant.ofEpochMilli(epochMs).atZone(zone))
-        }
+        formatTimeOrNull(epochMs, zone) ?: AppStrings.get(R.string.data_backup_time_unknown)
 
     private val DISPLAY_TIME = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
-    /** 人类可读的文件大小，如 “856 B”“12.4 KB”“1.2 MB”。 */
-    fun formatSize(bytes: Long): String = when {
-        bytes < 0 -> "未知大小"
+    /** 人类可读的文件大小，如 “856 B”“12.4 KB”“1.2 MB”；未知（负数）返回 null。 */
+    fun formatSizeOrNull(bytes: Long): String? = when {
+        bytes < 0 -> null
         bytes < 1024 -> "$bytes B"
         bytes < 1024 * 1024 -> String.format(Locale.ROOT, "%.1f KB", bytes / 1024.0)
         else -> String.format(Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0))
     }
 
-    /**
-     * 把 SAF 树的 documentId（如 “primary:Documents/账本”）转换为易读的位置文字。
-     * 无法识别时返回 “已选择的文件夹”。
-     */
-    fun describeTreeDocumentId(documentId: String?): String {
-        if (documentId.isNullOrBlank()) return "已选择的文件夹"
+    /** 人类可读的文件大小；未知时显示“未知大小”（当前应用语言）。 */
+    fun formatSize(bytes: Long): String =
+        formatSizeOrNull(bytes) ?: AppStrings.get(R.string.data_backup_size_unknown)
+
+    /** SAF 树位置：资源化的卷名（可带子路径），或无法翻译的原始路径。 */
+    sealed interface TreeLocation {
+        /** [res] 为不带路径的卷名，[pathRes] 为带 “%1$s” 子路径的格式。 */
+        data class Named(@StringRes val res: Int, @StringRes val pathRes: Int, val path: String) : TreeLocation
+        data class Raw(val path: String) : TreeLocation
+    }
+
+    /** 解析 SAF 树的 documentId（如 “primary:Documents/账本”）；无法识别时为“已选择的文件夹”。 */
+    fun treeLocation(documentId: String?): TreeLocation {
+        val selected = TreeLocation.Named(R.string.data_location_selected_folder, R.string.data_location_selected_folder, "")
+        if (documentId.isNullOrBlank()) return selected
         val volume = documentId.substringBefore(':', missingDelimiterValue = "")
         val path = documentId.substringAfter(':', missingDelimiterValue = documentId).trim('/')
         return when {
-            volume == "raw" -> documentId.substringAfter(':').ifEmpty { "已选择的文件夹" }
-            volume == "primary" -> if (path.isEmpty()) "内部存储" else "内部存储/$path"
-            volume == "home" -> if (path.isEmpty()) "文档" else "文档/$path"
-            volume == "downloads" -> "下载"
+            volume == "raw" -> documentId.substringAfter(':').takeIf { it.isNotEmpty() }
+                ?.let { TreeLocation.Raw(it) } ?: selected
+            volume == "primary" ->
+                TreeLocation.Named(R.string.data_location_internal, R.string.data_location_internal_path, path)
+            volume == "home" ->
+                TreeLocation.Named(R.string.data_location_documents, R.string.data_location_documents_path, path)
+            volume == "downloads" ->
+                TreeLocation.Named(R.string.data_location_downloads, R.string.data_location_downloads, "")
             volume.isNotEmpty() && volume.matches(Regex("[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}")) ->
-                if (path.isEmpty()) "存储卡" else "存储卡/$path"
-            else -> "已选择的文件夹"
+                TreeLocation.Named(R.string.data_location_sd_card, R.string.data_location_sd_card_path, path)
+            else -> selected
+        }
+    }
+
+    /**
+     * 把 SAF 树的 documentId 转换为易读的位置文字（如 “内部存储/Documents/账本”）。
+     * [context] 为 null 时按当前应用语言解析。
+     */
+    fun describeTreeDocumentId(documentId: String?, context: Context? = null): String {
+        val resolve: (Int, Array<out Any>) -> String = { id, args ->
+            if (context != null) context.getString(id, *args) else AppStrings.get(id, *args)
+        }
+        return when (val location = treeLocation(documentId)) {
+            is TreeLocation.Raw -> location.path
+            is TreeLocation.Named ->
+                if (location.path.isEmpty()) resolve(location.res, emptyArray())
+                else resolve(location.pathRes, arrayOf(location.path))
         }
     }
 }

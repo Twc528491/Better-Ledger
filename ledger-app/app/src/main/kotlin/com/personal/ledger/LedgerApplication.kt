@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.util.AppLanguage
+import com.personal.ledger.util.AppStrings
 import com.personal.ledger.worker.RecurringChargeScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +24,7 @@ class LedgerApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppStrings.init(this)
         container = AppContainer(this)
         applicationScope.launch {
             RecurringChargeScheduler.ensurePeriodic(this@LedgerApplication)

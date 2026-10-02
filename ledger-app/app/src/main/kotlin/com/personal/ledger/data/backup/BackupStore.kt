@@ -10,6 +10,9 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.documentfile.provider.DocumentFile
+import com.personal.ledger.R
+import com.personal.ledger.util.LocaleContext
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -56,10 +59,11 @@ interface BackupStore {
 class FileBackupStore(
     private val dir: File,
     override val kind: BackupStoreKind,
-    private val label: String,
+    /** 位置说明（每次调用时解析，跟随当前应用语言）。 */
+    private val label: () -> String,
 ) : BackupStore {
 
-    override fun describe(): String = label
+    override fun describe(): String = label()
 
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         (dir.isDirectory || dir.mkdirs()) && dir.canWrite()
@@ -70,14 +74,14 @@ class FileBackupStore(
     }
 
     override suspend fun write(name: String, bytes: ByteArray): BackupEntry = withContext(Dispatchers.IO) {
-        if (!dir.isDirectory && !dir.mkdirs()) throw IllegalStateException("无法创建备份目录")
+        if (!dir.isDirectory && !dir.mkdirs()) throw UserFacingException(R.string.err_create_backup_dir)
         val target = File(dir, name)
         // 先写临时文件再改名，避免半截文件被当作备份
         val temp = File(dir, "$name.tmp")
         temp.writeBytes(bytes)
         if (!temp.renameTo(target)) {
             temp.delete()
-            throw IllegalStateException("无法写入备份文件")
+            throw UserFacingException(R.string.err_write_backup_file)
         }
         target.toEntry()
     }
@@ -91,9 +95,9 @@ class FileBackupStore(
     }
 
     private fun fileOf(entry: BackupEntry): File {
-        val file = File(Uri.parse(entry.location).path ?: throw IllegalArgumentException("无效的文件位置"))
+        val file = File(Uri.parse(entry.location).path ?: throw UserFacingException(R.string.err_invalid_file_location))
         // 只允许访问本目录内的文件
-        if (file.parentFile?.canonicalPath != dir.canonicalPath) throw IllegalArgumentException("文件不在备份目录中")
+        if (file.parentFile?.canonicalPath != dir.canonicalPath) throw UserFacingException(R.string.err_file_outside_backup_dir)
         return file
     }
 
@@ -116,7 +120,8 @@ class MediaStoreBackupStore(private val context: Context) : BackupStore {
 
     override val kind = BackupStoreKind.DEFAULT_SHARED
 
-    override fun describe(): String = "内部存储/$RELATIVE_PATH".trimEnd('/')
+    override fun describe(): String =
+        LocaleContext.getString(context, R.string.data_location_internal_path, RELATIVE_PATH.trimEnd('/'))
 
     private val collection: Uri get() = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
 
@@ -166,10 +171,10 @@ class MediaStoreBackupStore(private val context: Context) : BackupStore {
             put(MediaStore.MediaColumns.RELATIVE_PATH, RELATIVE_PATH)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
-        val uri = resolver.insert(collection, values) ?: throw IllegalStateException("无法在默认目录创建备份文件")
+        val uri = resolver.insert(collection, values) ?: throw UserFacingException(R.string.err_create_default_backup)
         try {
             resolver.openOutputStream(uri, "w")?.use { it.write(bytes) }
-                ?: throw IllegalStateException("无法写入备份文件")
+                ?: throw UserFacingException(R.string.err_write_backup_file)
             resolver.update(
                 uri,
                 ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) },
@@ -188,7 +193,7 @@ class MediaStoreBackupStore(private val context: Context) : BackupStore {
 
     override suspend fun open(entry: BackupEntry): InputStream = withContext(Dispatchers.IO) {
         context.contentResolver.openInputStream(Uri.parse(entry.location))
-            ?: throw IllegalStateException("无法读取备份文件")
+            ?: throw UserFacingException(R.string.err_backup_read)
     }
 
     override suspend fun delete(entry: BackupEntry): Boolean = withContext(Dispatchers.IO) {
@@ -216,6 +221,7 @@ class SafBackupStore(
 
     override fun describe(): String = BackupCatalog.describeTreeDocumentId(
         runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull(),
+        LocaleContext.of(context),
     )
 
     /** 持久化授权仍在且目录存在、可写。 */
@@ -230,7 +236,7 @@ class SafBackupStore(
     }
 
     private fun dir(): DocumentFile =
-        DocumentFile.fromTreeUri(context, treeUri) ?: throw IllegalStateException("无法访问备份文件夹")
+        DocumentFile.fromTreeUri(context, treeUri) ?: throw UserFacingException(R.string.err_access_backup_folder)
 
     override suspend fun list(): List<BackupEntry> = withContext(Dispatchers.IO) {
         dir().listFiles().filter { it.isFile }.mapNotNull { file ->
@@ -241,10 +247,10 @@ class SafBackupStore(
 
     override suspend fun write(name: String, bytes: ByteArray): BackupEntry = withContext(Dispatchers.IO) {
         val file = dir().createFile(BackupConstants.MIME_JSON, name)
-            ?: throw IllegalStateException("无法在备份文件夹中创建文件")
+            ?: throw UserFacingException(R.string.err_create_in_backup_folder)
         try {
             context.contentResolver.openOutputStream(file.uri, "w")?.use { it.write(bytes) }
-                ?: throw IllegalStateException("无法写入备份文件")
+                ?: throw UserFacingException(R.string.err_write_backup_file)
         } catch (e: Exception) {
             runCatching { file.delete() }
             throw e
@@ -254,7 +260,7 @@ class SafBackupStore(
 
     override suspend fun open(entry: BackupEntry): InputStream = withContext(Dispatchers.IO) {
         context.contentResolver.openInputStream(Uri.parse(entry.location))
-            ?: throw IllegalStateException("无法读取备份文件")
+            ?: throw UserFacingException(R.string.err_backup_read)
     }
 
     override suspend fun delete(entry: BackupEntry): Boolean = withContext(Dispatchers.IO) {
@@ -293,19 +299,21 @@ class BackupStores(private val context: Context) {
         } else {
             val external = context.getExternalFilesDir("backups")
             if (external != null) {
-                FileBackupStore(external, BackupStoreKind.DEFAULT_APP_FILES, "应用专属目录（卸载应用时会一并删除）")
+                FileBackupStore(external, BackupStoreKind.DEFAULT_APP_FILES) { label(R.string.data_store_app_external) }
             } else {
-                FileBackupStore(
-                    File(context.filesDir, "backups"),
-                    BackupStoreKind.DEFAULT_APP_FILES,
-                    "应用内部目录（卸载应用时会一并删除）",
-                )
+                FileBackupStore(File(context.filesDir, "backups"), BackupStoreKind.DEFAULT_APP_FILES) {
+                    label(R.string.data_store_app_internal)
+                }
             }
         }
 
     /** 恢复前备份的兜底目录（filesDir/pre-restore-backups）。 */
     fun internalPreRestoreStore(): BackupStore =
-        FileBackupStore(File(context.filesDir, "pre-restore-backups"), BackupStoreKind.INTERNAL, "应用内部（恢复前备份）")
+        FileBackupStore(File(context.filesDir, "pre-restore-backups"), BackupStoreKind.INTERNAL) {
+            label(R.string.data_store_pre_restore)
+        }
+
+    private fun label(id: Int): String = LocaleContext.getString(context, id)
 
     fun customStore(treeUri: String): SafBackupStore = SafBackupStore(context, Uri.parse(treeUri))
 

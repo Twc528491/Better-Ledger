@@ -1,12 +1,15 @@
 package com.personal.ledger.data.repository
 
+import androidx.annotation.StringRes
 import androidx.room.withTransaction
+import com.personal.ledger.R
 import com.personal.ledger.data.local.dao.LedgerPurgeCounts
 import com.personal.ledger.data.local.database.AppDatabase
 import com.personal.ledger.data.local.database.RecurringDatabaseGate
 import com.personal.ledger.domain.calc.PurgeRules
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.sync.withLock
 
 /** 删除分类前的影响评估。 */
@@ -55,8 +58,8 @@ class PurgeRepository(private val database: AppDatabase) {
     /** 删除标签及其与交易的关联；交易本身保留。 */
     suspend fun purgeTag(tagId: String): Result<Unit> = purgeResult {
         database.withTransaction {
-            val tag = database.tagDao().getById(tagId) ?: throw NoSuchElementException("标签不存在")
-            requireArchived(tag.isArchived, "标签")
+            val tag = database.tagDao().getById(tagId) ?: throw UserFacingException(R.string.err_tag_not_found)
+            requireArchived(tag.isArchived, R.string.err_purge_archived_tag)
             dao.deleteTagLinks(tagId)
             dao.deleteTag(tagId)
         }
@@ -70,8 +73,8 @@ class PurgeRepository(private val database: AppDatabase) {
     /** 删除商家及其分类关联；引用它的交易（含回收站）改为“无商家”。 */
     suspend fun purgeMerchant(merchantId: String): Result<Unit> = purgeResult {
         database.withTransaction {
-            val merchant = database.merchantDao().getById(merchantId) ?: throw NoSuchElementException("商家不存在")
-            requireArchived(merchant.isArchived, "商家")
+            val merchant = database.merchantDao().getById(merchantId) ?: throw UserFacingException(R.string.err_merchant_not_found)
+            requireArchived(merchant.isArchived, R.string.err_purge_archived_merchant)
             dao.clearMerchantOnTransactions(merchantId, TimeUtils.now())
             dao.deleteMerchantLinks(merchantId)
             dao.deleteMerchant(merchantId)
@@ -81,7 +84,7 @@ class PurgeRepository(private val database: AppDatabase) {
     // ---------- 分类 ----------
 
     suspend fun categoryPlan(categoryId: String): CategoryPurgePlan {
-        val entity = database.categoryDao().getById(categoryId) ?: throw NoSuchElementException("分类不存在")
+        val entity = database.categoryDao().getById(categoryId) ?: throw UserFacingException(R.string.err_category_not_found)
         val all = database.categoryDao().getByLedger(entity.ledgerId).map { it.toDomain() }
         return buildCategoryPlan(entity.toDomain(), all)
     }
@@ -111,18 +114,18 @@ class PurgeRepository(private val database: AppDatabase) {
         RecurringDatabaseGate.mutex.withLock {
             database.withTransaction {
                 val entity = database.categoryDao().getById(categoryId)
-                    ?: throw NoSuchElementException("分类不存在")
-                requireArchived(entity.isArchived, "分类")
+                    ?: throw UserFacingException(R.string.err_category_not_found)
+                requireArchived(entity.isArchived, R.string.err_purge_archived_category)
                 val all = database.categoryDao().getByLedger(entity.ledgerId).map { it.toDomain() }
                 val plan = buildCategoryPlan(entity.toDomain(), all)
                 if (plan.blocked) {
-                    throw IllegalStateException("该分类下还有 ${plan.activeChildren.size} 个使用中的二级分类，请先删除或停用它们")
+                    throw UserFacingException(R.string.err_purge_active_children, plan.activeChildren.size)
                 }
                 val ids = plan.removed.map { it.id }
                 if (plan.needsReplacement) {
                     val replacement = replacementId?.let { id -> all.firstOrNull { it.id == id } }
                     PurgeRules.validateReplacement(plan.category, replacement, all, ids)
-                        ?.let { throw IllegalArgumentException(it) }
+                        ?.let { throw UserFacingException(it) }
                     val now = TimeUtils.now()
                     dao.moveTransactionsToCategory(ids, replacement!!.id, now)
                     dao.moveRecurringToCategory(ids, replacement.id, now)
@@ -151,8 +154,8 @@ class PurgeRepository(private val database: AppDatabase) {
         RecurringDatabaseGate.mutex.withLock {
             database.withTransaction {
                 val account = database.accountDao().getById(accountId)
-                    ?: throw NoSuchElementException("账户不存在")
-                requireArchived(account.isArchived, "账户")
+                    ?: throw UserFacingException(R.string.err_account_not_found)
+                requireArchived(account.isArchived, R.string.err_purge_archived_account)
                 dao.deleteOccurrencesForAccount(accountId)
                 dao.deleteRecurringForAccount(accountId)
                 dao.deleteTagLinksForAccount(accountId)
@@ -174,10 +177,10 @@ class PurgeRepository(private val database: AppDatabase) {
         RecurringDatabaseGate.mutex.withLock {
             database.withTransaction {
                 val ledger = database.ledgerDao().getById(ledgerId)
-                    ?: throw NoSuchElementException("账本不存在")
-                requireArchived(ledger.isArchived, "账本")
+                    ?: throw UserFacingException(R.string.err_ledger_not_found)
+                requireArchived(ledger.isArchived, R.string.err_purge_archived_ledger)
                 if (database.ledgerDao().getAll().none { it.id != ledgerId && !it.isArchived }) {
-                    throw IllegalStateException("至少需要保留一个未归档账本")
+                    throw UserFacingException(R.string.err_keep_one_ledger)
                 }
                 dao.deleteOccurrencesForLedger(ledgerId)
                 dao.deleteRecurringForLedger(ledgerId)
@@ -194,8 +197,8 @@ class PurgeRepository(private val database: AppDatabase) {
         }
     }
 
-    private fun requireArchived(isArchived: Boolean, what: String) {
-        if (!isArchived) throw IllegalStateException("只能彻底删除已归档的$what，请先归档")
+    private fun requireArchived(isArchived: Boolean, @StringRes notArchivedError: Int) {
+        if (!isArchived) throw UserFacingException(notArchivedError)
     }
 
     private inline fun <T> purgeResult(block: () -> T): Result<Unit> = try {

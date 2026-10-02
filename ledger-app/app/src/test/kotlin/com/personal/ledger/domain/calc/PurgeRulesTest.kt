@@ -1,5 +1,6 @@
 package com.personal.ledger.domain.calc
 
+import com.personal.ledger.R
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
 import org.junit.Assert.assertEquals
@@ -56,12 +57,12 @@ class PurgeRulesTest {
         val removed = listOf("food", "breakfast")
         assertNull(PurgeRules.validateReplacement(food, traffic, all, removed))
         assertNull(PurgeRules.validateReplacement(food, taxi, all, removed))
-        assertEquals("请选择替代分类", PurgeRules.validateReplacement(food, null, all, removed))
-        assertEquals("替代分类不能是将被删除的分类", PurgeRules.validateReplacement(food, breakfast, all, removed))
-        assertEquals("替代分类类型必须一致", PurgeRules.validateReplacement(food, salary, all, removed))
-        assertEquals("替代分类必须属于同一账本", PurgeRules.validateReplacement(food, otherLedger, all, removed))
-        assertEquals("替代分类已归档", PurgeRules.validateReplacement(food, old, all, removed))
-        assertEquals("替代分类的上级分类已归档", PurgeRules.validateReplacement(food, orphan, all, removed))
+        assertEquals(R.string.err_select_replacement, PurgeRules.validateReplacement(food, null, all, removed))
+        assertEquals(R.string.err_replacement_removed, PurgeRules.validateReplacement(food, breakfast, all, removed))
+        assertEquals(R.string.err_replacement_type, PurgeRules.validateReplacement(food, salary, all, removed))
+        assertEquals(R.string.err_replacement_other_ledger, PurgeRules.validateReplacement(food, otherLedger, all, removed))
+        assertEquals(R.string.err_replacement_archived, PurgeRules.validateReplacement(food, old, all, removed))
+        assertEquals(R.string.err_replacement_parent_archived, PurgeRules.validateReplacement(food, orphan, all, removed))
     }
 
     @Test

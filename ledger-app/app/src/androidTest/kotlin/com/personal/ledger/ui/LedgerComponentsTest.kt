@@ -7,6 +7,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.personal.ledger.R
 import com.personal.ledger.data.settings.ThemeMode
 import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.ui.common.CategoryBadge
@@ -69,7 +71,9 @@ class LedgerComponentsTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("咖啡分类图标")
-            .assertContentDescriptionEquals("咖啡分类图标")
+        val expected = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(R.string.core_cd_category_icon, "咖啡")
+        composeRule.onNodeWithContentDescription(expected)
+            .assertContentDescriptionEquals(expected)
     }
 }

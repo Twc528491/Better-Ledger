@@ -31,7 +31,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.personal.ledger.R
 
 private val MultiSelectionSaver = listSaver<MultiSelection, String>(
     save = { listOf(if (it.active) "1" else "0") + it.selected },
@@ -58,15 +61,18 @@ fun SelectionTopBar(
     actions: @Composable RowScope.() -> Unit,
 ) {
     TopAppBar(
-        title = { Text("已选 $count 项") },
+        title = { Text(pluralStringResource(R.plurals.core_selected_count, count, count)) },
         navigationIcon = {
             IconButton(onClick = onClose) {
-                Icon(Icons.Filled.Close, contentDescription = "退出多选")
+                Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.core_exit_selection))
             }
         },
         actions = {
             TextButton(onClick = onToggleAll) {
-                Text(if (allSelected) "取消全选" else "全选")
+                Text(
+                    stringResource(if (allSelected) R.string.action_deselect_all else R.string.action_select_all),
+                    maxLines = 1,
+                )
             }
             actions()
         },

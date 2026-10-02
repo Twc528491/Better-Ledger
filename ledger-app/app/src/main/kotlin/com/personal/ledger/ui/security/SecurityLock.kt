@@ -7,6 +7,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.personal.ledger.LedgerApplication
+import com.personal.ledger.R
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -64,8 +65,8 @@ class SecurityLock(private val activity: FragmentActivity) {
             },
         )
         val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("验证身份")
-            .setSubtitle("使用生物识别或设备凭据解锁")
+            .setTitle(activity.getString(R.string.core_lock_title))
+            .setSubtitle(activity.getString(R.string.core_lock_subtitle))
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_WEAK or
                     BiometricManager.Authenticators.DEVICE_CREDENTIAL
@@ -109,8 +110,8 @@ fun promptForEnrollment(
         },
     )
     val info = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("开启安全锁")
-        .setSubtitle("验证成功后启用安全锁")
+        .setTitle(activity.getString(R.string.core_lock_enable_title))
+        .setSubtitle(activity.getString(R.string.core_lock_enable_subtitle))
         .setAllowedAuthenticators(
             BiometricManager.Authenticators.BIOMETRIC_WEAK or
                 BiometricManager.Authenticators.DEVICE_CREDENTIAL

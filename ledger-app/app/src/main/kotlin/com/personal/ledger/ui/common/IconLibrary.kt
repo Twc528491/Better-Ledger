@@ -1,5 +1,6 @@
 package com.personal.ledger.ui.common
 
+import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
@@ -66,95 +67,104 @@ import androidx.compose.material.icons.rounded.VolunteerActivism
 import androidx.compose.material.icons.rounded.WaterDrop
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Work
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import com.personal.ledger.R
 
-/** 图标库中的一项：稳定字符串 key（存入数据库）、中文名（无障碍 / 搜索）、矢量图形。 */
-data class LibraryIcon(val key: String, val label: String, val icon: ImageVector)
+/** 图标库中的一项：稳定字符串 key（存入数据库）、显示名资源（无障碍 / 搜索）、矢量图形。 */
+data class LibraryIcon(val key: String, @StringRes val labelRes: Int, val icon: ImageVector) {
+    /** 当前语言的显示名。 */
+    val label: String
+        @Composable @ReadOnlyComposable get() = stringResource(labelRes)
+}
 
 /**
  * 分类图标库。统一使用 Material Rounded 风格，保证与分类 / 账户圆标一致。
  * key 一经发布不得更改或复用（已写入用户数据）；新增图标只能追加新 key。
  */
 object CategoryIconLibrary {
-    val groups: List<Pair<String, List<LibraryIcon>>> = listOf(
-        "餐饮" to listOf(
-            LibraryIcon("food", "餐饮", Icons.Rounded.Fastfood),
-            LibraryIcon("restaurant", "正餐", Icons.Rounded.Restaurant),
-            LibraryIcon("noodles", "面食", Icons.Rounded.RamenDining),
-            LibraryIcon("burger", "快餐", Icons.Rounded.LunchDining),
-            LibraryIcon("coffee", "咖啡", Icons.Rounded.LocalCafe),
-            LibraryIcon("snack", "零食", Icons.Rounded.BakeryDining),
-            LibraryIcon("dessert", "甜品", Icons.Rounded.Icecream),
-            LibraryIcon("drinks", "酒水", Icons.Rounded.LocalBar),
-            LibraryIcon("fresh", "生鲜", Icons.Rounded.Eco),
+    /** 分组：分组标题资源 → 图标。 */
+    val groups: List<Pair<Int, List<LibraryIcon>>> = listOf(
+        R.string.icon_group_food to listOf(
+            LibraryIcon("food", R.string.icon_food, Icons.Rounded.Fastfood),
+            LibraryIcon("restaurant", R.string.icon_restaurant, Icons.Rounded.Restaurant),
+            LibraryIcon("noodles", R.string.icon_noodles, Icons.Rounded.RamenDining),
+            LibraryIcon("burger", R.string.icon_burger, Icons.Rounded.LunchDining),
+            LibraryIcon("coffee", R.string.icon_coffee, Icons.Rounded.LocalCafe),
+            LibraryIcon("snack", R.string.icon_snack, Icons.Rounded.BakeryDining),
+            LibraryIcon("dessert", R.string.icon_dessert, Icons.Rounded.Icecream),
+            LibraryIcon("drinks", R.string.icon_drinks, Icons.Rounded.LocalBar),
+            LibraryIcon("fresh", R.string.icon_fresh, Icons.Rounded.Eco),
         ),
-        "出行" to listOf(
-            LibraryIcon("transit", "公交", Icons.Rounded.DirectionsBus),
-            LibraryIcon("train", "火车", Icons.Rounded.Train),
-            LibraryIcon("taxi", "打车", Icons.Rounded.LocalTaxi),
-            LibraryIcon("car", "汽车", Icons.Rounded.DirectionsCar),
-            LibraryIcon("fuel", "加油", Icons.Rounded.LocalGasStation),
-            LibraryIcon("parking", "停车", Icons.Rounded.LocalParking),
-            LibraryIcon("travel", "旅行", Icons.Rounded.Flight),
-            LibraryIcon("hotel", "住宿", Icons.Rounded.Hotel),
-            LibraryIcon("luggage", "行李", Icons.Rounded.Luggage),
+        R.string.icon_group_transport to listOf(
+            LibraryIcon("transit", R.string.icon_transit, Icons.Rounded.DirectionsBus),
+            LibraryIcon("train", R.string.icon_train, Icons.Rounded.Train),
+            LibraryIcon("taxi", R.string.icon_taxi, Icons.Rounded.LocalTaxi),
+            LibraryIcon("car", R.string.icon_car, Icons.Rounded.DirectionsCar),
+            LibraryIcon("fuel", R.string.icon_fuel, Icons.Rounded.LocalGasStation),
+            LibraryIcon("parking", R.string.icon_parking, Icons.Rounded.LocalParking),
+            LibraryIcon("travel", R.string.icon_travel, Icons.Rounded.Flight),
+            LibraryIcon("hotel", R.string.icon_hotel, Icons.Rounded.Hotel),
+            LibraryIcon("luggage", R.string.icon_luggage, Icons.Rounded.Luggage),
         ),
-        "居家" to listOf(
-            LibraryIcon("home", "居住", Icons.Rounded.Home),
-            LibraryIcon("electric", "水电", Icons.Rounded.ElectricalServices),
-            LibraryIcon("water", "水费", Icons.Rounded.WaterDrop),
-            LibraryIcon("internet", "网络", Icons.Rounded.Wifi),
-            LibraryIcon("daily", "日用", Icons.Rounded.CleaningServices),
-            LibraryIcon("laundry", "洗衣", Icons.Rounded.LocalLaundryService),
-            LibraryIcon("housekeeping", "家政", Icons.Rounded.HomeRepairService),
-            LibraryIcon("repair", "维修", Icons.Rounded.Build),
-            LibraryIcon("delivery", "快递", Icons.Rounded.LocalShipping),
+        R.string.icon_group_home to listOf(
+            LibraryIcon("home", R.string.icon_home, Icons.Rounded.Home),
+            LibraryIcon("electric", R.string.icon_electric, Icons.Rounded.ElectricalServices),
+            LibraryIcon("water", R.string.icon_water, Icons.Rounded.WaterDrop),
+            LibraryIcon("internet", R.string.icon_internet, Icons.Rounded.Wifi),
+            LibraryIcon("daily", R.string.icon_daily, Icons.Rounded.CleaningServices),
+            LibraryIcon("laundry", R.string.icon_laundry, Icons.Rounded.LocalLaundryService),
+            LibraryIcon("housekeeping", R.string.icon_housekeeping, Icons.Rounded.HomeRepairService),
+            LibraryIcon("repair", R.string.icon_repair, Icons.Rounded.Build),
+            LibraryIcon("delivery", R.string.icon_delivery, Icons.Rounded.LocalShipping),
         ),
-        "购物" to listOf(
-            LibraryIcon("shopping", "购物", Icons.Rounded.LocalGroceryStore),
-            LibraryIcon("bag", "百货", Icons.Rounded.ShoppingBag),
-            LibraryIcon("clothing", "服饰", Icons.Rounded.Checkroom),
-            LibraryIcon("jewelry", "饰品", Icons.Rounded.Diamond),
-            LibraryIcon("phone", "通讯", Icons.Rounded.Smartphone),
-            LibraryIcon("devices", "数码", Icons.Rounded.Devices),
-            LibraryIcon("tobacco", "烟酒", Icons.Rounded.SmokingRooms),
+        R.string.icon_group_shopping to listOf(
+            LibraryIcon("shopping", R.string.icon_shopping, Icons.Rounded.LocalGroceryStore),
+            LibraryIcon("bag", R.string.icon_bag, Icons.Rounded.ShoppingBag),
+            LibraryIcon("clothing", R.string.icon_clothing, Icons.Rounded.Checkroom),
+            LibraryIcon("jewelry", R.string.icon_jewelry, Icons.Rounded.Diamond),
+            LibraryIcon("phone", R.string.icon_phone, Icons.Rounded.Smartphone),
+            LibraryIcon("devices", R.string.icon_devices, Icons.Rounded.Devices),
+            LibraryIcon("tobacco", R.string.icon_tobacco, Icons.Rounded.SmokingRooms),
         ),
-        "娱乐与成长" to listOf(
-            LibraryIcon("movie", "娱乐", Icons.Rounded.Movie),
-            LibraryIcon("game", "游戏", Icons.Rounded.SportsEsports),
-            LibraryIcon("music", "音乐", Icons.Rounded.MusicNote),
-            LibraryIcon("subscription", "订阅", Icons.Rounded.Subscriptions),
-            LibraryIcon("outdoor", "户外", Icons.Rounded.Park),
-            LibraryIcon("party", "聚会", Icons.Rounded.Celebration),
-            LibraryIcon("education", "教育", Icons.Rounded.School),
-            LibraryIcon("book", "书籍", Icons.AutoMirrored.Rounded.MenuBook),
-            LibraryIcon("fitness", "运动", Icons.Rounded.FitnessCenter),
+        R.string.icon_group_leisure to listOf(
+            LibraryIcon("movie", R.string.icon_movie, Icons.Rounded.Movie),
+            LibraryIcon("game", R.string.icon_game, Icons.Rounded.SportsEsports),
+            LibraryIcon("music", R.string.icon_music, Icons.Rounded.MusicNote),
+            LibraryIcon("subscription", R.string.icon_subscription, Icons.Rounded.Subscriptions),
+            LibraryIcon("outdoor", R.string.icon_outdoor, Icons.Rounded.Park),
+            LibraryIcon("party", R.string.icon_party, Icons.Rounded.Celebration),
+            LibraryIcon("education", R.string.icon_education, Icons.Rounded.School),
+            LibraryIcon("book", R.string.icon_book, Icons.AutoMirrored.Rounded.MenuBook),
+            LibraryIcon("fitness", R.string.icon_fitness, Icons.Rounded.FitnessCenter),
         ),
-        "健康与家庭" to listOf(
-            LibraryIcon("medical", "医疗", Icons.Rounded.LocalHospital),
-            LibraryIcon("medicine", "药品", Icons.Rounded.Medication),
-            LibraryIcon("spa", "美容", Icons.Rounded.Spa),
-            LibraryIcon("haircut", "理发", Icons.Rounded.ContentCut),
-            LibraryIcon("childcare", "育儿", Icons.Rounded.ChildCare),
-            LibraryIcon("pets", "宠物", Icons.Rounded.Pets),
-            LibraryIcon("insurance", "保险", Icons.Rounded.VerifiedUser),
-            LibraryIcon("gift", "人情", Icons.Rounded.CardGiftcard),
-            LibraryIcon("donation", "捐赠", Icons.Rounded.VolunteerActivism),
+        R.string.icon_group_health to listOf(
+            LibraryIcon("medical", R.string.icon_medical, Icons.Rounded.LocalHospital),
+            LibraryIcon("medicine", R.string.icon_medicine, Icons.Rounded.Medication),
+            LibraryIcon("spa", R.string.icon_spa, Icons.Rounded.Spa),
+            LibraryIcon("haircut", R.string.icon_haircut, Icons.Rounded.ContentCut),
+            LibraryIcon("childcare", R.string.icon_childcare, Icons.Rounded.ChildCare),
+            LibraryIcon("pets", R.string.icon_pets, Icons.Rounded.Pets),
+            LibraryIcon("insurance", R.string.icon_insurance, Icons.Rounded.VerifiedUser),
+            LibraryIcon("gift", R.string.icon_gift, Icons.Rounded.CardGiftcard),
+            LibraryIcon("donation", R.string.icon_donation, Icons.Rounded.VolunteerActivism),
         ),
-        "收入与理财" to listOf(
-            LibraryIcon("salary", "工资", Icons.Rounded.Paid),
-            LibraryIcon("bonus", "奖金", Icons.Rounded.EmojiEvents),
-            LibraryIcon("work", "兼职", Icons.Rounded.Work),
-            LibraryIcon("business", "经营", Icons.Rounded.Storefront),
-            LibraryIcon("office", "办公", Icons.Rounded.BusinessCenter),
-            LibraryIcon("invest", "理财", Icons.AutoMirrored.Rounded.TrendingUp),
-            LibraryIcon("savings", "储蓄", Icons.Rounded.Savings),
-            LibraryIcon("reimburse", "报销", Icons.AutoMirrored.Rounded.ReceiptLong),
-            LibraryIcon("tax", "税费", Icons.Rounded.RequestQuote),
-            LibraryIcon("refund", "退款", Icons.Rounded.CurrencyExchange),
-            LibraryIcon("present", "礼金", Icons.Rounded.Redeem),
-            LibraryIcon("other_income", "其他收入", Icons.Rounded.AccountBalanceWallet),
-            LibraryIcon("other", "其他", Icons.Rounded.Inventory2),
+        R.string.icon_group_income to listOf(
+            LibraryIcon("salary", R.string.icon_salary, Icons.Rounded.Paid),
+            LibraryIcon("bonus", R.string.icon_bonus, Icons.Rounded.EmojiEvents),
+            LibraryIcon("work", R.string.icon_work, Icons.Rounded.Work),
+            LibraryIcon("business", R.string.icon_business, Icons.Rounded.Storefront),
+            LibraryIcon("office", R.string.icon_office, Icons.Rounded.BusinessCenter),
+            LibraryIcon("invest", R.string.icon_invest, Icons.AutoMirrored.Rounded.TrendingUp),
+            LibraryIcon("savings", R.string.icon_savings, Icons.Rounded.Savings),
+            LibraryIcon("reimburse", R.string.icon_reimburse, Icons.AutoMirrored.Rounded.ReceiptLong),
+            LibraryIcon("tax", R.string.icon_tax, Icons.Rounded.RequestQuote),
+            LibraryIcon("refund", R.string.icon_refund, Icons.Rounded.CurrencyExchange),
+            LibraryIcon("present", R.string.icon_present, Icons.Rounded.Redeem),
+            LibraryIcon("other_income", R.string.icon_other_income, Icons.Rounded.AccountBalanceWallet),
+            LibraryIcon("other", R.string.icon_other, Icons.Rounded.Inventory2),
         ),
     )
 

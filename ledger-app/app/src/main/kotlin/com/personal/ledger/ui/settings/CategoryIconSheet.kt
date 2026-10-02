@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -169,7 +170,7 @@ internal fun CategoryIconSheet(
                     CategoryIconLibrary.groups.forEach { (groupTitle, icons) ->
                         item(key = "group-$groupTitle", span = { GridItemSpan(maxLineSpan) }) {
                             Text(
-                                groupTitle,
+                                stringResource(groupTitle),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(

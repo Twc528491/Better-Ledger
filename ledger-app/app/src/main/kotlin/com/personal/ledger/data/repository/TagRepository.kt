@@ -1,9 +1,11 @@
 package com.personal.ledger.data.repository
 
+import com.personal.ledger.R
 import com.personal.ledger.data.local.dao.TagDao
 import com.personal.ledger.data.local.entity.TagEntity
 import com.personal.ledger.domain.model.Tag
 import com.personal.ledger.util.TimeUtils
+import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -19,9 +21,9 @@ class TagRepository(private val tagDao: TagDao) {
     /** 同账本内名称唯一。 */
     suspend fun addTag(ledgerId: String, name: String): Result<Tag> {
         val trimmed = name.trim()
-        if (trimmed.isEmpty()) return Result.failure(IllegalArgumentException("名称不能为空"))
+        if (trimmed.isEmpty()) return Result.failure(UserFacingException(R.string.err_name_empty))
         if (tagDao.countSameName(ledgerId, trimmed) > 0) {
-            return Result.failure(IllegalArgumentException("已存在同名标签"))
+            return Result.failure(UserFacingException(R.string.err_tag_duplicate))
         }
         return try {
             val entity = TagEntity(
@@ -41,7 +43,7 @@ class TagRepository(private val tagDao: TagDao) {
     suspend fun setArchived(id: String, archived: Boolean): Result<Unit> {
         val all = tagDao.getAll()
         val entity = all.firstOrNull { it.id == id }
-            ?: return Result.failure(NoSuchElementException("标签不存在"))
+            ?: return Result.failure(UserFacingException(R.string.err_tag_not_found))
         return try {
             tagDao.update(entity.copy(isArchived = archived))
             Result.success(Unit)
