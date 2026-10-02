@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.AlertDialog
@@ -35,10 +36,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.settings.ThemeMode
 import com.personal.ledger.navigation.Routes
@@ -48,6 +51,7 @@ import com.personal.ledger.ui.common.LedgerListRow
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.theme.LedgerSpacing
+import com.personal.ledger.util.AppLanguage
 import com.personal.ledger.viewmodel.SettingsViewModel
 
 /**
@@ -61,7 +65,11 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
     }
     val state by vm.uiState.collectAsStateWithLifecycle()
     var showThemeDialog by remember { mutableStateOf(false) }
-    val activity = LocalContext.current as? androidx.fragment.app.FragmentActivity
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val activity = context as? androidx.fragment.app.FragmentActivity
+    // 语言切换会重建 Activity，这里读取一次即可。
+    val language = remember { AppLanguage.current(context) }
     val hapticLight = rememberHapticLight()
     val hapticNavigation = rememberHapticNavigation()
 
@@ -144,6 +152,16 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                         },
                     )
                     LedgerListRow(
+                        title = stringResource(R.string.settings_language),
+                        leading = { LedgerIconTile(Icons.Outlined.Language) },
+                        value = languageLabel(language),
+                        showChevron = true,
+                        onClick = {
+                            hapticNavigation()
+                            showLanguageDialog = true
+                        },
+                    )
+                    LedgerListRow(
                         title = "安全锁",
                         subtitle = "生物识别 / 设备凭据；冷启动和长时间离开后验证",
                         leading = { LedgerIconTile(Icons.Outlined.Lock) },
@@ -176,6 +194,45 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
         }
+    }
+
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.settings_language)) },
+            text = {
+                Column {
+                    AppLanguage.Option.entries.forEach { option ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    hapticLight()
+                                    showLanguageDialog = false
+                                    if (option != language && activity != null) {
+                                        AppLanguage.apply(activity, option)
+                                    }
+                                }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = language == option, onClick = null)
+                            Text(languageLabel(option), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.language_note),
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLanguageDialog = false }) { Text("关闭") }
+            },
+        )
     }
 
     if (showThemeDialog) {
@@ -215,6 +272,13 @@ fun SettingsScreen(container: AppContainer, navController: NavHostController) {
             },
         )
     }
+}
+
+@Composable
+private fun languageLabel(option: AppLanguage.Option): String = when (option) {
+    AppLanguage.Option.SYSTEM -> stringResource(R.string.language_system)
+    AppLanguage.Option.CHINESE -> stringResource(R.string.language_chinese)
+    AppLanguage.Option.ENGLISH -> stringResource(R.string.language_english)
 }
 
 private fun themeLabel(mode: ThemeMode): String = when (mode) {

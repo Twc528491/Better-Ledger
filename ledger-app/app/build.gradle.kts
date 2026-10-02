@@ -43,6 +43,11 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        // 生成 locales_config，Android 13+ 系统“应用语言”设置中可直接切换。
+        generateLocaleConfig = true
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
