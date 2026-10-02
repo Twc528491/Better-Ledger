@@ -97,6 +97,21 @@ import com.personal.ledger.ui.common.transferContainerColor
 import com.personal.ledger.ui.theme.LedgerNumerals
 import com.personal.ledger.util.Money
 import com.personal.ledger.viewmodel.AddTransactionViewModel
+import com.personal.ledger.ui.common.rememberHapticConfirm
+import com.personal.ledger.ui.common.rememberHapticLongPress
+import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.ui.settings.CategoryIconSheet
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.launch
@@ -124,8 +139,17 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
     var showNoteEditor by remember { mutableStateOf(false) }
     var expandedRootId by remember(state.type) { mutableStateOf<String?>(null) }
     var initialExpandDone by remember(state.type) { mutableStateOf(false) }
+    // 记一笔中新建二级分类：长按一级分类弹出的菜单、新建面板所属的一级分类、创建后需滚动到的新分类。
+    var rootMenuId by remember(state.type) { mutableStateOf<String?>(null) }
+    var addChildRootId by remember { mutableStateOf<String?>(null) }
+    var addChildError by remember { mutableStateOf<String?>(null) }
+    var addChildBusy by remember { mutableStateOf(false) }
+    var scrollToChildId by remember { mutableStateOf<String?>(null) }
     val pagerScope = rememberCoroutineScope()
     val hapticSave = rememberHapticSave()
+    val hapticLongPress = rememberHapticLongPress()
+    val hapticConfirm = rememberHapticConfirm()
+    val hapticReject = rememberHapticReject()
     val fontScale = LocalDensity.current.fontScale
     val screenHeightDp = LocalConfiguration.current.screenHeightDp
     // 键盘尺寸只取决于屏幕与字号，与弹层 / 输入法无关，整页布局因此保持稳定。
@@ -296,7 +320,30 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                             Row(modifier = Modifier.fillMaxWidth()) {
                                                 row.forEach { category ->
                                                     CategoryTile(category, selectedRootId == category.id, compactCategory,
-                                                        Modifier.weight(1f).height(tileHeight)) {
+                                                        Modifier.weight(1f).height(tileHeight),
+                                                        onLongClick = {
+                                                            hapticLongPress()
+                                                            rootMenuId = category.id
+                                                        },
+                                                        menu = {
+                                                            DropdownMenu(
+                                                                expanded = rootMenuId == category.id,
+                                                                onDismissRequest = { rootMenuId = null },
+                                                            ) {
+                                                                DropdownMenuItem(
+                                                                    text = { Text("添加二级分类") },
+                                                                    leadingIcon = {
+                                                                        Icon(Icons.Filled.Add, contentDescription = null)
+                                                                    },
+                                                                    onClick = {
+                                                                        rootMenuId = null
+                                                                        addChildError = null
+                                                                        addChildRootId = category.id
+                                                                    },
+                                                                )
+                                                            }
+                                                        },
+                                                    ) {
                                                         val activeChildren = CategorySelection.children(categories, category.id)
                                                         val selectedArchivedChild = categories.any {
                                                             it.parentId == category.id && it.id == state.categoryId && it.isArchived
@@ -340,6 +387,22 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
                                     items(childItems, key = { it.id }, contentType = { "category" }) { child ->
                                         CategoryTile(child, state.categoryId == child.id, compactCategory,
                                             Modifier.fillMaxWidth().height(tileHeight)) { vm.setCategoryId(child.id) }
+                                    }
+                                    if (!root.isArchived) {
+                                        item(key = "add-${root.id}", contentType = "category-add") {
+                                            AddCategoryTile(compactCategory, Modifier.fillMaxWidth().height(tileHeight)) {
+                                                addChildError = null
+                                                addChildRootId = root.id
+                                            }
+                                        }
+                                    }
+                                }
+                                // 新建的二级分类排在末尾，可能落在可见行之外：创建后滚动到它。
+                                LaunchedEffect(scrollToChildId, childItems) {
+                                    val index = childItems.indexOfFirst { it.id == scrollToChildId }
+                                    if (index >= 0) {
+                                        childGridState.animateScrollToItem(index + 1)
+                                        scrollToChildId = null
                                     }
                                 }
                             }
@@ -495,6 +558,46 @@ fun AddTransactionScreen(container: AppContainer, navController: NavHostControll
             onConfirm = { note -> vm.setNote(note); showNoteEditor = false },
         )
     }
+
+    val addChildRoot = addChildRootId?.let { id -> allCategoriesOf(state).firstOrNull { it.id == id } }
+    if (addChildRoot != null) {
+        key(addChildRoot.id) {
+            // 复用分类管理中的新建面板：名称 + 图标库（默认按名称自动匹配图标）。
+            CategoryIconSheet(
+                title = "新建二级分类",
+                subtitle = "属于“${addChildRoot.name}”",
+                type = addChildRoot.type,
+                initialName = "",
+                initialIconKey = null,
+                nameEditable = true,
+                confirmLabel = "创建",
+                error = addChildError,
+                onDismiss = {
+                    addChildRootId = null
+                    addChildError = null
+                },
+                onConfirm = { name, iconKey ->
+                    if (!addChildBusy) {
+                        addChildBusy = true
+                        vm.addSubcategory(addChildRoot.id, name, iconKey) { result ->
+                            addChildBusy = false
+                            result.onSuccess { created ->
+                                hapticConfirm()
+                                addChildRootId = null
+                                addChildError = null
+                                // 展开到该一级分类的二级网格，新分类已被选中。
+                                expandedRootId = addChildRoot.id
+                                scrollToChildId = created.id
+                            }.onFailure {
+                                hapticReject()
+                                addChildError = it.message ?: "创建失败"
+                            }
+                        }
+                    }
+                },
+            )
+        }
+    }
 }
 
 private fun allCategoriesOf(state: com.personal.ledger.viewmodel.AddTransactionUiState): List<Category> =
@@ -632,7 +735,11 @@ private fun PageDots(count: Int, current: Int) {
     }
 }
 
-/** 分类格：无卡片底，只保留圆标与名称；选中时圆标加主色描边、名称变主色。 */
+/**
+ * 分类格：无卡片底，只保留圆标与名称；选中时圆标加主色描边、名称变主色。
+ * 传入 [onLongClick] 时支持长按（一级分类长按菜单），[menu] 为锚定在该格上的弹出菜单。
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CategoryTile(
     category: Category,
@@ -640,17 +747,33 @@ private fun CategoryTile(
     compact: Boolean,
     modifier: Modifier,
     labelOverride: String? = null,
+    onLongClick: (() -> Unit)? = null,
+    menu: @Composable () -> Unit = {},
     onClick: () -> Unit,
 ) {
     val badge = if (compact) 38 else 42
+    val interaction = if (onLongClick == null) {
+        Modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+    } else {
+        Modifier
+            .combinedClickable(
+                role = Role.RadioButton,
+                onLongClickLabel = "更多操作",
+                onLongClick = onLongClick,
+                hapticFeedbackEnabled = false,
+                onClick = onClick,
+            )
+            .semantics { this.selected = selected }
+    }
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .then(interaction)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        menu()
         Box(
             Modifier.size((badge + 6).dp)
                 .border(
@@ -668,6 +791,53 @@ private fun CategoryTile(
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 2.dp),
+        )
+    }
+}
+
+/** 二级网格末尾的“新建”格：虚线圆 + 加号，尺寸与分类格一致，不打乱网格行高。 */
+@Composable
+private fun AddCategoryTile(compact: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val badge = if (compact) 38 else 42
+    val outline = MaterialTheme.colorScheme.outline
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClickLabel = "新建二级分类", onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(Modifier.size((badge + 6).dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.size(badge.dp).drawBehind {
+                    val stroke = 1.5.dp.toPx()
+                    drawCircle(
+                        color = outline,
+                        radius = (size.minDimension - stroke) / 2f,
+                        style = Stroke(
+                            width = stroke,
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx())),
+                        ),
+                    )
+                },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size((badge * 0.5f).dp),
+                )
+            }
+        }
+        Text(
+            "新建",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 2.dp),
