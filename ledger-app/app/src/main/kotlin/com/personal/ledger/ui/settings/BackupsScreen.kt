@@ -51,10 +51,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.backup.BackupCatalog
 import com.personal.ledger.data.backup.BackupConstants
@@ -74,6 +76,7 @@ import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.ui.theme.LedgerSpacing
+import com.personal.ledger.util.userMessage
 import kotlinx.coroutines.launch
 
 /** 备份管理：备份位置、自动备份、立即备份与备份文件列表（恢复 / 另存为 / 删除）。 */
@@ -115,11 +118,11 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
             container.backupRepository.useCustomFolder(uri)
                 .onSuccess {
                     hapticConfirm()
-                    message = "已改用自定义文件夹，之后的备份会保存到这里。"
+                    message = context.getString(R.string.set_backup_custom_folder_set)
                 }
                 .onFailure {
                     hapticReject()
-                    message = "无法使用该文件夹：${it.message}"
+                    message = context.getString(R.string.set_backup_folder_unusable, it.userMessage(context))
                 }
             reload()
         }
@@ -133,11 +136,11 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
             container.backupRepository.copyBackupTo(target.first, target.second, uri)
                 .onSuccess {
                     hapticConfirm()
-                    message = "已另存备份"
+                    message = context.getString(R.string.set_backup_saved_as)
                 }
                 .onFailure {
                     hapticReject()
-                    message = "另存失败：${it.message}"
+                    message = context.getString(R.string.set_backup_save_as_failed, it.userMessage(context))
                 }
         }
     }
@@ -145,13 +148,13 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("备份管理") },
+                title = { Text(stringResource(R.string.set_backups_title)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -173,13 +176,13 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
         ) {
             // ---------- 备份位置 ----------
             Column {
-                LedgerGroup(title = "备份位置") {
+                LedgerGroup(title = stringResource(R.string.set_group_backup_location)) {
                     val location = current?.location
                     LedgerListRow(
                         title = when {
-                            location == null -> "正在读取…"
-                            location.isCustom -> "自定义文件夹"
-                            else -> "默认目录"
+                            location == null -> stringResource(R.string.set_loading)
+                            location.isCustom -> stringResource(R.string.set_backup_custom_folder)
+                            else -> stringResource(R.string.set_backup_default_folder)
                         },
                         subtitle = location?.store?.describe(),
                         leading = {
@@ -196,8 +199,10 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                     )
                     ActionRow(
                         icon = Icons.Outlined.Description,
-                        title = if (location?.isCustom == true) "更改文件夹" else "改用自定义文件夹",
-                        subtitle = "通过系统文件选择器选择",
+                        title = stringResource(
+                            if (location?.isCustom == true) R.string.set_backup_change_folder else R.string.set_backup_use_custom_folder,
+                        ),
+                        subtitle = stringResource(R.string.set_backup_pick_folder_subtitle),
                     ) {
                         hapticNavigation()
                         treeLauncher.launch(null)
@@ -205,8 +210,8 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                     if (location?.isCustom == true) {
                         ActionRow(
                             icon = Icons.Outlined.SettingsBackupRestore,
-                            title = "恢复为默认目录",
-                            subtitle = "自定义文件夹中已有的备份不会被删除",
+                            title = stringResource(R.string.set_backup_reset_folder),
+                            subtitle = stringResource(R.string.set_backup_reset_folder_subtitle),
                         ) {
                             hapticNavigation()
                             confirmResetFolder = true
@@ -215,24 +220,24 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                 }
                 when {
                     current?.location?.customUnavailable == true -> GroupFootnote(
-                        "无法访问自定义文件夹（可能已被删除或授权失效）。自动备份与立即备份会暂时保存到默认目录，请重新选择文件夹或恢复默认目录。",
+                        stringResource(R.string.set_backup_custom_unavailable_note),
                         color = MaterialTheme.colorScheme.error,
                     )
                     backupWarning != null -> GroupFootnote(backupWarning.orEmpty(), color = MaterialTheme.colorScheme.error)
                     current?.location?.store?.kind == BackupStoreKind.DEFAULT_SHARED -> GroupFootnote(
-                        "默认目录在文件管理器中可见，卸载应用后仍会保留。重新安装应用后，之前的备份不会出现在下方列表中，可在“数据管理 → 从文件恢复”中手动选择。",
+                        stringResource(R.string.set_backup_default_shared_note),
                     )
                     current?.location?.store?.kind == BackupStoreKind.DEFAULT_APP_FILES -> GroupFootnote(
-                        "当前系统版本的默认目录为应用专属目录，卸载应用时会一并删除。如需长期保存，请改用自定义文件夹或使用“另存为…”。",
+                        stringResource(R.string.set_backup_default_app_files_note),
                     )
                 }
             }
 
             // ---------- 自动备份 / 立即备份 ----------
-            LedgerGroup(title = "自动备份") {
+            LedgerGroup(title = stringResource(R.string.set_group_auto_backup)) {
                 LedgerListRow(
-                    title = "自动备份",
-                    subtitle = "每日一次；保留 7 个每日 + 4 个每周 + 12 个每月",
+                    title = stringResource(R.string.set_auto_backup),
+                    subtitle = stringResource(R.string.set_auto_backup_subtitle),
                     leading = { LedgerIconTile(Icons.Outlined.Schedule) },
                     trailing = {
                         Switch(
@@ -249,8 +254,9 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                 )
                 ActionRow(
                     icon = Icons.Outlined.Backup,
-                    title = if (backingUp) "正在备份…" else "立即备份",
-                    subtitle = lastBackupAt?.let { "上次备份：" + BackupCatalog.formatTime(it) } ?: "尚未备份",
+                    title = stringResource(if (backingUp) R.string.set_backup_working else R.string.set_backup_now),
+                    subtitle = lastBackupAt?.let { stringResource(R.string.set_backup_last, backupTimeLabel(it)) }
+                        ?: stringResource(R.string.set_backup_never),
                 ) {
                     if (backingUp) return@ActionRow
                     hapticNavigation()
@@ -260,12 +266,12 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                             .onSuccess {
                                 hapticConfirm()
                                 if (it.fellBackToDefault) {
-                                    message = "自定义文件夹无法访问，备份已保存到默认目录：${it.locationLabel}"
+                                    message = context.getString(R.string.set_backup_fell_back, it.locationLabel)
                                 }
                             }
                             .onFailure {
                                 hapticReject()
-                                message = "备份失败：${it.message}"
+                                message = context.getString(R.string.set_backup_failed, it.userMessage(context))
                             }
                         backingUp = false
                         reload()
@@ -277,17 +283,23 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
             if (current != null) {
                 val entries = current.entries
                 Column {
-                    LedgerGroup(title = if (entries.isEmpty()) "备份文件" else "备份文件（${entries.size}）") {
+                    LedgerGroup(
+                        title = if (entries.isEmpty()) {
+                            stringResource(R.string.set_backup_files)
+                        } else {
+                            stringResource(R.string.set_backup_files_count, entries.size)
+                        },
+                    ) {
                         when {
                             current.listError != null -> EmptyState(
                                 icon = Icons.Outlined.ErrorOutline,
-                                title = "无法读取备份文件",
+                                title = stringResource(R.string.set_backup_list_error),
                                 subtitle = current.listError,
                             )
                             entries.isEmpty() -> EmptyState(
                                 icon = Icons.Outlined.Inventory2,
-                                title = "还没有备份",
-                                subtitle = "点击“立即备份”创建第一个备份",
+                                title = stringResource(R.string.set_backup_empty),
+                                subtitle = stringResource(R.string.set_backup_empty_hint),
                             )
                             else -> entries.forEach { entry ->
                                 BackupEntryRow(entry) {
@@ -297,12 +309,12 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                             }
                         }
                     }
-                    GroupFootnote("点击备份可恢复、另存为或删除。只有“备份”会参与自动轮换，恢复前备份需手动清理。")
+                    GroupFootnote(stringResource(R.string.set_backup_list_footnote))
                 }
 
                 if (current.internalEntries.isNotEmpty()) {
                     Column {
-                        LedgerGroup(title = "应用内部的恢复前备份（${current.internalEntries.size}）") {
+                        LedgerGroup(title = stringResource(R.string.set_backup_internal_count, current.internalEntries.size)) {
                             current.internalEntries.forEach { entry ->
                                 BackupEntryRow(entry) {
                                     hapticNavigation()
@@ -310,7 +322,7 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                                 }
                             }
                         }
-                        GroupFootnote("当备份位置不可写时，恢复前备份会保存在应用内部，卸载应用时会一并删除。")
+                        GroupFootnote(stringResource(R.string.set_backup_internal_footnote))
                     }
                 }
             }
@@ -320,7 +332,7 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
     actionTarget?.let { (store, entry) ->
         AlertDialog(
             onDismissRequest = { actionTarget = null },
-            title = { Text(BackupCatalog.formatTime(BackupCatalog.backupTimeMs(entry))) },
+            title = { Text(backupTimeLabel(BackupCatalog.backupTimeMs(entry))) },
             text = {
                 Column {
                     Text(
@@ -331,18 +343,18 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(bottom = LedgerSpacing.xs),
                     )
-                    BackupActionItem(Icons.Outlined.Restore, "恢复") {
+                    BackupActionItem(Icons.Outlined.Restore, stringResource(R.string.action_restore)) {
                         hapticNavigation()
                         actionTarget = null
                         pendingRestore = RestoreRequest(Uri.parse(entry.location), entry.name)
                     }
-                    BackupActionItem(Icons.Outlined.SaveAs, "另存为…") {
+                    BackupActionItem(Icons.Outlined.SaveAs, stringResource(R.string.set_backup_save_as)) {
                         hapticNavigation()
                         actionTarget = null
                         saveAsTarget = store to entry
                         saveAsLauncher.launch(entry.name)
                     }
-                    BackupActionItem(Icons.Outlined.Delete, "删除", color = MaterialTheme.colorScheme.error) {
+                    BackupActionItem(Icons.Outlined.Delete, stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) {
                         hapticConfirm()
                         actionTarget = null
                         deleteTarget = store to entry
@@ -350,7 +362,7 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { actionTarget = null }) { Text("取消") }
+                TextButton(onClick = { actionTarget = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -358,8 +370,8 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
     deleteTarget?.let { (store, entry) ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("删除备份") },
-            text = { Text("将删除备份文件“${entry.name}”，此操作无法撤销。") },
+            title = { Text(stringResource(R.string.set_backup_delete_title)) },
+            text = { Text(stringResource(R.string.set_backup_delete_message, entry.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     hapticDelete()
@@ -367,14 +379,14 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                     scope.launch {
                         if (!store.delete(entry)) {
                             hapticReject()
-                            message = "删除失败：文件可能已被移动或不再属于本应用"
+                            message = context.getString(R.string.set_backup_delete_failed)
                         }
                         reload()
                     }
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
+                TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -382,14 +394,16 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
     if (confirmResetFolder) {
         AlertDialog(
             onDismissRequest = { confirmResetFolder = false },
-            title = { Text("恢复为默认目录") },
+            title = { Text(stringResource(R.string.set_backup_reset_folder)) },
             text = {
                 Text(
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        "之后的备份将保存到“内部存储/Documents/LedgerBackups”。自定义文件夹中已有的备份会保留，但不再显示在列表中。"
-                    } else {
-                        "之后的备份将保存到应用专属目录。自定义文件夹中已有的备份会保留，但不再显示在列表中。"
-                    },
+                    stringResource(
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            R.string.set_backup_reset_message_shared
+                        } else {
+                            R.string.set_backup_reset_message_app
+                        },
+                    ),
                 )
             },
             confirmButton = {
@@ -400,10 +414,10 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
                         container.backupRepository.useDefaultFolder()
                         reload()
                     }
-                }) { Text("恢复默认") }
+                }) { Text(stringResource(R.string.set_backup_reset_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmResetFolder = false }) { Text("取消") }
+                TextButton(onClick = { confirmResetFolder = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -411,10 +425,10 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
     message?.let {
         AlertDialog(
             onDismissRequest = { message = null },
-            title = { Text("提示") },
+            title = { Text(stringResource(R.string.dialog_notice)) },
             text = { Text(it) },
             confirmButton = {
-                TextButton(onClick = { message = null }) { Text("好的") }
+                TextButton(onClick = { message = null }) { Text(stringResource(R.string.action_ok)) }
             },
         )
     }
@@ -435,8 +449,18 @@ fun BackupsScreen(container: AppContainer, navController: NavHostController) {
 private fun BackupEntryRow(entry: BackupEntry, onClick: () -> Unit) {
     val preRestore = entry.kind == BackupFileKind.PRE_RESTORE
     LedgerListRow(
-        title = BackupCatalog.formatTime(BackupCatalog.backupTimeMs(entry)),
-        subtitle = BackupCatalog.typeLabel(entry.kind) + " · " + BackupCatalog.formatSize(entry.sizeBytes),
+        title = backupTimeLabel(BackupCatalog.backupTimeMs(entry)),
+        subtitle = stringResource(
+            R.string.set_backup_entry_subtitle,
+            stringResource(
+                when (entry.kind) {
+                    BackupFileKind.BACKUP -> R.string.set_backup_kind_backup
+                    BackupFileKind.PRE_RESTORE -> R.string.set_backup_kind_pre_restore
+                    BackupFileKind.OTHER -> R.string.set_backup_kind_other
+                },
+            ),
+            if (entry.sizeBytes < 0) stringResource(R.string.set_backup_size_unknown) else BackupCatalog.formatSize(entry.sizeBytes),
+        ),
         leading = {
             LedgerIconTile(
                 if (preRestore) Icons.Outlined.History else Icons.Outlined.Description,

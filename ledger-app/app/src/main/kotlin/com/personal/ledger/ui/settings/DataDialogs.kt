@@ -25,7 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.data.backup.BackupRepository
 import com.personal.ledger.data.backup.RestoreOutcome
@@ -33,6 +35,9 @@ import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticDelete
 import com.personal.ledger.ui.common.rememberHapticReject
 import com.personal.ledger.ui.theme.LedgerSpacing
+import com.personal.ledger.util.UserFacingException
+import com.personal.ledger.util.toUiText
+import com.personal.ledger.util.userMessage
 import kotlinx.coroutines.launch
 
 /** 待恢复的备份文件。 */
@@ -64,13 +69,13 @@ fun RestoreConfirmDialog(
 
     AlertDialog(
         onDismissRequest = { if (!working) onDismiss() },
-        title = { Text("确认恢复") },
+        title = { Text(stringResource(R.string.set_restore_confirm_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(LedgerSpacing.xs)) {
                 request.displayName?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Text(if (working) "正在恢复，请稍候…" else "恢复会覆盖现有全部数据（恢复前将自动备份当前数据）。是否继续？")
+                Text(stringResource(if (working) R.string.set_restore_working else R.string.set_restore_warning))
             }
         },
         confirmButton = {
@@ -83,20 +88,20 @@ fun RestoreConfirmDialog(
                         when (outcome) {
                             RestoreOutcome.JSON_RESTORED -> {
                                 container.ledgerRepository.fallbackCurrentLedgerIfInvalid()
-                                onFinished("恢复成功")
+                                onFinished(context.getString(R.string.set_restore_success))
                             }
                             RestoreOutcome.SQLITE_RESTART_REQUIRED -> BackupRepository.restartApp(context)
                         }
                     }.onFailure {
                         hapticReject()
-                        onFinished("恢复失败：${it.message}")
+                        onFinished(context.getString(R.string.set_restore_failed, it.userMessage(context)))
                     }
                     working = false
                 }
-            }) { Text("恢复") }
+            }) { Text(stringResource(R.string.action_restore)) }
         },
         dismissButton = {
-            TextButton(enabled = !working, onClick = onDismiss) { Text("取消") }
+            TextButton(enabled = !working, onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }
@@ -112,7 +117,9 @@ suspend fun purgeAfterOptionalBackup(
     if (backupFirst) {
         val backup = container.backupRepository.backupNow()
         backup.exceptionOrNull()?.let {
-            return Result.failure(IllegalStateException("备份失败，未执行删除：${it.message ?: "未知错误"}"))
+            return Result.failure(
+                UserFacingException(R.string.set_purge_backup_failed, it.toUiText(R.string.set_error_unknown_short)),
+            )
         }
     }
     return purge()
@@ -134,6 +141,7 @@ fun PurgeDialog(
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val hapticDelete = rememberHapticDelete()
     val hapticReject = rememberHapticReject()
     var working by remember { mutableStateOf(false) }
@@ -153,7 +161,7 @@ fun PurgeDialog(
                 Text(impact)
                 extra()
                 Text(
-                    "此操作无法撤销。建议先备份当前数据。",
+                    stringResource(R.string.set_purge_irreversible),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -165,14 +173,14 @@ fun PurgeDialog(
                 ) {
                     Checkbox(checked = backupFirst, onCheckedChange = null, enabled = !working)
                     Text(
-                        "删除前先立即备份",
+                        stringResource(R.string.set_purge_backup_first),
                         modifier = Modifier.padding(start = LedgerSpacing.xs),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 if (working) {
                     Text(
-                        if (backupFirst) "正在备份并删除…" else "正在删除…",
+                        stringResource(if (backupFirst) R.string.set_purge_working_backup else R.string.set_purge_working),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -195,20 +203,20 @@ fun PurgeDialog(
                             }
                             .onFailure {
                                 hapticReject()
-                                error = it.message ?: "删除失败"
+                                error = it.userMessage(context, R.string.set_delete_failed)
                                 working = false
                             }
                     }
                 },
             ) {
                 Text(
-                    "彻底删除",
+                    stringResource(R.string.set_purge_confirm),
                     color = if (confirmEnabled && !working) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         dismissButton = {
-            TextButton(enabled = !working, onClick = onDismiss) { Text("取消") }
+            TextButton(enabled = !working, onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
     )
 }

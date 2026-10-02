@@ -29,8 +29,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.personal.ledger.R
 import com.personal.ledger.data.AppContainer
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.domain.model.Tag
@@ -42,12 +46,14 @@ import com.personal.ledger.ui.theme.LedgerSpacing
 import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.util.userMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagsScreen(container: AppContainer, navController: NavHostController) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val currentLedger by container.ledgerRepository.currentLedger.collectAsStateWithLifecycle(initialValue = null)
     val tags by container.tagRepository.observeByLedger(
         currentLedger?.id ?: ""
@@ -62,13 +68,13 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("标签管理") },
+                title = { Text(stringResource(R.string.set_tags_title)) },
                 navigationIcon = {
                     IconButton(onClick = {
                         hapticNavigation()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -76,7 +82,7 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                         hapticNavigation()
                         showAdd = true
                     }) {
-                        Icon(Icons.Filled.Add, contentDescription = "新建标签")
+                        Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.set_tag_new))
                     }
                 },
             )
@@ -95,8 +101,8 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                 item(key = "tags_empty") {
                     EmptyState(
                         icon = Icons.Outlined.Sell,
-                        title = "暂无标签",
-                        subtitle = "点右上角 + 新建",
+                        title = stringResource(R.string.set_tag_empty),
+                        subtitle = stringResource(R.string.set_tag_empty_hint),
                     )
                 }
             }
@@ -109,7 +115,7 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                         leading = { LedgerIconTile(Icons.Outlined.Sell) },
                         trailing = {
                             Text(
-                                "归档",
+                                stringResource(R.string.action_archive),
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -126,7 +132,7 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
             }
             if (archived.isNotEmpty()) {
                 item(key = "tags_archived_label") {
-                    LedgerGroupLabel("已归档", modifier = Modifier.padding(top = LedgerSpacing.md))
+                    LedgerGroupLabel(stringResource(R.string.set_tag_archived_section), modifier = Modifier.padding(top = LedgerSpacing.md))
                 }
                 itemsIndexed(archived, key = { _, tag -> tag.id }) { index, tag ->
                     LedgerGroupItem(index = index, count = archived.size) {
@@ -144,11 +150,11 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                                                 .onSuccess { hapticConfirm() }
                                                 .onFailure { hapticReject() }
                                         }
-                                    }) { Text("恢复") }
+                                    }) { Text(stringResource(R.string.action_restore)) }
                                     TextButton(onClick = {
                                         hapticConfirm()
                                         purgeTarget = tag
-                                    }) { Text("彻底删除", color = MaterialTheme.colorScheme.error) }
+                                    }) { Text(stringResource(R.string.set_purge_short), color = MaterialTheme.colorScheme.error) }
                                 }
                             },
                         )
@@ -163,10 +169,10 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
         LaunchedEffect(tag.id) { usage = container.purgeRepository.tagUsage(tag.id) }
         PurgeDialog(
             container = container,
-            title = "彻底删除标签",
+            title = stringResource(R.string.set_tag_purge_title),
             impact = usage?.let {
-                "将永久删除标签“${tag.name}”，并从 $it 笔账单（含回收站）中移除该标签，账单本身会保留。"
-            } ?: "正在统计影响范围…",
+                pluralStringResource(R.plurals.set_tag_purge_impact, it, tag.name, it)
+            } ?: stringResource(R.string.set_purge_counting),
             confirmEnabled = usage != null,
             onDismiss = { purgeTarget = null },
             onPurged = { purgeTarget = null },
@@ -178,13 +184,13 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
         var name by remember { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showAdd = false },
-            title = { Text("新建标签") },
+            title = { Text(stringResource(R.string.set_tag_new)) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("标签名称（同账本内唯一）") },
+                        label = { Text(stringResource(R.string.set_tag_name_label)) },
                         singleLine = true,
                     )
                     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -202,13 +208,13 @@ fun TagsScreen(container: AppContainer, navController: NavHostController) {
                             }
                             .onFailure {
                                 hapticReject()
-                                error = it.message
+                                error = it.userMessage(context, R.string.set_create_failed)
                             }
                     }
-                }) { Text("创建") }
+                }) { Text(stringResource(R.string.set_create)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAdd = false }) { Text("取消") }
+                TextButton(onClick = { showAdd = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }

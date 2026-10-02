@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 设置与数据管理页面（key 前缀 set_）。 -->
+
+    <!-- 设置首页与记账设置 -->
+    <string name="set_title">设置</string>
+    <string name="set_group_bookkeeping">记账</string>
+    <string name="set_bookkeeping_title">记账设置</string>
+    <string name="set_bookkeeping_subtitle">分类、商家、标签、预算与账本</string>
+    <string name="set_recurring_title">定时扣款</string>
+    <string name="set_recurring_entry_subtitle">按周期在本地账本生成支出记录</string>
+    <string name="set_group_data">数据</string>
+    <string name="set_data_title">数据管理</string>
+    <string name="set_data_subtitle">导出 / 恢复 / 自动备份</string>
+    <string name="set_group_app">应用</string>
+    <string name="set_dark_mode">深色模式</string>
+    <string name="set_theme_system">跟随系统</string>
+    <string name="set_theme_light">浅色</string>
+    <string name="set_theme_dark">深色</string>
+    <string name="set_security_lock">安全锁</string>
+    <string name="set_security_lock_subtitle">生物识别 / 设备凭据；冷启动和长时间离开后验证</string>
+    <string name="set_about">关于</string>
+    <string name="set_ledger_unavailable">当前账本不可用</string>
+    <string name="set_group_items">记账项</string>
+    <string name="set_categories_title">分类管理</string>
+    <string name="set_categories_subtitle">收入 / 支出分类，最多两级</string>
+    <string name="set_merchants_title">商家管理</string>
+    <string name="set_merchants_subtitle">常去商家，记账快速选择</string>
+    <string name="set_tags_title">标签管理</string>
+    <string name="set_tags_subtitle">自定义标签，一笔可多个</string>
+    <string name="set_budgets_title">预算设置</string>
+    <string name="set_budgets_subtitle">月总预算与分类预算</string>
+    <string name="set_group_ledger">账本</string>
+    <string name="set_ledgers_title">账本管理</string>
+    <string name="set_ledger_current">当前：%1$s</string>
+    <string name="set_ledger_new_button">+ 新建账本</string>
+    <string name="set_ledger_new_title">新建账本</string>
+    <string name="set_ledger_name_label">账本名称（币种 V1 固定 CNY）</string>
+    <string name="set_create">创建</string>
+    <string name="set_ledger_purge_title">彻底删除账本</string>
+    <string name="set_purge_counting">正在统计影响范围…</string>
+    <string name="set_ledger_purge_impact">将永久删除账本“%1$s”及其全部数据：%2$s。</string>
+    <string name="set_list_separator">、</string>
+    <string name="set_ledger_purge_confirm_label">输入账本名称“%1$s”以确认</string>
+    <string name="set_restore_confirm_title">确认恢复</string>
+    <string name="set_restore_working">正在恢复，请稍候…</string>
+    <string name="set_restore_warning">恢复会覆盖现有全部数据（恢复前将自动备份当前数据）。是否继续？</string>
+    <string name="set_restore_success">恢复成功</string>
+    <string name="set_restore_failed">恢复失败：%1$s</string>
+    <string name="set_error_unknown_short">未知错误</string>
+    <string name="set_purge_backup_failed">备份失败，未执行删除：%1$s</string>
+    <string name="set_purge_irreversible">此操作无法撤销。建议先备份当前数据。</string>
+    <string name="set_purge_backup_first">删除前先立即备份</string>
+    <string name="set_purge_working_backup">正在备份并删除…</string>
+    <string name="set_purge_working">正在删除…</string>
+    <string name="set_delete_failed">删除失败</string>
+    <string name="set_purge_confirm">彻底删除</string>
+    <string name="set_about_version" translatable="false">%1$s v%2$s</string>
+    <plurals name="set_count_transactions_incl_bin">
+        <item quantity="other">%1$d 笔账单（含回收站）</item>
+    </plurals>
+    <plurals name="set_count_accounts">
+        <item quantity="other">%1$d 个账户</item>
+    </plurals>
+    <plurals name="set_count_categories">
+        <item quantity="other">%1$d 个分类</item>
+    </plurals>
+    <plurals name="set_count_merchants">
+        <item quantity="other">%1$d 个商家</item>
+    </plurals>
+    <plurals name="set_count_tags">
+        <item quantity="other">%1$d 个标签</item>
+    </plurals>
+    <plurals name="set_count_budgets">
+        <item quantity="other">%1$d 条预算</item>
+    </plurals>
+    <plurals name="set_count_recurring">
+        <item quantity="other">%1$d 条定时扣款</item>
+    </plurals>
+
+    <!-- 数据管理 -->
+    <string name="set_backup_location_custom">自定义文件夹：%1$s</string>
+    <string name="set_backup_location_default">默认目录：%1$s</string>
+    <string name="set_export_csv_done">CSV 已导出</string>
+    <string name="set_export_csv_failed">CSV 导出失败</string>
+    <string name="set_export_json_done">JSON 备份已导出</string>
+    <string name="set_export_json_failed">JSON 导出失败</string>
+    <string name="set_export_sqlite_done">SQLite 备份已导出</string>
+    <string name="set_export_sqlite_failed">SQLite 导出失败</string>
+    <string name="set_group_backup">备份</string>
+    <string name="set_backup_working">正在备份…</string>
+    <string name="set_backup_now">立即备份</string>
+    <string name="set_backup_last">上次备份：%1$s</string>
+    <string name="set_backup_never">尚未备份</string>
+    <string name="set_backup_time_unknown">时间未知</string>
+    <string name="set_backup_fell_back">自定义文件夹无法访问，备份已保存到默认目录：%1$s</string>
+    <string name="set_backup_done">已备份到 %1$s</string>
+    <string name="set_backup_failed">备份失败：%1$s</string>
+    <string name="set_backups_title">备份管理</string>
+    <string name="set_group_export">导出到…</string>
+    <string name="set_export_csv">导出 CSV 到…</string>
+    <string name="set_export_csv_subtitle">Excel 可直接打开</string>
+    <string name="set_export_json">导出 JSON 到…</string>
+    <string name="set_export_json_subtitle">完整备份，自选保存位置</string>
+    <string name="set_export_sqlite">导出 SQLite 到…</string>
+    <string name="set_export_sqlite_subtitle">数据库文件</string>
+    <string name="set_group_restore">恢复</string>
+    <string name="set_restore_from_file">从文件恢复</string>
+    <string name="set_restore_from_file_subtitle">选择 JSON 或 SQLite 备份，整库覆盖</string>
+    <string name="set_restore_footnote">恢复为整库覆盖，不做合并；恢复前会自动备份当前数据。</string>
+
+    <!-- 备份管理 -->
+    <string name="set_backup_custom_folder_set">已改用自定义文件夹，之后的备份会保存到这里。</string>
+    <string name="set_backup_folder_unusable">无法使用该文件夹：%1$s</string>
+    <string name="set_backup_saved_as">已另存备份</string>
+    <string name="set_backup_save_as_failed">另存失败：%1$s</string>
+    <string name="set_group_backup_location">备份位置</string>
+    <string name="set_loading">正在读取…</string>
+    <string name="set_backup_custom_folder">自定义文件夹</string>
+    <string name="set_backup_default_folder">默认目录</string>
+    <string name="set_backup_change_folder">更改文件夹</string>
+    <string name="set_backup_use_custom_folder">改用自定义文件夹</string>
+    <string name="set_backup_pick_folder_subtitle">通过系统文件选择器选择</string>
+    <string name="set_backup_reset_folder">恢复为默认目录</string>
+    <string name="set_backup_reset_folder_subtitle">自定义文件夹中已有的备份不会被删除</string>
+    <string name="set_backup_custom_unavailable_note">无法访问自定义文件夹（可能已被删除或授权失效）。自动备份与立即备份会暂时保存到默认目录，请重新选择文件夹或恢复默认目录。</string>
+    <string name="set_backup_default_shared_note">默认目录在文件管理器中可见，卸载应用后仍会保留。重新安装应用后，之前的备份不会出现在下方列表中，可在“数据管理 → 从文件恢复”中手动选择。</string>
+    <string name="set_backup_default_app_files_note">当前系统版本的默认目录为应用专属目录，卸载应用时会一并删除。如需长期保存，请改用自定义文件夹或使用“另存为…”。</string>
+    <string name="set_group_auto_backup">自动备份</string>
+    <string name="set_auto_backup">自动备份</string>
+    <string name="set_auto_backup_subtitle">每日一次；保留 7 个每日 + 4 个每周 + 12 个每月</string>
+    <string name="set_backup_files">备份文件</string>
+    <string name="set_backup_files_count">备份文件（%1$d）</string>
+    <string name="set_backup_list_error">无法读取备份文件</string>
+    <string name="set_backup_empty">还没有备份</string>
+    <string name="set_backup_empty_hint">点击“立即备份”创建第一个备份</string>
+    <string name="set_backup_list_footnote">点击备份可恢复、另存为或删除。只有“备份”会参与自动轮换，恢复前备份需手动清理。</string>
+    <string name="set_backup_internal_count">应用内部的恢复前备份（%1$d）</string>
+    <string name="set_backup_internal_footnote">当备份位置不可写时，恢复前备份会保存在应用内部，卸载应用时会一并删除。</string>
+    <string name="set_backup_save_as">另存为…</string>
+    <string name="set_backup_delete_title">删除备份</string>
+    <string name="set_backup_delete_message">将删除备份文件“%1$s”，此操作无法撤销。</string>
+    <string name="set_backup_delete_failed">删除失败：文件可能已被移动或不再属于本应用</string>
+    <string name="set_backup_reset_message_shared">之后的备份将保存到“内部存储/Documents/LedgerBackups”。自定义文件夹中已有的备份会保留，但不再显示在列表中。</string>
+    <string name="set_backup_reset_message_app">之后的备份将保存到应用专属目录。自定义文件夹中已有的备份会保留，但不再显示在列表中。</string>
+    <string name="set_backup_reset_confirm">恢复默认</string>
+    <string name="set_backup_kind_backup">备份</string>
+    <string name="set_backup_kind_pre_restore">恢复前备份</string>
+    <string name="set_backup_kind_other">其他文件</string>
+    <string name="set_backup_size_unknown">未知大小</string>
+    <string name="set_backup_entry_subtitle">%1$s · %2$s</string>
+
+    <!-- 分类管理 -->
+    <string name="set_category_new_root">新建一级分类</string>
+    <string name="set_category_new_sub">新建二级分类</string>
+    <string name="set_category_parent">属于“%1$s”</string>
+    <string name="set_category_supplement_button">补充常用分类</string>
+    <string name="set_category_supplement_title">补充常用分类</string>
+    <string name="set_category_supplement_message">只添加账本中尚未存在的常用分类。已归档或已改名的分类会保留，不会恢复或覆盖。</string>
+    <string name="set_category_supplement_none">常用分类已齐全</string>
+    <string name="set_category_supplement_failed">补充失败</string>
+    <string name="set_category_supplement_confirm">补充</string>
+    <string name="set_category_deleted_section">已删除的分类</string>
+    <string name="set_change_icon">更换图标</string>
+    <string name="set_create_failed">创建失败</string>
+    <string name="set_save_failed">保存失败</string>
+    <string name="set_category_rename_title">重命名分类</string>
+    <string name="set_category_name">分类名称</string>
+    <string name="set_category_delete_message_root">删除“%1$s”后，历史账单和预算仍会保留分类引用。其二级分类也会一并停用。之后可在列表底部“已删除的分类”中恢复或彻底删除。</string>
+    <string name="set_category_delete_message_sub">删除“%1$s”后，历史账单和预算仍会保留分类引用。之后可在列表底部“已删除的分类”中恢复或彻底删除。</string>
+    <string name="set_category_move_up">上移%1$s</string>
+    <string name="set_category_move_down">下移%1$s</string>
+    <string name="set_category_add_sub_for">为%1$s添加二级分类</string>
+    <string name="set_purge_short">彻底删除</string>
+    <string name="set_category_load_failed">无法读取分类</string>
+    <string name="set_category_purge_head">将永久删除分类“%1$s”。</string>
+    <string name="set_category_purge_head_with_children">将永久删除分类“%1$s”及其已删除的二级分类（%2$s）。</string>
+    <string name="set_category_purge_usage">有 %1$s和 %2$s使用这些分类，需要迁移到下面选择的替代分类。</string>
+    <string name="set_category_purge_budgets_unknown">这些分类的预算（如有）将被删除。</string>
+    <string name="set_category_purge_merchants">商家与这些分类的关联也会被移除。</string>
+    <string name="set_sentence_separator">""</string>
+    <string name="set_category_purge_title">彻底删除分类</string>
+    <string name="set_category_no_replacement">没有可用的同类型分类，请先新建一个分类。</string>
+    <string name="set_category_replacement">替代分类</string>
+    <plurals name="set_category_supplement_done">
+        <item quantity="other">已补充 %1$d 个常用分类</item>
+    </plurals>
+    <plurals name="set_category_purge_blocked">
+        <item quantity="other">“%1$s”下还有 %2$d 个使用中的二级分类（%3$s），请先删除或停用它们，再彻底删除这个一级分类。</item>
+    </plurals>
+    <plurals name="set_category_purge_budgets">
+        <item quantity="other">相关的 %1$d 条分类预算将被删除。</item>
+    </plurals>
+
+    <!-- 分类图标 -->
+    <string name="set_category_preview_name">新分类</string>
+    <string name="set_icon_auto_match">自动匹配图标</string>
+    <string name="set_icon_auto">自动</string>
+    <string name="set_icon_auto_subtitle">按分类名称匹配图标</string>
+
+    <!-- 商家管理 -->
+    <string name="set_merchant_new">新建商家</string>
+    <string name="set_merchant_filter_all">全部</string>
+    <string name="set_merchant_filter_unlinked">未关联</string>
+    <string name="set_merchant_filter_deleted">已删除（%1$d）</string>
+    <string name="set_merchant_empty_all">暂无商家，可点击右上角新建</string>
+    <string name="set_merchant_empty_unlinked">暂无未关联商家</string>
+    <string name="set_merchant_empty_deleted">没有已删除的商家</string>
+    <string name="set_merchant_empty_category">该分类暂无商家，可新建或长按已有商家分配类别</string>
+    <string name="set_merchant_hint_deleted">已删除的商家仍保留在历史账单中；可恢复，或彻底删除</string>
+    <string name="set_merchant_hint">长按商家可分配分类、重命名或删除</string>
+    <string name="set_merchant_link_label">%1$s·%2$s</string>
+    <string name="set_suffix_disabled">（已停用）</string>
+    <string name="set_merchant_no_links">未关联分类</string>
+    <string name="set_merchant_name">商家名称</string>
+    <string name="set_merchant_category_hint">所属一级分类（可多选，留空则显示在未关联）</string>
+    <string name="set_merchant_actions">商家操作</string>
+    <string name="set_merchant_categories">所属分类</string>
+    <string name="set_merchant_categories_title">所属分类：%1$s</string>
+    <string name="set_merchant_categories_note">可加入多个一级分类的商家库。历史停用分类的关联会保留。</string>
+    <string name="set_merchant_rename_title">重命名商家</string>
+    <string name="set_merchant_purge_title">彻底删除商家</string>
+    <string name="set_merchant_delete_message">删除“%1$s”后，历史账单仍会保留商家名称；之后可在“已删除”中恢复或彻底删除。</string>
+    <string name="set_type_category_chip">%1$s · %2$s</string>
+    <plurals name="set_merchant_purge_impact">
+        <item quantity="other">将永久删除商家“%1$s”及其分类关联。%2$d 笔账单（含回收站）将不再显示商家，账单本身会保留。</item>
+    </plurals>
+
+    <!-- 标签管理 -->
+    <string name="set_tag_new">新建标签</string>
+    <string name="set_tag_empty">暂无标签</string>
+    <string name="set_tag_empty_hint">点右上角 + 新建</string>
+    <string name="set_tag_archived_section">已归档</string>
+    <string name="set_tag_purge_title">彻底删除标签</string>
+    <string name="set_tag_name_label">标签名称（同账本内唯一）</string>
+    <plurals name="set_tag_purge_impact">
+        <item quantity="other">将永久删除标签“%1$s”，并从 %2$d 笔账单（含回收站）中移除该标签，账单本身会保留。</item>
+    </plurals>
+
+    <!-- 预算设置 -->
+    <string name="set_budgets_title_month">预算设置 · %1$s</string>
+    <string name="set_budget_prev_month">上一月</string>
+    <string name="set_budget_next_month">下一月</string>
+    <string name="set_budget_monthly_total">月总预算</string>
+    <string name="set_budget_not_set">未设置</string>
+    <string name="set_budget_category_section">分类预算</string>
+    <string name="set_budget_add_for_category">为分类设置预算</string>
+    <string name="set_budget_pick_category">选择分类</string>
+    <string name="set_budget_category_title">分类预算（%1$s）</string>
+    <string name="set_budget_amount">预算金额</string>
+    <string name="set_budget_delete">删除预算</string>
+
+    <!-- 定时扣款 -->
+    <string name="set_recurring_add_fab">添加扣款</string>
+    <string name="set_recurring_info">只在本地账本生成普通支出记录，不会向商家或银行实际付款。</string>
+    <string name="set_recurring_info_detail">开始日期早于现在时会补记已到期扣款；每次最多补 200 笔。后台执行受系统省电和调度影响，打开应用时也会检查补记。</string>
+    <string name="set_recurring_resumed">已恢复，将从当前时间起安排下一次扣款。</string>
+    <string name="set_recurring_paused_notice">已暂停定时扣款。</string>
+    <string name="set_recurring_retry_done">已重新安排检查。</string>
+    <string name="set_recurring_no_ledger">当前没有可用账本。</string>
+    <string name="set_recurring_empty">还没有定时扣款</string>
+    <string name="set_recurring_empty_hint">添加后可设置金额、账户、支出分类、开始日期和重复周期。</string>
+    <string name="set_recurring_saved">定时扣款已保存。</string>
+    <string name="set_recurring_delete_title">删除定时扣款？</string>
+    <string name="set_recurring_delete_message">将停止后续生成；已经生成的支出记录会保留。</string>
+    <string name="set_recurring_deleted">定时扣款已删除。</string>
+    <string name="set_recurring_summary">%1$s · %2$s · %3$s</string>
+    <string name="set_recurring_account_unavailable">账户不可用</string>
+    <string name="set_recurring_category_unavailable">分类不可用</string>
+    <string name="set_recurring_generate_failed">生成失败：%1$s</string>
+    <string name="set_recurring_retry">重新检查</string>
+    <string name="set_recurring_paused">已暂停</string>
+    <string name="set_recurring_next">下次：%1$s %2$s（%3$s）</string>
+    <string name="set_recurring_resume">恢复</string>
+    <string name="set_recurring_pause">暂停</string>
+    <string name="set_recurring_add_title">添加定时扣款</string>
+    <string name="set_recurring_edit_title">编辑定时扣款</string>
+    <string name="set_recurring_name">名称</string>
+    <string name="set_recurring_amount">金额（%1$s）</string>
+    <string name="set_recurring_account">扣款账户</string>
+    <string name="set_recurring_category">支出分类</string>
+    <string name="set_recurring_frequency">重复周期</string>
+    <string name="set_recurring_start_date">开始日期（yyyy-MM-dd）</string>
+    <string name="set_recurring_time">本地时间（HH:mm）</string>
+    <string name="set_recurring_zone_note">时区：%1$s。开始日期早于当前日期时，已到期周期会补记。</string>
+    <string name="set_recurring_error_name">请填写名称</string>
+    <string name="set_recurring_error_amount">请输入大于 0 的有效金额</string>
+    <string name="set_recurring_error_account">请选择账户</string>
+    <string name="set_recurring_error_category">请选择支出分类</string>
+    <string name="set_recurring_error_date">日期格式应为 yyyy-MM-dd</string>
+    <string name="set_recurring_error_time">时间格式应为 HH:mm</string>
+    <string name="set_saving">保存中…</string>
+    <string name="set_please_choose">请选择</string>
+    <string name="set_freq_daily">每天</string>
+    <string name="set_freq_weekly">每周</string>
+    <string name="set_freq_monthly">每月</string>
+    <string name="set_freq_yearly">每年</string>
+</resources>
