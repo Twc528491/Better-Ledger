@@ -569,7 +569,8 @@ private fun frequencyLabel(frequency: RecurrenceFrequency): String = stringResou
 
 /**
  * 定时扣款最近一次生成失败的原因。
- * 目前直接显示仓库保存的文本；改为错误码后在此处统一解析为当前语言。
+ * 新数据为错误码，按当前语言解析；旧版保存的中文原文原样显示。
  */
 @Composable
-private fun recurringErrorText(charge: RecurringCharge): String = charge.lastError.orEmpty()
+private fun recurringErrorText(charge: RecurringCharge): String =
+    charge.lastError?.let { com.personal.ledger.data.storedMessageText(it) }.orEmpty()
