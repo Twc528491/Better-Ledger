@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
-import androidx.documentfile.provider.DocumentFile
 import androidx.room.withTransaction
 import com.personal.ledger.BuildConfig
 import com.personal.ledger.data.local.database.AppDatabase
@@ -19,6 +18,7 @@ import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -41,7 +41,11 @@ class BackupRepository(
     private val context: Context,
     private val database: AppDatabase,
     private val settings: SettingsRepository,
+    val stores: BackupStores = BackupStores(context),
 ) {
+
+    /** 立即备份与自动备份互斥，避免同一秒生成同名文件或并发轮换。 */
+    private val backupMutex = Mutex()
 
     private val json = Json {
         prettyPrint = true
@@ -150,7 +154,7 @@ class BackupRepository(
             if (backup.backupFormatVersion !in 1..BackupConstants.FORMAT_VERSION) {
                 throw IllegalStateException("不支持的备份格式版本（${backup.backupFormatVersion}）")
             }
-                        validateRecurringBackup(backup.data)
+            validateRecurringBackup(backup.data)
             val merchantCategories = if (backup.backupFormatVersion < 3) {
                 deriveLegacyMerchantCategories(backup.data)
             } else {
@@ -234,48 +238,161 @@ class BackupRepository(
         }
     }
 
-    // ---------- 自动备份 ----------
+    // ---------- 备份位置 / 立即备份 / 自动备份 ----------
 
-    /** 自动备份到 SAF 目录并执行轮换；返回是否成功。 */
-    suspend fun runAutoBackup(dirUri: Uri): Boolean = withContext(Dispatchers.IO) {
+    /** 当前备份位置（默认目录或自定义文件夹）及其可用状态。 */
+    suspend fun currentLocation(): BackupLocationState = stores.resolve(settings.backupDirUri.first())
+
+    /** 使用自定义 SAF 文件夹：持久化读写授权后保存。 */
+    suspend fun useCustomFolder(treeUri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val dir = DocumentFile.fromTreeUri(context, dirUri) ?: return@runCatching false
-            val now = java.time.LocalDateTime.now()
-            val name = BackupRotation.fileName(now)
-            val jsonBytes = buildBackupJson()
-            val file = dir.createFile(BackupConstants.MIME_JSON, name)
-                ?: return@runCatching false
-            context.contentResolver.openOutputStream(file.uri)?.use { it.write(jsonBytes) }
-                ?: return@runCatching false
-
-            // 轮换：7 每日 + 4 每周 + 12 每月
-            val names = dir.listFiles().mapNotNull { it.name }
-                .filter { it.startsWith(BackupConstants.FILE_PREFIX) && it.endsWith(".json") }
-            BackupRotation.selectFilesToDelete(names, java.time.LocalDate.now())
-                .forEach { n -> dir.findFile(n)?.delete() }
-            true
-        }.getOrDefault(false)
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            val previous = settings.backupDirUri.first()
+            settings.setBackupDirUri(treeUri.toString())
+            settings.recordBackupResult(succeededAt = null, warning = null)
+            if (previous != null && previous != treeUri.toString()) stores.customStore(previous).releasePermission()
+        }
     }
 
-    /** 恢复前自动备份当前数据：优先写入用户选择的备份目录，否则写入应用 filesDir。 */
+    /** 恢复为默认目录：清除自定义文件夹并释放其授权（文件夹中的已有文件不受影响）。 */
+    suspend fun useDefaultFolder() {
+        settings.backupDirUri.first()?.let { stores.customStore(it).releasePermission() }
+        settings.setBackupDirUri(null)
+        settings.recordBackupResult(succeededAt = null, warning = null)
+    }
+
+    /**
+     * 立即备份：把完整 JSON 备份写入当前备份位置（无需选择器），随后执行轮换。
+     * 自动备份 Worker 也走这里。
+     *
+     * 自定义文件夹授权丢失 / 写入失败时回退写入默认目录，并记录警告供界面提示；
+     * 不会静默清除用户的自定义设置，由用户决定重新选择或恢复默认。
+     */
+    suspend fun backupNow(): Result<BackupRunResult> = withContext(Dispatchers.IO) {
+        backupMutex.withLock {
+            val result = runCatching {
+                val location = currentLocation()
+                val bytes = buildBackupJson()
+                val name = BackupRotation.fileName(java.time.LocalDateTime.now())
+                var store = if (location.customUnavailable) stores.defaultStore() else location.store
+                var fellBack = location.customUnavailable
+                val entry = try {
+                    store.write(name, bytes)
+                } catch (e: Exception) {
+                    if (!location.isCustom || fellBack) throw e
+                    store = stores.defaultStore()
+                    fellBack = true
+                    store.write(name, bytes)
+                }
+                val rotated = runCatching { rotate(store) }.getOrDefault(0)
+                BackupRunResult(entry, store.describe(), fellBack, rotated)
+            }
+            result.onSuccess {
+                settings.recordBackupResult(
+                    succeededAt = TimeUtils.now(),
+                    warning = if (it.fellBackToDefault) CUSTOM_FOLDER_LOST_WARNING else null,
+                )
+            }.onFailure {
+                settings.recordBackupResult(succeededAt = null, warning = "上次备份失败：${it.message ?: "未知错误"}")
+            }
+            result
+        }
+    }
+
+    /** 自动备份入口（WorkManager）；返回是否成功。 */
+    suspend fun runAutoBackup(): Boolean = backupNow().isSuccess
+
+    /** 轮换：只考虑严格命名的 ledger-backup-*.json，恢复前备份与其他文件不会被删除。返回删除数量。 */
+    private suspend fun rotate(store: BackupStore): Int {
+        val entries = store.list()
+        val toDelete = BackupRotation.selectFilesToDelete(
+            BackupCatalog.rotationCandidates(entries),
+            java.time.LocalDate.now(),
+        ).toSet()
+        return entries.filter { it.name in toDelete }.count { store.delete(it) }
+    }
+
+    /** 列出当前位置中的备份与应用内部的恢复前备份（均为从新到旧）。 */
+    suspend fun listBackups(): BackupListing = withContext(Dispatchers.IO) {
+        val location = currentLocation()
+        val storeResult = if (location.customUnavailable) {
+            Result.failure(IllegalStateException("无法访问自定义备份文件夹"))
+        } else {
+            runCatching { BackupCatalog.visibleNewestFirst(location.store.list()) }
+        }
+        val internal = stores.internalPreRestoreStore()
+        val internalEntries = runCatching {
+            BackupCatalog.visibleNewestFirst(internal.list())
+        }.getOrDefault(emptyList())
+        BackupListing(
+            location = location,
+            entries = storeResult.getOrDefault(emptyList()),
+            listError = storeResult.exceptionOrNull()?.message,
+            internalStore = internal,
+            internalEntries = internalEntries,
+        )
+    }
+
+    /** 把备份文件另存到用户选择的位置（SAF CreateDocument）。 */
+    suspend fun copyBackupTo(store: BackupStore, entry: BackupEntry, target: Uri): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                store.open(entry).use { input ->
+                    context.contentResolver.openOutputStream(target, "w")?.use { output -> input.copyTo(output) }
+                        ?: throw IllegalStateException("无法写入目标文件")
+                }
+                Unit
+            }
+        }
+
+    /**
+     * 从任意 URI 恢复（content:// 或 file://）：按文件名或首字节判断 JSON / SQLite。
+     * JSON 恢复后调用方需回退无效的当前账本；SQLite 恢复后需重启应用。
+     */
+    suspend fun restoreFromUri(uri: Uri, displayName: String? = null): Result<RestoreOutcome> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val name = displayName ?: uri.lastPathSegment.orEmpty()
+                val isJson = name.endsWith(".json", ignoreCase = true) ||
+                    runCatching {
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            val buf = ByteArray(1)
+                            input.read(buf) >= 0 && buf[0] == '{'.code.toByte()
+                        } == true
+                    }.getOrDefault(false)
+                if (isJson) {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw IllegalStateException("无法读取备份文件")
+                    restoreJson(bytes).getOrThrow()
+                    RestoreOutcome.JSON_RESTORED
+                } else {
+                    restoreSqlite(uri).getOrThrow()
+                    RestoreOutcome.SQLITE_RESTART_REQUIRED
+                }
+            }
+        }
+
+    /**
+     * 恢复前自动备份当前数据：优先写入当前备份位置（默认目录或可用的自定义文件夹），
+     * 失败时写入应用内部 filesDir/pre-restore-backups。
+     */
     private suspend fun backupBeforeRestoreOrThrow() {
         val jsonBytes = buildBackupJson()
-        val name = BackupRotation.fileName(java.time.LocalDateTime.now())
-        val backupDirUri = settings.backupDirUri.first()
-        val savedToUserDirectory = if (backupDirUri != null) {
-            runCatching {
-                val dir = DocumentFile.fromTreeUri(context, Uri.parse(backupDirUri))
-                val file = dir?.createFile(BackupConstants.MIME_JSON, "pre-restore-$name")
-                    ?: return@runCatching false
-                context.contentResolver.openOutputStream(file.uri)?.use { it.write(jsonBytes) } != null
-            }.getOrDefault(false)
-        } else {
-            false
-        }
-        if (!savedToUserDirectory) {
-            val dir = File(context.filesDir, "pre-restore-backups")
-            if (!dir.exists() && !dir.mkdirs()) throw IllegalStateException("无法创建恢复前备份目录")
-            File(dir, "pre-restore-$name").writeBytes(jsonBytes)
+        val name = BackupCatalog.preRestoreFileName(java.time.LocalDateTime.now())
+        val savedToStore = runCatching {
+            val location = currentLocation()
+            if (location.customUnavailable) {
+                false
+            } else {
+                location.store.write(name, jsonBytes)
+                true
+            }
+        }.getOrDefault(false)
+        if (!savedToStore) {
+            stores.internalPreRestoreStore().write(name, jsonBytes)
         }
     }
 
@@ -423,6 +540,9 @@ class BackupRepository(
     }
 
     companion object {
+        const val CUSTOM_FOLDER_LOST_WARNING =
+            "自定义备份文件夹无法访问（可能已被删除或授权失效），备份已改存到默认目录。请重新选择文件夹或恢复默认目录。"
+
         /** 恢复（SQLite）后重启应用使新数据库生效。 */
         fun restartApp(context: Context) {
             val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
@@ -432,4 +552,31 @@ class BackupRepository(
             Runtime.getRuntime().exit(0)
         }
     }
+}
+
+/** 一次立即 / 自动备份的结果。 */
+data class BackupRunResult(
+    val entry: BackupEntry,
+    val locationLabel: String,
+    /** 自定义文件夹不可用，本次已回退写入默认目录。 */
+    val fellBackToDefault: Boolean,
+    /** 轮换删除的旧备份数量。 */
+    val rotatedCount: Int,
+)
+
+/** 备份管理页的列表数据。 */
+data class BackupListing(
+    val location: BackupLocationState,
+    val entries: List<BackupEntry>,
+    val listError: String?,
+    val internalStore: BackupStore,
+    val internalEntries: List<BackupEntry>,
+)
+
+enum class RestoreOutcome {
+    /** JSON 已恢复，需回退无效的当前账本。 */
+    JSON_RESTORED,
+
+    /** SQLite 文件已替换，需重启应用。 */
+    SQLITE_RESTART_REQUIRED,
 }

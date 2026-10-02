@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
@@ -48,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.data.repository.AccountPurgeImpact
 import com.personal.ledger.domain.calc.BalanceCalculator
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.TransactionType
@@ -55,7 +58,10 @@ import com.personal.ledger.navigation.Routes
 import com.personal.ledger.ui.common.AccountBadge
 import com.personal.ledger.ui.common.EmptyState
 import com.personal.ledger.ui.common.LedgerCard
+import com.personal.ledger.ui.common.LedgerGroup
 import com.personal.ledger.ui.common.LedgerGroupItem
+import com.personal.ledger.ui.common.LedgerIconTile
+import com.personal.ledger.ui.common.LedgerListRow
 import com.personal.ledger.ui.common.LedgerSectionHeader
 import com.personal.ledger.ui.common.MoneyText
 import com.personal.ledger.ui.common.accountTypeLabel
@@ -69,6 +75,7 @@ import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.ui.settings.PurgeDialog
 import com.personal.ledger.util.Money
 import com.personal.ledger.util.TimeUtils
 import kotlinx.coroutines.launch
@@ -85,6 +92,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
         .collectAsStateWithLifecycle(initialValue = emptyList())
 
     var showEdit by remember { mutableStateOf(false) }
+    var showPurge by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
@@ -157,6 +165,43 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                     )
                 }
             }
+            if (acc?.isArchived == true) {
+                item {
+                    LedgerGroup(
+                        title = "已归档",
+                        modifier = Modifier.padding(top = LedgerSpacing.lg),
+                    ) {
+                        LedgerListRow(
+                            title = "恢复账户",
+                            subtitle = "恢复后重新计入资产 / 负债",
+                            leading = { LedgerIconTile(Icons.Outlined.Restore) },
+                            onClick = {
+                                scope.launch {
+                                    container.accountRepository.setArchived(acc.id, false)
+                                        .onSuccess { hapticConfirm() }
+                                        .onFailure { hapticReject() }
+                                }
+                            },
+                        )
+                        LedgerListRow(
+                            title = "彻底删除账户",
+                            titleColor = MaterialTheme.colorScheme.error,
+                            subtitle = "同时删除涉及该账户的全部账单与定时扣款",
+                            leading = {
+                                LedgerIconTile(
+                                    Icons.Outlined.DeleteForever,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                )
+                            },
+                            onClick = {
+                                hapticConfirm()
+                                showPurge = true
+                            },
+                        )
+                    }
+                }
+            }
             item {
                 LedgerSectionHeader(
                     title = "交易记录",
@@ -218,6 +263,30 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                 }
             }
         }
+    }
+
+    if (showPurge && acc != null) {
+        var impact by remember(acc.id) { mutableStateOf<AccountPurgeImpact?>(null) }
+        LaunchedEffect(acc.id) { impact = container.purgeRepository.accountImpact(acc.id) }
+        val i = impact
+        PurgeDialog(
+            container = container,
+            title = "彻底删除账户",
+            impact = if (i == null) {
+                "正在统计影响范围…"
+            } else {
+                "将永久删除账户“${acc.name}”，以及涉及它的 ${i.transactionCount} 笔账单（含回收站，其中转账 ${i.transferCount} 笔）" +
+                    "和 ${i.recurringCount} 条定时扣款。" +
+                    if (i.transferCount > 0) "转账被删除后，转账另一端账户的余额会随之变化。" else ""
+            },
+            confirmEnabled = i != null,
+            onDismiss = { showPurge = false },
+            onPurged = {
+                showPurge = false
+                navController.popBackStack()
+            },
+            purge = { container.purgeRepository.purgeAccount(acc.id) },
+        )
     }
 
     if (showEdit && acc != null) {

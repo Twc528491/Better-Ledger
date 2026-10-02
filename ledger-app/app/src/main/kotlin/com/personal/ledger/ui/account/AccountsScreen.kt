@@ -171,6 +171,23 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                     }
                 }
             }
+
+            // 已归档账户：点击进入详情，可恢复或彻底删除
+            if (state.archived.isNotEmpty()) {
+                item { AccountSectionHeader("已归档") }
+                val count = state.archived.size
+                itemsIndexed(state.archived, key = { _, awb -> "archived_" + awb.account.id }) { index, awb ->
+                    LedgerGroupItem(index = index, count = count) {
+                        AccountRow(
+                            awb,
+                            onClick = {
+                                hapticLight()
+                                navController.navigate(Routes.accountDetail(awb.account.id))
+                            },
+                        )
+                    }
+                }
+            }
         }
     }
 

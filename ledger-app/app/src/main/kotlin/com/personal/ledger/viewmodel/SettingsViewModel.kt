@@ -145,6 +145,21 @@ class CategoriesViewModel(
         }
     }
 
+    /** 恢复已删除（归档）的分类；二级分类的父分类也已归档时一并恢复父分类。 */
+    fun restoreCategory(id: String, onDone: (Result<Unit>) -> Unit) {
+        viewModelScope.launch {
+            val target = categoryRepository.getById(id)
+            val parent = target?.parentId?.let { categoryRepository.getById(it) }
+            val result = if (parent != null && parent.isArchived) {
+                categoryRepository.setArchived(parent.id, false)
+                    .mapCatching { categoryRepository.setArchived(id, false).getOrThrow() }
+            } else {
+                categoryRepository.setArchived(id, false)
+            }
+            onDone(result)
+        }
+    }
+
     /** 分类删除保持历史引用，实际执行安全软归档。 */
     fun deleteCategory(id: String, onDone: (Result<Unit>) -> Unit) {
         viewModelScope.launch {

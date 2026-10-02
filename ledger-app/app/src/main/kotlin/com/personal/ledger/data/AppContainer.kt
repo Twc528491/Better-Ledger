@@ -9,6 +9,7 @@ import com.personal.ledger.data.repository.CategoryRepository
 import com.personal.ledger.data.repository.LedgerRepository
 import com.personal.ledger.data.repository.RecurringChargeRepository
 import com.personal.ledger.data.repository.MerchantRepository
+import com.personal.ledger.data.repository.PurgeRepository
 import com.personal.ledger.data.repository.TagRepository
 import com.personal.ledger.data.repository.TransactionRepository
 import com.personal.ledger.data.settings.SettingsRepository
@@ -38,6 +39,7 @@ class AppContainer(context: Context) {
         categoryDao = database.categoryDao(),
         settings = settings,
     )
+    val purgeRepository = PurgeRepository(database)
     val backupRepository = BackupRepository(
         context = context.applicationContext,
         database = database,

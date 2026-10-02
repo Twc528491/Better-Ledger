@@ -22,6 +22,8 @@ data class AccountsUiState(
     val netWorth: Long = 0L,
     val assets: List<AccountWithBalance> = emptyList(),
     val liabilities: List<AccountWithBalance> = emptyList(),
+    /** 已归档账户（不计入资产 / 负债分组，可进入详情恢复或彻底删除）。 */
+    val archived: List<AccountWithBalance> = emptyList(),
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -45,6 +47,7 @@ class AccountsViewModel(
                         netWorth = accounts.sumOf { it.balance },
                         assets = accounts.filter { it.balance >= 0 && !it.account.isArchived },
                         liabilities = accounts.filter { it.balance < 0 && !it.account.isArchived },
+                        archived = accounts.filter { it.account.isArchived },
                     )
                 }
             }
