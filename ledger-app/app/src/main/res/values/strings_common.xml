@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通用动作与词汇：各页面共用，避免重复定义。 -->
+    <string name="action_cancel">取消</string>
+    <string name="action_confirm">确定</string>
+    <string name="action_ok">好的</string>
+    <string name="action_close">关闭</string>
+    <string name="action_back">返回</string>
+    <string name="action_save">保存</string>
+    <string name="action_done">完成</string>
+    <string name="action_add">添加</string>
+    <string name="action_edit">编辑</string>
+    <string name="action_delete">删除</string>
+    <string name="action_confirm_delete">确认删除</string>
+    <string name="action_rename">重命名</string>
+    <string name="action_archive">归档</string>
+    <string name="action_restore">恢复</string>
+    <string name="action_undo">撤销</string>
+    <string name="action_search">搜索</string>
+    <string name="action_filter">筛选</string>
+    <string name="action_settings">设置</string>
+    <string name="action_select_all">全选</string>
+    <string name="action_deselect_all">取消全选</string>
+    <string name="action_more">更多</string>
+    <string name="action_clear">清除</string>
+    <string name="dialog_notice">提示</string>
+    <string name="label_archived_suffix">（已归档）</string>
+
+    <string name="type_expense">支出</string>
+    <string name="type_income">收入</string>
+    <string name="type_transfer">转账</string>
+    <string name="label_balance">结余</string>
+    <string name="label_uncategorized">未分类</string>
+    <string name="label_other">其他</string>
+    <string name="label_not_selected">未选择</string>
+    <string name="label_today">今天</string>
+    <string name="label_yesterday">昨天</string>
+    <string name="label_day_before_yesterday">前天</string>
+
+</resources>
