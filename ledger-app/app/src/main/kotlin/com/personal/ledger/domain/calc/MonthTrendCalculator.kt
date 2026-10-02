@@ -48,4 +48,15 @@ object MonthTrendCalculator {
         }
         return months.map { ym -> MonthTotals(ym, totals[ym]!!.first, totals[ym]!!.second) }
     }
+
+    /**
+     * 月均支出：只统计有收支记录的月份，避免开始记账前的空月份拉低均值。
+     * 四舍五入到分；全部为空时返回 0。
+     */
+    fun averageExpense(months: List<MonthTotals>): Long {
+        val active = months.filter { it.income != 0L || it.expense != 0L }
+        if (active.isEmpty()) return 0L
+        val sum = active.sumOf { it.expense }
+        return (sum + active.size / 2) / active.size
+    }
 }
