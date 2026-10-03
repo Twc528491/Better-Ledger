@@ -19,13 +19,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Merge
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,8 +56,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.personal.ledger.data.AppContainer
+import com.personal.ledger.data.repository.AccountMergePlan
 import com.personal.ledger.data.repository.AccountPurgeImpact
+import com.personal.ledger.domain.calc.AccountRules
 import com.personal.ledger.domain.calc.BalanceCalculator
+import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.navigation.Routes
@@ -75,7 +84,11 @@ import com.personal.ledger.ui.common.rememberHapticConfirm
 import com.personal.ledger.ui.common.rememberHapticLight
 import com.personal.ledger.ui.common.rememberHapticNavigation
 import com.personal.ledger.ui.common.rememberHapticReject
+import com.personal.ledger.ui.settings.IrreversibleActionDialog
+import com.personal.ledger.ui.settings.IrreversibleActionTexts
 import com.personal.ledger.ui.settings.PurgeDialog
+import com.personal.ledger.ui.transaction.EntryPickerOption
+import com.personal.ledger.ui.transaction.EntryPickerSheet
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -89,33 +102,49 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 
+/**
+ * 账户详情。账户全局共享：余额与交易列表汇总全部账本，
+ * 其他账本的账单在副标题中标出账本名，可用筛选切换“仅当前账本 / 全部账本”。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountDetailScreen(container: AppContainer, navController: NavHostController, accountId: String) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
-    val account by container.accountRepository.observeByLedger(ledgerOf(container))
+    val acc by remember(accountId) { container.accountRepository.observeAccount(accountId) }
+        .collectAsStateWithLifecycle(initialValue = null)
+    val allAccounts by remember { container.accountRepository.observeAll() }
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    val txList by container.transactionRepository.observeByLedger(ledgerOf(container))
+    val txList by remember(accountId) { container.accountRepository.observeAccountTransactions(accountId) }
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val ledgers by container.ledgerRepository.ledgers.collectAsStateWithLifecycle(initialValue = emptyList())
+    val currentLedger by container.ledgerRepository.currentLedger.collectAsStateWithLifecycle(initialValue = null)
 
     var showEdit by remember { mutableStateOf(false) }
-    var showPurge by remember { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
+    var showMergePicker by remember { mutableStateOf(false) }
+    // 合并 / 彻底删除会删除当前账户：对话框使用打开时的账户快照，
+    // 避免账户流先变为 null 导致对话框（及其协程）提前退出而未能返回。
+    var mergeRequest by remember { mutableStateOf<Pair<Account, String>?>(null) }
+    var purgeTarget by remember { mutableStateOf<Account?>(null) }
+    var onlyCurrentLedger by rememberSaveable { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val hapticLight = rememberHapticLight()
     val hapticNavigation = rememberHapticNavigation()
     val hapticConfirm = rememberHapticConfirm()
     val hapticReject = rememberHapticReject()
 
-    val acc = account.firstOrNull { it.id == accountId }
-    val txs = txList.filter { it.accountId == accountId || it.targetAccountId == accountId }
-        .sortedByDescending { it.transactionTime }
+    val currentLedgerId = currentLedger?.id
+    val ledgerNameOf = remember(ledgers) { ledgers.associate { it.id to it.name } }
+    // 余额始终汇总全部账本；筛选只影响列表。
     val balance = acc?.let { a ->
         val deltas = txList.mapNotNull {
             BalanceCalculator.deltaFor(it.type, it.amount, it.accountId, it.targetAccountId, a.id)
         }
         BalanceCalculator.compute(a.initialBalance, deltas)
     } ?: 0L
+    val txs = if (onlyCurrentLedger) txList.filter { it.ledgerId == currentLedgerId } else txList
 
     Scaffold(
         topBar = {
@@ -135,6 +164,24 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         showEdit = true
                     }) {
                         Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.action_edit))
+                    }
+                    IconButton(onClick = {
+                        hapticLight()
+                        showMenu = true
+                    }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.account_merge)) },
+                            leadingIcon = { Icon(Icons.Outlined.Merge, contentDescription = null) },
+                            enabled = acc != null,
+                            onClick = {
+                                hapticNavigation()
+                                showMenu = false
+                                showMergePicker = true
+                            },
+                        )
                     }
                 },
             )
@@ -190,7 +237,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                             leading = { LedgerIconTile(Icons.Outlined.Restore) },
                             onClick = {
                                 scope.launch {
-                                    container.accountRepository.setArchived(acc.id, false)
+                                    container.accountRepository.setArchived(accountId, false)
                                         .onSuccess { hapticConfirm() }
                                         .onFailure { hapticReject() }
                                 }
@@ -209,7 +256,7 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                             },
                             onClick = {
                                 hapticConfirm()
-                                showPurge = true
+                                purgeTarget = acc
                             },
                         )
                     }
@@ -221,6 +268,30 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                     modifier = Modifier.padding(start = LedgerSpacing.xxs, top = LedgerSpacing.lg, bottom = LedgerSpacing.xxs),
                 )
             }
+            item {
+                // 账户跨账本共享：列表默认显示全部账本，可切换为仅当前账本。
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.xs),
+                    modifier = Modifier.padding(bottom = LedgerSpacing.xs),
+                ) {
+                    FilterChip(
+                        selected = !onlyCurrentLedger,
+                        onClick = {
+                            hapticLight()
+                            onlyCurrentLedger = false
+                        },
+                        label = { Text(stringResource(R.string.account_filter_all_ledgers)) },
+                    )
+                    FilterChip(
+                        selected = onlyCurrentLedger,
+                        onClick = {
+                            hapticLight()
+                            onlyCurrentLedger = true
+                        },
+                        label = { Text(stringResource(R.string.account_filter_current_ledger)) },
+                    )
+                }
+            }
             if (txs.isEmpty()) {
                 item {
                     Surface(
@@ -228,17 +299,32 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                         color = cardColor(),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        EmptyState(
-                            icon = Icons.AutoMirrored.Outlined.ReceiptLong,
-                            title = stringResource(R.string.account_no_transactions),
-                            subtitle = stringResource(R.string.account_no_transactions_hint),
-                        )
+                        if (onlyCurrentLedger && txList.isNotEmpty()) {
+                            EmptyState(
+                                icon = Icons.AutoMirrored.Outlined.ReceiptLong,
+                                title = stringResource(R.string.account_no_transactions_in_ledger),
+                                subtitle = stringResource(R.string.account_no_transactions_in_ledger_hint),
+                            )
+                        } else {
+                            EmptyState(
+                                icon = Icons.AutoMirrored.Outlined.ReceiptLong,
+                                title = stringResource(R.string.account_no_transactions),
+                                subtitle = stringResource(R.string.account_no_transactions_hint),
+                            )
+                        }
                     }
                 }
             }
             val count = txs.size
             itemsIndexed(txs, key = { _, tx -> tx.id }) { index, tx ->
                 val outgoingTransfer = tx.type == TransactionType.TRANSFER && tx.accountId == accountId
+                val dateText = DateLabels.monthDay(TimeUtils.localDateOf(tx.transactionTime), locale)
+                // 非当前账本的账单标出账本名；点击可直接编辑（按账单所属账本加载分类等）。
+                val subtitle = if (tx.ledgerId != currentLedgerId) {
+                    ledgerNameOf[tx.ledgerId]?.let { "$dateText · $it" } ?: dateText
+                } else {
+                    dateText
+                }
                 LedgerGroupItem(index = index, count = count) {
                     Row(
                         modifier = Modifier
@@ -259,9 +345,11 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                DateLabels.monthDay(TimeUtils.localDateOf(tx.transactionTime), locale),
+                                subtitle,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                         MoneyText(
@@ -278,9 +366,47 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
         }
     }
 
-    if (showPurge && acc != null) {
-        var impact by remember(acc.id) { mutableStateOf<AccountPurgeImpact?>(null) }
-        LaunchedEffect(acc.id) { impact = container.purgeRepository.accountImpact(acc.id) }
+    val account = acc
+    if (showMergePicker && account != null) {
+        val candidates = remember(account, allAccounts) { AccountRules.mergeCandidates(account, allAccounts) }
+        EntryPickerSheet(
+            title = stringResource(R.string.account_merge),
+            subtitle = stringResource(R.string.account_merge_pick_subtitle, account.name),
+            hint = if (candidates.isEmpty()) stringResource(R.string.account_merge_no_candidates) else null,
+            options = candidates.map { target ->
+                EntryPickerOption(
+                    id = target.id,
+                    title = target.name,
+                    detail = "${accountTypeLabel(target.type)} · ${target.currency}",
+                    leading = { AccountBadge(target.type, sizeDp = 36) },
+                )
+            },
+            onPick = { id ->
+                showMergePicker = false
+                mergeRequest = account to id
+            },
+            onDismiss = { showMergePicker = false },
+        )
+    }
+
+    mergeRequest?.let { (source, targetId) ->
+        AccountMergeDialog(
+            container = container,
+            source = source,
+            targetId = targetId,
+            onDismiss = { mergeRequest = null },
+            onMerged = {
+                mergeRequest = null
+                // 源账户已删除：返回并打开合并后的目标账户。
+                navController.popBackStack()
+                navController.navigate(Routes.accountDetail(targetId))
+            },
+        )
+    }
+
+    purgeTarget?.let { target ->
+        var impact by remember(target.id) { mutableStateOf<AccountPurgeImpact?>(null) }
+        LaunchedEffect(target.id) { impact = container.purgeRepository.accountImpact(target.id) }
         val i = impact
         PurgeDialog(
             container = container,
@@ -288,36 +414,39 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
             impact = if (i == null) {
                 stringResource(R.string.account_purge_calculating)
             } else {
-                val summary = stringResource(
-                    R.string.account_purge_impact,
-                    acc.name,
-                    pluralStringResource(R.plurals.account_purge_tx_count, i.transactionCount, i.transactionCount, i.transferCount),
-                    pluralStringResource(R.plurals.account_purge_recurring_count, i.recurringCount, i.recurringCount),
-                )
-                if (i.transferCount > 0) {
-                    stringResource(R.string.account_purge_impact_with_note, summary,
-                        stringResource(R.string.account_purge_transfer_note))
-                } else {
-                    summary
+                val notes = buildList {
+                    add(
+                        stringResource(
+                            R.string.account_purge_impact,
+                            target.name,
+                            pluralStringResource(R.plurals.account_purge_tx_count, i.transactionCount, i.transactionCount, i.transferCount),
+                            pluralStringResource(R.plurals.account_purge_recurring_count, i.recurringCount, i.recurringCount),
+                        ),
+                    )
+                    if (i.ledgerCount > 1) {
+                        add(pluralStringResource(R.plurals.account_purge_ledgers_note, i.ledgerCount, i.ledgerCount))
+                    }
+                    if (i.transferCount > 0) add(stringResource(R.string.account_purge_transfer_note))
                 }
+                notes.reduce { joined, note -> stringResource(R.string.account_purge_impact_with_note, joined, note) }
             },
             confirmEnabled = i != null,
-            onDismiss = { showPurge = false },
+            onDismiss = { purgeTarget = null },
             onPurged = {
-                showPurge = false
+                purgeTarget = null
                 navController.popBackStack()
             },
-            purge = { container.purgeRepository.purgeAccount(acc.id) },
+            purge = { container.purgeRepository.purgeAccount(target.id) },
         )
     }
 
-    if (showEdit && acc != null) {
+    if (showEdit && account != null) {
         EditAccountDialog(
-            account = acc,
+            account = account,
             onConfirm = { name, type, initialMinor, initialTime, archived ->
                 scope.launch {
                     container.accountRepository.updateAccount(
-                        acc, name, type, initialMinor, initialTime, archived,
+                        account, name, type, initialMinor, initialTime, archived,
                     ).onSuccess {
                         hapticConfirm()
                         showEdit = false
@@ -334,10 +463,58 @@ fun AccountDetailScreen(container: AppContainer, navController: NavHostControlle
     }
 }
 
+/**
+ * 合并确认：先计算影响（账单 / 定时扣款数、将删除的互转笔数、合并后的初始余额与时间），
+ * 再以不可撤销确认框执行，默认勾选“合并前先立即备份”。
+ */
 @Composable
-private fun ledgerOf(container: AppContainer): String {
-    val ledger by container.ledgerRepository.currentLedger.collectAsStateWithLifecycle(initialValue = null)
-    return ledger?.id ?: ""
+private fun AccountMergeDialog(
+    container: AppContainer,
+    source: Account,
+    targetId: String,
+    onDismiss: () -> Unit,
+    onMerged: () -> Unit,
+) {
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    var plan by remember(source.id, targetId) { mutableStateOf<AccountMergePlan?>(null) }
+    var planError by remember(source.id, targetId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(source.id, targetId) {
+        runCatching { container.accountMergeRepository.plan(source.id, targetId) }
+            .onSuccess { plan = it }
+            .onFailure { planError = it.userMessage(context, R.string.account_merge_failed) }
+    }
+    val p = plan
+    IrreversibleActionDialog(
+        container = container,
+        title = stringResource(R.string.account_merge_title),
+        impact = when {
+            planError != null -> planError!!
+            p == null -> stringResource(R.string.account_purge_calculating)
+            else -> stringResource(
+                R.string.account_merge_impact,
+                p.source.name,
+                p.target.name,
+                pluralStringResource(R.plurals.account_merge_tx_count, p.movedTransactions, p.movedTransactions),
+                pluralStringResource(R.plurals.account_merge_recurring_count, p.recurringCharges, p.recurringCharges),
+                Money.formatWithCurrency(p.mergedInitialBalance, p.target.currency),
+                DateLabels.fullDate(TimeUtils.localDateOf(p.mergedInitialTime), locale),
+            )
+        },
+        texts = IrreversibleActionTexts.MERGE_ACCOUNT,
+        confirmEnabled = p != null,
+        onDismiss = onDismiss,
+        onDone = onMerged,
+        action = { container.accountMergeRepository.merge(source.id, targetId).map { } },
+        extra = {
+            if (p != null && p.selfTransfers > 0) {
+                Text(
+                    pluralStringResource(R.plurals.account_merge_self_transfers, p.selfTransfers, p.selfTransfers),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        },
+    )
 }
 
 @Composable

@@ -69,6 +69,11 @@
     <string name="err_ledger_archived">Ledger is archived</string>
     <string name="err_account_archived_unusable">Archived accounts can\'t be used</string>
     <string name="err_account_currency_mismatch">Account currency doesn\'t match the ledger</string>
+    <string name="err_target_account_currency_mismatch">Destination account currency doesn\'t match the ledger</string>
+    <string name="err_merge_target_not_found">Target account not found</string>
+    <string name="err_merge_same_account">An account can\'t be merged into itself</string>
+    <string name="err_merge_currency">Accounts can only be merged into an account with the same currency</string>
+    <string name="err_merge_target_archived">Can\'t merge into an archived account</string>
     <string name="err_expense_category_not_found">Expense category not found</string>
     <string name="err_select_expense_category">Choose an expense category</string>
     <string name="err_category_archived_unusable">Archived categories can\'t be used</string>
@@ -85,6 +90,7 @@
     <string name="err_sqlite_v2_missing">SQLite v2 backup is missing the recurring charge tables</string>
     <string name="err_sqlite_v3_missing">SQLite v3 backup is missing the merchant category table</string>
     <string name="err_sqlite_v4_missing">SQLite v4 backup is missing the category icon column</string>
+    <string name="err_sqlite_v5_mismatch">SQLite v5 backup has an invalid account table</string>
     <string name="err_backup_recurring_dup_id">Duplicate recurring charge ID</string>
     <string name="err_backup_tx_dup_id">Duplicate transaction ID</string>
     <string name="err_backup_recurring_invalid_rule">A recurring charge has an invalid frequency, date or time zone</string>

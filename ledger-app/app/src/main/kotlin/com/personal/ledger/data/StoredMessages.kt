@@ -41,10 +41,12 @@ enum class StoredMessage(@StringRes val res: Int) {
     LEDGER_NOT_FOUND(R.string.err_ledger_not_found),
     CURRENCY_MISMATCH(R.string.err_currency_mismatch),
     ACCOUNT_NOT_FOUND(R.string.err_account_not_found),
+    // v0.6 起账户跨账本共享，不再产生；保留以显示旧版本写入的 lastError。
     ACCOUNT_NOT_IN_LEDGER(R.string.err_account_not_in_ledger),
     TIME_BEFORE_ACCOUNT_START(R.string.err_time_before_account_start),
     CATEGORY_NOT_IN_LEDGER(R.string.err_category_not_in_ledger),
     TARGET_ACCOUNT_NOT_FOUND(R.string.err_target_account_not_found),
+    // 同上，仅用于显示旧版本写入的 lastError。
     TARGET_ACCOUNT_NOT_IN_LEDGER(R.string.err_target_account_not_in_ledger),
     TIME_BEFORE_TARGET_START(R.string.err_time_before_target_start),
     MERCHANT_NOT_FOUND(R.string.err_merchant_not_found),
@@ -60,6 +62,10 @@ enum class StoredMessage(@StringRes val res: Int) {
     ACCESS_BACKUP_FOLDER(R.string.err_access_backup_folder),
     CREATE_IN_BACKUP_FOLDER(R.string.err_create_in_backup_folder),
     CUSTOM_FOLDER_INACCESSIBLE(R.string.err_custom_folder_inaccessible),
+
+    // v0.6：账户跨账本共享后的交易校验
+    ACCOUNT_CURRENCY_MISMATCH(R.string.err_account_currency_mismatch),
+    TARGET_ACCOUNT_CURRENCY_MISMATCH(R.string.err_target_account_currency_mismatch),
     ;
 
     companion object {

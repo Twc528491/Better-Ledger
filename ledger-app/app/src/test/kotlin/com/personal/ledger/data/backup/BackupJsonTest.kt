@@ -27,7 +27,7 @@ class BackupJsonTest {
     @Test
     fun `备份 JSON 往返一致（含软删除交易）`() {
         val ledger = LedgerEntity("l1", "账本A", "CNY", 1L, 2L, false)
-        val account = AccountEntity("a1", "l1", "现金", AccountType.CASH, "CNY", 0L, 1L, 1L, 1L, false)
+        val account = AccountEntity("a1", "现金", AccountType.CASH, "CNY", 0L, 1L, 1L, 1L, false)
         val category = CategoryEntity("c1", "l1", "餐饮", CategoryType.EXPENSE, null, 0, false)
         val tx = TransactionEntity(
             id = "t1", ledgerId = "l1", type = TransactionType.EXPENSE, amount = 2500,
@@ -150,7 +150,7 @@ class BackupJsonTest {
         val encoded = json.encodeToString(BackupFile.serializer(), backup)
         val decoded = json.decodeFromString(BackupFile.serializer(), encoded)
 
-        assertEquals(4, decoded.backupFormatVersion)
+        assertEquals(BackupConstants.FORMAT_VERSION, decoded.backupFormatVersion)
         assertTrue(encoded.contains("\"iconKey\": \"pets\""))
         assertEquals(listOf(custom, automatic), decoded.data.categories.map { it.toEntity() })
         assertNull(decoded.data.categories[1].iconKey)
@@ -187,5 +187,51 @@ class BackupJsonTest {
         assertNull(CategoryIconKeys.normalize(null))
         assertEquals("pets", CategoryIconKeys.normalize("  pets "))
         assertTrue(runCatching { CategoryIconKeys.normalize(" ") }.isFailure)
+    }
+
+    @Test
+    fun versionFiveAccountsAreGlobalAndOmitLedgerId() {
+        val account = AccountEntity("a1", "现金", AccountType.CASH, "CNY", 100L, 1L, 1L, 2L, true)
+        val backup = BackupFile(exportedAt = 1L, appVersion = "0.6.0", data = BackupData(accounts = listOf(account.toDto())))
+        val encoded = json.encodeToString(BackupFile.serializer(), backup)
+        val decoded = json.decodeFromString(BackupFile.serializer(), encoded)
+
+        assertEquals(5, BackupConstants.FORMAT_VERSION)
+        assertFalse(encoded.contains("ledgerId"))
+        assertNull(decoded.data.accounts.single().ledgerId)
+        assertEquals(account, decoded.data.accounts.single().toEntity())
+    }
+
+    @Test
+    fun versionFourAccountsKeepLedgerIdOnlyForClashRenaming() {
+        val versionFour = """
+            {"backupFormatVersion":4,"exportedAt":1,"appVersion":"0.5.0","data":{
+              "ledgers":[
+                {"id":"l1","name":"个人账本","baseCurrency":"CNY","createdAt":1,"updatedAt":1,"isArchived":false},
+                {"id":"l2","name":"旅行","baseCurrency":"CNY","createdAt":2,"updatedAt":2,"isArchived":true}
+              ],
+              "accounts":[
+                {"id":"a1","ledgerId":"l1","name":"现金","type":"CASH","currency":"CNY","initialBalance":0,
+                 "initialBalanceTime":1,"createdAt":1,"updatedAt":1,"isArchived":false},
+                {"id":"a2","ledgerId":"l2","name":"现金 ","type":"CASH","currency":"CNY","initialBalance":500,
+                 "initialBalanceTime":2,"createdAt":2,"updatedAt":2,"isArchived":false},
+                {"id":"a3","ledgerId":"l2","name":"银行卡","type":"BANK","currency":"CNY","initialBalance":0,
+                 "initialBalanceTime":2,"createdAt":3,"updatedAt":3,"isArchived":true}
+              ]
+            }}
+        """.trimIndent()
+
+        val decoded = json.decodeFromString(BackupFile.serializer(), versionFour)
+        assertEquals("l1", decoded.data.accounts.first().ledgerId)
+
+        val shared = sharedAccountsFromLegacy(decoded.data).associateBy { it.id }
+        assertEquals("现金（个人账本）", shared.getValue("a1").name)
+        assertEquals("现金（旅行）", shared.getValue("a2").name)
+        assertEquals("银行卡", shared.getValue("a3").name)
+        assertEquals(500L, shared.getValue("a2").initialBalance)
+        assertEquals(
+            AccountEntity("a2", "现金（旅行）", AccountType.CASH, "CNY", 500L, 2L, 2L, 2L, false),
+            shared.getValue("a2").toEntity(),
+        )
     }
 }

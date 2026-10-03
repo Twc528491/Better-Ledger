@@ -57,9 +57,10 @@
         <item quantity="one">%1$d transaction (incl. Recycle bin)</item>
         <item quantity="other">%1$d transactions (incl. Recycle bin)</item>
     </plurals>
-    <plurals name="set_count_accounts">
-        <item quantity="one">%1$d account</item>
-        <item quantity="other">%1$d accounts</item>
+    <string name="set_ledger_purge_accounts_kept">Accounts are shared by all ledgers and won\'t be deleted.</string>
+    <plurals name="set_ledger_purge_accounts_affected">
+        <item quantity="one">Accounts are shared by all ledgers and won\'t be deleted, but the balance of %1$d account will change because these transactions are deleted.</item>
+        <item quantity="other">Accounts are shared by all ledgers and won\'t be deleted, but the balances of %1$d accounts will change because these transactions are deleted.</item>
     </plurals>
     <plurals name="set_count_categories">
         <item quantity="one">%1$d category</item>

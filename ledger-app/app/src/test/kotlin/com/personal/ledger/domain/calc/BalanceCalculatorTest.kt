@@ -50,4 +50,14 @@ class BalanceCalculatorTest {
         val inSide = BalanceCalculator.deltaFor(TransactionType.TRANSFER, 500, "A", "B", "B")!!
         assertEquals(0L, out + inSide)
     }
+
+    @Test
+    fun `按类型聚合的合计折算方向与逐笔一致`() {
+        assertEquals(300L, BalanceCalculator.deltaForTotal(TransactionType.INCOME, incoming = false, total = 300))
+        assertEquals(-200L, BalanceCalculator.deltaForTotal(TransactionType.EXPENSE, incoming = false, total = 200))
+        assertEquals(-50L, BalanceCalculator.deltaForTotal(TransactionType.TRANSFER, incoming = false, total = 50))
+        assertEquals(50L, BalanceCalculator.deltaForTotal(TransactionType.TRANSFER, incoming = true, total = 50))
+        // 只有转账有转入方向；其他类型的转入合计不计入
+        assertEquals(0L, BalanceCalculator.deltaForTotal(TransactionType.INCOME, incoming = true, total = 50))
+    }
 }

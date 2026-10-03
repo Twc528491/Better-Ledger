@@ -172,6 +172,12 @@ class BackupRepository(
                 backup.data.merchantCategories
             }
             validateMerchantCategories(backup.data, merchantCategories)
+            // v1–v4 的账户属于各自账本；恢复为全局账户时处理跨账本同名（与迁移 4→5 规则一致）。
+            val accounts = if (backup.backupFormatVersion < 5) {
+                sharedAccountsFromLegacy(backup.data)
+            } else {
+                backup.data.accounts
+            }
             RecurringDatabaseGate.mutex.withLock {
                 backupBeforeRestoreOrThrow()
                 database.withTransaction {
@@ -188,7 +194,7 @@ class BackupRepository(
                     database.ledgerDao().deleteAll()
 
                     backup.data.ledgers.forEach { database.ledgerDao().insert(it.toEntity()) }
-                    backup.data.accounts.forEach { database.accountDao().insert(it.toEntity()) }
+                    accounts.forEach { database.accountDao().insert(it.toEntity()) }
                     // 图标仅用于显示：非法 key 不阻断恢复，回退为“自动”（按名称匹配）。
                     backup.data.categories.forEach {
                         val icon = it.iconKey?.trim()?.takeIf(CategoryIconKeys::isValid)
@@ -446,20 +452,25 @@ class BackupRepository(
             if (version >= 3 && "merchant_category" !in tables) {
                 throw UserFacingException(R.string.err_sqlite_v3_missing)
             }
-            if (version >= 4) {
-                val categoryColumns = sqlite.rawQuery("PRAGMA table_info(`category`)", null).use { cursor ->
-                    val nameIndex = cursor.getColumnIndexOrThrow("name")
-                    buildSet { while (cursor.moveToNext()) add(cursor.getString(nameIndex)) }
-                }
-                if ("iconKey" !in categoryColumns) {
-                    throw UserFacingException(R.string.err_sqlite_v4_missing)
-                }
+            if (version >= 4 && "iconKey" !in columnsOf(sqlite, "category")) {
+                throw UserFacingException(R.string.err_sqlite_v4_missing)
             }
-            // v1–v3 备份替换后由 Room 在下次打开时按显式 Migration 升级到当前版本。
+            // v5：账户为全局实体，account 表不再有 ledgerId 列。
+            if (version >= 5 && "ledgerId" in columnsOf(sqlite, "account")) {
+                throw UserFacingException(R.string.err_sqlite_v5_mismatch)
+            }
+            // v1–v4 备份替换后由 Room 在下次打开时按显式 Migration 升级到当前版本
+            // （4→5 时同样处理跨账本同名账户）。
         } finally {
             sqlite.close()
         }
     }
+
+    private fun columnsOf(sqlite: SQLiteDatabase, table: String): Set<String> =
+        sqlite.rawQuery("PRAGMA table_info(`$table`)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow("name")
+            buildSet { while (cursor.moveToNext()) add(cursor.getString(nameIndex)) }
+        }
 
     private fun validateRecurringBackup(data: BackupData) {
         val charges = data.recurringCharges.map { it.toEntity() }
@@ -497,7 +508,8 @@ class BackupRepository(
                 ?: throw UserFacingException(R.string.err_backup_recurring_account)
             val category = categories[charge.categoryId]
                 ?: throw UserFacingException(R.string.err_backup_recurring_category)
-            if (account.ledgerId != charge.ledgerId || account.currency != ledger.baseCurrency) {
+            // 账户全局共享（v5）：任意账本的账户都可用，只要求币种与规则所在账本一致。
+            if (account.currency != ledger.baseCurrency) {
                 throw UserFacingException(R.string.err_backup_recurring_account_mismatch)
             }
             if (charge.currency != ledger.baseCurrency) throw UserFacingException(R.string.err_backup_recurring_currency)

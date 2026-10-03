@@ -6,7 +6,8 @@ import androidx.room.Query
 /** 账本删除前的数据量统计。 */
 data class LedgerPurgeCounts(
     val transactions: Int,
-    val accounts: Int,
+    /** 账户全局共享、不随账本删除；这是余额会因删除该账本账单而变化的账户数（仅计正常账单）。 */
+    val affectedAccounts: Int,
     val categories: Int,
     val merchants: Int,
     val tags: Int,
@@ -72,7 +73,7 @@ interface PurgeDao {
     @Query("DELETE FROM category WHERE id IN (:ids)")
     suspend fun deleteCategories(ids: List<String>): Int
 
-    // ---------- 账户 ----------
+    // ---------- 账户（全局实体：统计与删除均跨全部账本） ----------
 
     @Query("SELECT COUNT(*) FROM `transaction` WHERE accountId = :accountId OR targetAccountId = :accountId")
     suspend fun countTransactionsForAccount(accountId: String): Int
@@ -85,6 +86,13 @@ interface PurgeDao {
 
     @Query("SELECT COUNT(*) FROM recurring_charge WHERE accountId = :accountId")
     suspend fun countRecurringForAccount(accountId: String): Int
+
+    /** 涉及该账户的账单分布在几个账本中（含回收站）。 */
+    @Query(
+        "SELECT COUNT(DISTINCT ledgerId) FROM `transaction` " +
+            "WHERE accountId = :accountId OR targetAccountId = :accountId"
+    )
+    suspend fun countLedgersForAccount(accountId: String): Int
 
     @Query(
         "DELETE FROM recurring_occurrence " +
@@ -113,7 +121,10 @@ interface PurgeDao {
     @Query(
         "SELECT " +
             "(SELECT COUNT(*) FROM `transaction` WHERE ledgerId = :ledgerId) AS transactions, " +
-            "(SELECT COUNT(*) FROM account WHERE ledgerId = :ledgerId) AS accounts, " +
+            "(SELECT COUNT(*) FROM account WHERE id IN (" +
+            "SELECT accountId FROM `transaction` WHERE ledgerId = :ledgerId AND isDeleted = 0 " +
+            "UNION SELECT targetAccountId FROM `transaction` " +
+            "WHERE ledgerId = :ledgerId AND isDeleted = 0 AND targetAccountId IS NOT NULL)) AS affectedAccounts, " +
             "(SELECT COUNT(*) FROM category WHERE ledgerId = :ledgerId) AS categories, " +
             "(SELECT COUNT(*) FROM merchant WHERE ledgerId = :ledgerId) AS merchants, " +
             "(SELECT COUNT(*) FROM tag WHERE ledgerId = :ledgerId) AS tags, " +
@@ -160,9 +171,6 @@ interface PurgeDao {
 
     @Query("DELETE FROM category WHERE ledgerId = :ledgerId")
     suspend fun deleteCategoriesForLedger(ledgerId: String)
-
-    @Query("DELETE FROM account WHERE ledgerId = :ledgerId")
-    suspend fun deleteAccountsForLedger(ledgerId: String)
 
     @Query("DELETE FROM ledger WHERE id = :ledgerId")
     suspend fun deleteLedger(ledgerId: String): Int

@@ -73,6 +73,11 @@
     <string name="err_ledger_archived">账本已归档</string>
     <string name="err_account_archived_unusable">不能使用已归档账户</string>
     <string name="err_account_currency_mismatch">账户币种与账本不一致</string>
+    <string name="err_target_account_currency_mismatch">转入账户币种与账本不一致</string>
+    <string name="err_merge_target_not_found">目标账户不存在</string>
+    <string name="err_merge_same_account">不能合并到账户自身</string>
+    <string name="err_merge_currency">只能合并到同币种的账户</string>
+    <string name="err_merge_target_archived">不能合并到已归档账户</string>
     <string name="err_expense_category_not_found">支出分类不存在</string>
     <string name="err_select_expense_category">请选择支出分类</string>
     <string name="err_category_archived_unusable">不能使用已归档分类</string>
@@ -90,6 +95,7 @@
     <string name="err_sqlite_v2_missing">SQLite v2 备份缺少定时扣款数据表</string>
     <string name="err_sqlite_v3_missing">SQLite v3 备份缺少商家分类关联表</string>
     <string name="err_sqlite_v4_missing">SQLite v4 备份缺少分类图标字段</string>
+    <string name="err_sqlite_v5_mismatch">SQLite v5 备份的账户表结构不正确</string>
     <string name="err_backup_recurring_dup_id">定时扣款 ID 重复</string>
     <string name="err_backup_tx_dup_id">交易 ID 重复</string>
     <string name="err_backup_recurring_invalid_rule">定时扣款规则包含无效频率、日期或时区</string>

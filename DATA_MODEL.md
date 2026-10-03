@@ -8,6 +8,7 @@
 - 历史数据原则上不物理删除。
 - 支出、收入、转账严格区分。
 - V1 数据结构预留多币种，但单个账本仅允许一种币种。
+- 账户（资产）为全局实体，所有账本共享；分类、商家、标签、预算、定时扣款与交易按账本隔离。
 
 ---
 
@@ -30,7 +31,6 @@ isArchived
 
 ```text
 id
-ledgerId
 name
 type
 currency
@@ -40,6 +40,12 @@ createdAt
 updatedAt
 isArchived
 ```
+
+账户不属于任何账本（v0.6 / 数据库 v5 起）：
+
+- 某账本可使用 `currency = Ledger.baseCurrency` 的未归档账户；其他币种账户不在该账本中提供（V1 不做汇率）。
+- 归档为全局：归档后所有账本都不再提供该账户。
+- 名称不强制唯一；从旧版本升级（或恢复旧版备份）时，不同账本中的同名账户会改名为 `名称（账本名）` 以便区分。
 
 `type`：
 
@@ -98,6 +104,7 @@ TRANSFER
 - `TRANSFER` 不填写分类。
 - 转账不计入收入或支出。
 - `amount` 始终为正整数，方向由交易类型决定。
+- 账户（转账为两边账户）的 `currency` 必须等于所属账本的 `baseCurrency`；账户可以被任意账本使用。
 - 交易时间不得早于所属账户的 `initialBalanceTime`。
 - `TRANSFER` 时间不得早于任一相关账户的 `initialBalanceTime`。
 - `EXPENSE` 只能关联 `Category.type = EXPENSE` 的分类。
@@ -222,14 +229,16 @@ categoryId != null  → 分类预算（该分类树当月支出）
 ## 3. 实体关系
 
 ```text
+Account（全局，所有账本共享）
+
 Ledger
-├─ Account
 ├─ Category
 ├─ Merchant
 ├─ Tag
 ├─ Budget
+├─ RecurringCharge ─→ Account
 └─ Transaction
-   ├─ Account
+   ├─ Account（任意账本共享的账户，币种 = Ledger.baseCurrency）
    ├─ TargetAccount?
    ├─ Category?
    ├─ Merchant?
@@ -256,7 +265,7 @@ JPY
 EUR
 ```
 
-V1 强制：
+V1 强制（Account 为该账本中使用的账户）：
 
 ```text
 Account.currency
@@ -272,14 +281,14 @@ Ledger.baseCurrency
 
 - 单个账本仅支持一种币种。
 - V1 不支持跨币种转账。
-- 可通过建立不同账本记录不同币种。
+- 可通过建立不同账本记录不同币种；其他币种的账户只在同币种账本中可用，资产页单独列出、不计入净资产。
 - 后续增加汇率功能时再放开限制。
 
 ---
 
 ## 5. 账户余额
 
-账户余额由原始交易计算：
+账户余额由原始交易计算，汇总**全部账本**中涉及该账户（作为账户或转入账户）的未删除交易：
 
 ```text
 initialBalance
@@ -287,6 +296,8 @@ initialBalance
 - initialBalanceTime 之后的支出
 ± 转账
 ```
+
+账户之间的转账可以记在任一账本中，不计入任何账本的收入 / 支出统计。
 
 V1 禁止 `initialBalanceTime` 之前的交易，因此所有交易均计入余额。
 
@@ -314,7 +325,16 @@ Tag
 - 历史交易仍显示原名称。
 - 历史统计仍正常按原实体计算。
 - 归档可恢复（取消归档），恢复后重新出现在新增交易选择列表。
-- 已归档实体可由用户主动“彻底删除”（物理删除）：标签 / 商家清除引用；分类须先把引用迁移到同类型替代分类；账户连同其账单与定时扣款一起删除；账本删除其全部数据。不可恢复，默认先自动备份。
+- 已归档实体可由用户主动“彻底删除”（物理删除）：标签 / 商家清除引用；分类须先把引用迁移到同类型替代分类；账户连同所有账本中涉及它的账单与定时扣款一起删除；账本删除其全部数据，但保留全局账户（这些账户的余额会因该账本账单被删除而变化）。不可恢复，默认先自动备份。
+- 账户归档为全局归档（所有账本均不再提供）。
+
+合并账户（“合并到…”）：
+
+- 只能合并到同币种、未归档的另一个账户；源账户可以是已归档账户。
+- 源账户的全部交易（所有账本、含回收站，作为账户或转入账户）与定时扣款改用目标账户。
+- 目标 `initialBalance += 源 initialBalance`，`initialBalanceTime = min(两者)`；随后删除源账户。
+- 源与目标之间的转账合并后会成为自己转给自己（净额为零），直接删除。
+- 单个数据库事务内完成，不可撤销，默认先自动备份。
 
 交易删除：
 
@@ -342,7 +362,8 @@ TRANSFER → categoryId = null
 Category 最多两级
 Category.type 创建后不可修改
 
-所有关联实体属于同一 Ledger
+分类、商家、标签与交易属于同一 Ledger
+账户全局共享：交易 / 定时扣款使用的账户 currency = Ledger.baseCurrency
 
 交易时间不得早于所属账户 initialBalanceTime
 TRANSFER 时间不得早于任一账户 initialBalanceTime

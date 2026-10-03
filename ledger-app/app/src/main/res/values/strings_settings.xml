@@ -59,8 +59,9 @@
     <plurals name="set_count_transactions_incl_bin">
         <item quantity="other">%1$d 笔账单（含回收站）</item>
     </plurals>
-    <plurals name="set_count_accounts">
-        <item quantity="other">%1$d 个账户</item>
+    <string name="set_ledger_purge_accounts_kept">账户由所有账本共享，不会被删除。</string>
+    <plurals name="set_ledger_purge_accounts_affected">
+        <item quantity="other">账户由所有账本共享，不会被删除；但 %1$d 个账户的余额会因这些账单被删除而变化。</item>
     </plurals>
     <plurals name="set_count_categories">
         <item quantity="other">%1$d 个分类</item>

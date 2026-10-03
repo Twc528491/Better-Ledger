@@ -42,7 +42,8 @@ class RecurringChargesViewModel(
                 flowOf(RecurringChargesUiState())
             } else {
                 kotlinx.coroutines.flow.combine(
-                    accountRepository.observeByLedger(ledger.id),
+                    // 账户全局共享：任一账本中币种一致的账户都可用于扣款（含已归档，供显示旧规则）。
+                    accountRepository.observeByCurrency(ledger.baseCurrency),
                     categoryRepository.observeByLedger(ledger.id),
                     recurringRepository.observeByLedger(ledger.id),
                 ) { accounts, categories, charges ->

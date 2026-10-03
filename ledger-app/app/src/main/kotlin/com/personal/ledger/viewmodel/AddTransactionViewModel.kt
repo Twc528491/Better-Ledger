@@ -10,6 +10,7 @@ import com.personal.ledger.data.repository.TagRepository
 import com.personal.ledger.data.repository.TransactionDraft
 import com.personal.ledger.data.repository.TransactionRepository
 import com.personal.ledger.data.settings.SettingsRepository
+import com.personal.ledger.domain.calc.AccountRules
 import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.Category
 import com.personal.ledger.domain.model.CategoryType
@@ -82,12 +83,19 @@ class AddTransactionViewModel(
         val generation = ++loadGeneration
         viewModelScope.launch {
           try {
-            val ledger = ledgerRepository.currentLedger.first() ?: return@launch
             val editing = txId?.let { transactionRepository.getById(it) }
+            // 编辑时按账单所属账本加载（资产页的账户详情会列出其他账本的账单）；新建用当前账本。
+            val ledger = editing?.let { ledgerRepository.getLedger(it.ledgerId) }
+                ?: ledgerRepository.currentLedger.first()
+                ?: return@launch
             val editingTags = editing?.id?.let { editingTagIds(it) } ?: emptySet()
-            // 编辑旧账单时保留其已归档关联项，否则用户一打开就会看到“未选择”。
-            val accounts = accountRepository.observeByLedger(ledger.id).first()
-                .filter { !it.isArchived || it.id == editing?.accountId || it.id == editing?.targetAccountId }
+            // 账户全局共享：提供币种与账本一致的账户；编辑旧账单时保留其已归档关联项，
+            // 否则用户一打开就会看到“未选择”。
+            val accounts = AccountRules.usableIn(
+                accountRepository.observeByCurrency(ledger.baseCurrency).first(),
+                ledger.baseCurrency,
+                keepIds = setOfNotNull(editing?.accountId, editing?.targetAccountId),
+            )
             val allCategories = categoryRepository.getByLedger(ledger.id)
             val editingParentId = allCategories.firstOrNull { it.id == editing?.categoryId }?.parentId
             val categories = allCategories.filter {

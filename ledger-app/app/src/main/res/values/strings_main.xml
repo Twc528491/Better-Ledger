@@ -161,12 +161,15 @@
     <string name="account_restore">恢复账户</string>
     <string name="account_restore_hint">恢复后重新计入资产 / 负债</string>
     <string name="account_purge">彻底删除账户</string>
-    <string name="account_purge_hint">同时删除涉及该账户的全部账单与定时扣款</string>
+    <string name="account_purge_hint">同时删除所有账本中涉及该账户的账单与定时扣款</string>
     <string name="account_transactions">交易记录</string>
     <string name="account_no_transactions">这个账户还没有交易</string>
     <string name="account_no_transactions_hint">记账或转账后会显示在这里</string>
     <string name="account_purge_calculating">正在统计影响范围…</string>
-    <string name="account_purge_impact">将永久删除账户“%1$s”，以及涉及它的 %2$s和 %3$s。</string>
+    <string name="account_purge_impact">将永久删除账户“%1$s”，以及所有账本中涉及它的 %2$s和 %3$s。</string>
+    <plurals name="account_purge_ledgers_note">
+        <item quantity="other">这些账单分布在 %1$d 个账本中。</item>
+    </plurals>
     <plurals name="account_purge_tx_count">
         <item quantity="other">%1$d 笔账单（含回收站，其中转账 %2$d 笔）</item>
     </plurals>
@@ -182,6 +185,32 @@
     <string name="account_opening_date">初始时间</string>
     <string name="account_archive">归档账户</string>
     <string name="account_name_required">名称不能为空</string>
+    <string name="account_net_worth_in">净资产（%1$s）</string>
+    <string name="account_other_currencies">其他币种（不计入净资产）</string>
+    <string name="account_filter_all_ledgers">全部账本</string>
+    <string name="account_filter_current_ledger">仅当前账本</string>
+    <string name="account_no_transactions_in_ledger">当前账本中没有这个账户的交易</string>
+    <string name="account_no_transactions_in_ledger_hint">切换到“全部账本”查看其他账本的记录</string>
+    <string name="account_merge">合并到…</string>
+    <string name="account_merge_pick_subtitle">“%1$s”的全部账单与定时扣款将转到所选账户，随后删除“%1$s”</string>
+    <string name="account_merge_no_candidates">没有可合并的同币种账户</string>
+    <string name="account_merge_title">合并账户</string>
+    <string name="account_merge_impact">将把“%1$s”合并到“%2$s”：所有账本中的 %3$s和 %4$s改用“%2$s”。合并后“%2$s”的初始余额为 %5$s、初始时间为 %6$s，“%1$s”将被删除。</string>
+    <plurals name="account_merge_tx_count">
+        <item quantity="other">%1$d 笔账单（含回收站）</item>
+    </plurals>
+    <plurals name="account_merge_recurring_count">
+        <item quantity="other">%1$d 条定时扣款</item>
+    </plurals>
+    <plurals name="account_merge_self_transfers">
+        <item quantity="other">两者之间的 %1$d 笔转账（含回收站）合并后会变成自己转给自己，将被删除；它们对合并后余额的影响为零。</item>
+    </plurals>
+    <string name="account_merge_backup_first">合并前先立即备份</string>
+    <string name="account_merge_working_backup">正在备份并合并…</string>
+    <string name="account_merge_working">正在合并…</string>
+    <string name="account_merge_confirm">合并</string>
+    <string name="account_merge_failed">合并失败</string>
+    <string name="account_merge_backup_failed">备份失败，未执行合并：%1$s</string>
 
     <string name="stats_title">统计</string>
     <string name="stats_month_expense">%1$s支出</string>

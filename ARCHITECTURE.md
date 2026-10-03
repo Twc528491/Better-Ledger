@@ -112,7 +112,8 @@ UI
 
 ```text
 TransactionRepository
-AccountRepository
+AccountRepository（账户全局共享，余额跨账本聚合）
+AccountMergeRepository（合并账户）
 CategoryRepository
 BudgetRepository
 BackupRepository

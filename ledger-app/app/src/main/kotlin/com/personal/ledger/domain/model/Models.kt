@@ -10,10 +10,12 @@ data class Ledger(
     val isArchived: Boolean,
 )
 
-/** 账户。initialBalanceTime 之前的交易在 V1 中被禁止。 */
+/**
+ * 账户。全局实体，所有账本共享：某账本可使用币种等于其本位币的账户；
+ * initialBalanceTime 之前的交易在 V1 中被禁止。
+ */
 data class Account(
     val id: String,
-    val ledgerId: String,
     val name: String,
     val type: AccountType,
     val currency: String,
@@ -24,7 +26,7 @@ data class Account(
     val isArchived: Boolean,
 )
 
-/** 账户 + 由原始交易计算得出的当前余额（最小货币单位）。 */
+/** 账户 + 由原始交易（全部账本）计算得出的当前余额（最小货币单位）。 */
 data class AccountWithBalance(
     val account: Account,
     val balance: Long,

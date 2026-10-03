@@ -308,18 +308,24 @@ private fun LedgerPurgeDialog(
         } else {
             val parts = listOf(
                 pluralStringResource(R.plurals.set_count_transactions_incl_bin, c.transactions, c.transactions),
-                pluralStringResource(R.plurals.set_count_accounts, c.accounts, c.accounts),
                 pluralStringResource(R.plurals.set_count_categories, c.categories, c.categories),
                 pluralStringResource(R.plurals.set_count_merchants, c.merchants, c.merchants),
                 pluralStringResource(R.plurals.set_count_tags, c.tags, c.tags),
                 pluralStringResource(R.plurals.set_count_budgets, c.budgets, c.budgets),
                 pluralStringResource(R.plurals.set_count_recurring, c.recurringCharges, c.recurringCharges),
             )
-            stringResource(
+            val summary = stringResource(
                 R.string.set_ledger_purge_impact,
                 ledger.name,
                 parts.joinToString(stringResource(R.string.set_list_separator)),
             )
+            // 账户全局共享，不随账本删除；说明哪些账户的余额会因此变化。
+            val accountsNote = if (c.affectedAccounts > 0) {
+                pluralStringResource(R.plurals.set_ledger_purge_accounts_affected, c.affectedAccounts, c.affectedAccounts)
+            } else {
+                stringResource(R.string.set_ledger_purge_accounts_kept)
+            }
+            "$summary\n$accountsNote"
         },
         confirmEnabled = c != null && PurgeRules.ledgerNameConfirmed(typedName, ledger.name),
         onDismiss = onDismiss,

@@ -8,19 +8,30 @@ import androidx.room.Update
 import com.personal.ledger.data.local.entity.AccountEntity
 import kotlinx.coroutines.flow.Flow
 
+/** 账户为全局实体（v5 起不再属于某个账本）。 */
 @Dao
 interface AccountDao {
 
-    @Query("SELECT * FROM account WHERE ledgerId = :ledgerId ORDER BY isArchived ASC, createdAt ASC")
-    fun observeByLedger(ledgerId: String): Flow<List<AccountEntity>>
+    @Query("SELECT * FROM account ORDER BY isArchived ASC, createdAt ASC, id ASC")
+    fun observeAll(): Flow<List<AccountEntity>>
 
-    @Query("SELECT * FROM account WHERE ledgerId = :ledgerId ORDER BY isArchived ASC, createdAt ASC")
-    suspend fun getByLedger(ledgerId: String): List<AccountEntity>
+    /** 某币种的全部账户（含已归档），即该币种账本可使用的账户范围。 */
+    @Query("SELECT * FROM account WHERE currency = :currency ORDER BY isArchived ASC, createdAt ASC, id ASC")
+    fun observeByCurrency(currency: String): Flow<List<AccountEntity>>
+
+    @Query("SELECT * FROM account WHERE currency = :currency ORDER BY isArchived ASC, createdAt ASC, id ASC")
+    suspend fun getByCurrency(currency: String): List<AccountEntity>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM account WHERE currency = :currency AND isArchived = 0)")
+    suspend fun hasActiveWithCurrency(currency: String): Boolean
+
+    @Query("SELECT * FROM account WHERE id = :id")
+    fun observeById(id: String): Flow<AccountEntity?>
 
     @Query("SELECT * FROM account WHERE id = :id")
     suspend fun getById(id: String): AccountEntity?
 
-    @Query("SELECT * FROM account")
+    @Query("SELECT * FROM account ORDER BY createdAt ASC, id ASC")
     suspend fun getAll(): List<AccountEntity>
 
     @Query("DELETE FROM account")

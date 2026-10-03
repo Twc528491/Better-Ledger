@@ -79,7 +79,8 @@ class TransactionsViewModel(
                 combine(
                     combine(
                         transactionRepository.observeMonth(ledger.id, bundle.ym),
-                        accountRepository.observeByLedger(ledger.id),
+                        // 账户全局共享：本账本可用（同币种，含已归档）的账户用于筛选与名称显示。
+                        accountRepository.observeByCurrency(ledger.baseCurrency),
                         categoryRepository.observeByLedger(ledger.id),
                     ) { txList, accounts, categories -> Triple(txList, accounts, categories) },
                     combine(

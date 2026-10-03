@@ -15,6 +15,14 @@ data class TypeSum(
     val total: Long,
 )
 
+/** 某账户某方向的交易合计：incoming 为 true 表示作为转账转入方。 */
+data class AccountFlowTotal(
+    val accountId: String,
+    val type: TransactionType,
+    val incoming: Boolean,
+    val total: Long,
+)
+
 /** 按分类聚合的金额。 */
 data class CategorySum(
     val categoryId: String,
@@ -52,18 +60,42 @@ interface TransactionDao {
     @Query("SELECT * FROM `transaction` WHERE id = :id")
     suspend fun getById(id: String): TransactionEntity?
 
-    @Query(
-        "SELECT * FROM `transaction` WHERE ledgerId = :ledgerId " +
-            "AND (accountId = :accountId OR targetAccountId = :accountId)"
-    )
-    suspend fun getByAccount(ledgerId: String, accountId: String): List<TransactionEntity>
+    // ---------------------------------------------------------------------
+    // 账户为全局实体：以下查询跨全部账本。
+    // ---------------------------------------------------------------------
 
+    /** 涉及某账户的全部交易（全部账本，含回收站；作为账户或转入账户）。 */
+    @Query("SELECT * FROM `transaction` WHERE accountId = :accountId OR targetAccountId = :accountId")
+    suspend fun getByAccount(accountId: String): List<TransactionEntity>
+
+    /** 涉及某账户的正常交易（全部账本，不含回收站），用于账户详情。 */
     @Query(
-        "SELECT type, SUM(amount) AS total FROM `transaction` " +
-            "WHERE ledgerId = :ledgerId AND isDeleted = 0 AND accountId = :accountId " +
-            "GROUP BY type"
+        "SELECT * FROM `transaction` WHERE isDeleted = 0 " +
+            "AND (accountId = :accountId OR targetAccountId = :accountId) " +
+            "ORDER BY transactionTime DESC, createdAt DESC"
     )
-    suspend fun sumByTypeForAccount(ledgerId: String, accountId: String): List<TypeSum>
+    fun observeByAccount(accountId: String): Flow<List<TransactionEntity>>
+
+    /** 涉及某账户的最早交易时间（全部账本，含回收站：恢复后同样受初始时间约束）。 */
+    @Query(
+        "SELECT MIN(transactionTime) FROM `transaction` " +
+            "WHERE accountId = :accountId OR targetAccountId = :accountId"
+    )
+    suspend fun earliestTimeForAccount(accountId: String): Long?
+
+    /**
+     * 全部账户的余额增减汇总（全部账本，不含回收站）：
+     * 每个账户作为“账户”按类型聚合（incoming = 0），作为转账转入方另聚合（incoming = 1）。
+     */
+    @Query(
+        "SELECT accountId AS accountId, type AS type, 0 AS incoming, SUM(amount) AS total " +
+            "FROM `transaction` WHERE isDeleted = 0 GROUP BY accountId, type " +
+            "UNION ALL " +
+            "SELECT targetAccountId AS accountId, type AS type, 1 AS incoming, SUM(amount) AS total " +
+            "FROM `transaction` WHERE isDeleted = 0 AND type = 'TRANSFER' AND targetAccountId IS NOT NULL " +
+            "GROUP BY targetAccountId"
+    )
+    fun observeAccountTotals(): Flow<List<AccountFlowTotal>>
 
     @Query(
         "SELECT type, SUM(amount) AS total FROM `transaction` " +

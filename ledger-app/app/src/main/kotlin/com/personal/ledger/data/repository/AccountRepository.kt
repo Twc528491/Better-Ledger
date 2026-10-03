@@ -8,6 +8,7 @@ import com.personal.ledger.domain.calc.BalanceCalculator
 import com.personal.ledger.domain.model.Account
 import com.personal.ledger.domain.model.AccountType
 import com.personal.ledger.domain.model.AccountWithBalance
+import com.personal.ledger.domain.model.Transaction
 import com.personal.ledger.util.TimeUtils
 import com.personal.ledger.util.UserFacingException
 import kotlinx.coroutines.flow.Flow
@@ -15,36 +16,50 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
+/**
+ * 账户（全局实体，所有账本共享）。
+ * 余额 = 初始余额 + 全部账本中涉及该账户的正常交易（作为账户或转入账户）。
+ */
 class AccountRepository(
     private val accountDao: AccountDao,
     private val transactionDao: TransactionDao,
 ) {
 
-    fun observeByLedger(ledgerId: String): Flow<List<Account>> =
-        accountDao.observeByLedger(ledgerId).map { list -> list.map { it.toDomain() } }
+    /** 全部账户（含已归档）。 */
+    fun observeAll(): Flow<List<Account>> =
+        accountDao.observeAll().map { list -> list.map { it.toDomain() } }
 
-    /** 账户 + 实时余额（由原始交易计算）。 */
-    fun observeWithBalances(ledgerId: String): Flow<List<AccountWithBalance>> =
+    /** 某币种的全部账户（含已归档），即该币种账本可使用的范围；调用方按需过滤已归档。 */
+    fun observeByCurrency(currency: String): Flow<List<Account>> =
+        accountDao.observeByCurrency(currency).map { list -> list.map { it.toDomain() } }
+
+    fun observeAccount(id: String): Flow<Account?> = accountDao.observeById(id).map { it?.toDomain() }
+
+    /** 全部账户 + 实时余额（由全部账本的原始交易在数据库中聚合计算）。 */
+    fun observeWithBalances(): Flow<List<AccountWithBalance>> =
         combine(
-            accountDao.observeByLedger(ledgerId),
-            transactionDao.observeByLedger(ledgerId),
-        ) { accounts, transactions ->
+            accountDao.observeAll(),
+            transactionDao.observeAccountTotals(),
+        ) { accounts, totals ->
+            val deltaOf = totals.groupBy({ it.accountId }) {
+                BalanceCalculator.deltaForTotal(it.type, it.incoming, it.total)
+            }
             accounts.map { acc ->
-                val deltas = transactions.mapNotNull { tx ->
-                    BalanceCalculator.deltaFor(tx.type, tx.amount, tx.accountId, tx.targetAccountId, acc.id)
-                }
                 AccountWithBalance(
                     account = acc.toDomain(),
-                    balance = BalanceCalculator.compute(acc.initialBalance, deltas),
+                    balance = BalanceCalculator.compute(acc.initialBalance, deltaOf[acc.id].orEmpty()),
                 )
             }
         }
 
+    /** 涉及某账户的正常交易（全部账本，不含回收站），按时间倒序。 */
+    fun observeAccountTransactions(accountId: String): Flow<List<Transaction>> =
+        transactionDao.observeByAccount(accountId).map { list -> list.map { it.toDomain() } }
+
     suspend fun getAccount(id: String): Account? = accountDao.getById(id)?.toDomain()
 
-    /** 新建账户。 */
+    /** 新建账户（全局可用；[currency] 一般取当前账本的本位币）。 */
     suspend fun addAccount(
-        ledgerId: String,
         name: String,
         type: AccountType,
         currency: String,
@@ -54,7 +69,6 @@ class AccountRepository(
         val now = TimeUtils.now()
         val account = AccountEntity(
             id = UUID.randomUUID().toString(),
-            ledgerId = ledgerId,
             name = name.trim(),
             type = type,
             currency = currency,
@@ -74,7 +88,7 @@ class AccountRepository(
 
     /**
      * 修改账户。约束（DATA_MODEL.md 第 7 节）：
-     * 修改 initialBalanceTime 不得使其晚于该账户已有交易时间。
+     * 修改 initialBalanceTime 不得使其晚于该账户已有交易时间（全部账本，含回收站）。
      */
     suspend fun updateAccount(
         account: Account,
@@ -86,8 +100,7 @@ class AccountRepository(
     ): Result<Account> {
         val entity = accountDao.getById(account.id)
             ?: return Result.failure(UserFacingException(R.string.err_account_not_found))
-        val txs = transactionDao.getByAccount(entity.ledgerId, entity.id)
-        val earliestTx = txs.minOfOrNull { it.transactionTime }
+        val earliestTx = transactionDao.earliestTimeForAccount(entity.id)
         if (earliestTx != null && newInitialBalanceTime > earliestTx) {
             return Result.failure(UserFacingException(R.string.err_initial_time_after_transactions))
         }
@@ -107,6 +120,7 @@ class AccountRepository(
         }
     }
 
+    /** 归档 / 恢复（全局生效：归档后所有账本都不再提供该账户）。 */
     suspend fun setArchived(id: String, archived: Boolean): Result<Unit> {
         val entity = accountDao.getById(id) ?: return Result.failure(UserFacingException(R.string.err_account_not_found))
         return try {

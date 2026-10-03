@@ -36,4 +36,14 @@ object BalanceCalculator {
             else -> null
         }
     }
+
+    /**
+     * 把按类型聚合的合计折算为增减量（账户余额汇总全部账本，见 DATA_MODEL.md 第 5 节）。
+     * @param incoming true 表示该账户作为转账转入方的合计
+     */
+    fun deltaForTotal(type: TransactionType, incoming: Boolean, total: Long): Long = when {
+        incoming -> if (type == TransactionType.TRANSFER) total else 0L
+        type == TransactionType.INCOME -> total
+        else -> -total // 支出与转出
+    }
 }

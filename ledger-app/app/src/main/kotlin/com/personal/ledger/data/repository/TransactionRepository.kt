@@ -71,7 +71,7 @@ class TransactionRepository(
      * - EXPENSE / INCOME 必须填分类，且分类类型与交易类型一致
      * - TRANSFER 必须填转出与转入账户、两账户不同、不填分类
      * - 交易时间不得早于所属账户 initialBalanceTime（转账为两边账户）
-     * - 币种必须等于账本 baseCurrency
+     * - 币种必须等于账本 baseCurrency；账户为全局共享，其币种同样必须等于账本 baseCurrency
      */
     suspend fun add(draft: TransactionDraft): Result<Transaction> {
         return try {
@@ -194,12 +194,13 @@ class TransactionRepository(
             TransactionRules.validateCategoryForType(draft.type, categoryType)?.let { return it }
         }
 
-        // 依赖数据库的规则：归属账本、初始时间、币种。
+        // 依赖数据库的规则：币种、归属账本（分类 / 商家 / 标签）、初始时间。
         val ledger = ledgerDao.getById(draft.ledgerId) ?: return R.string.err_ledger_not_found
         if (draft.currency != ledger.baseCurrency) return R.string.err_currency_mismatch
 
+        // 账户为全局共享：账本可使用币种等于其本位币的任意账户。
         val account = accountDao.getById(draft.accountId) ?: return R.string.err_account_not_found
-        if (account.ledgerId != draft.ledgerId) return R.string.err_account_not_in_ledger
+        if (account.currency != ledger.baseCurrency) return R.string.err_account_currency_mismatch
         if (draft.transactionTime < account.initialBalanceTime) return R.string.err_time_before_account_start
 
         if (draft.type != TransactionType.TRANSFER) {
@@ -209,7 +210,7 @@ class TransactionRepository(
         } else {
             val targetId = draft.targetAccountId ?: return R.string.err_select_target_account
             val target = accountDao.getById(targetId) ?: return R.string.err_target_account_not_found
-            if (target.ledgerId != draft.ledgerId) return R.string.err_target_account_not_in_ledger
+            if (target.currency != ledger.baseCurrency) return R.string.err_target_account_currency_mismatch
             if (draft.transactionTime < target.initialBalanceTime) return R.string.err_time_before_target_start
         }
 

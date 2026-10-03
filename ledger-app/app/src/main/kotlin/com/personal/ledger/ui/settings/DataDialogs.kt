@@ -1,6 +1,7 @@
 package com.personal.ledger.ui.settings
 
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -107,22 +108,53 @@ fun RestoreConfirmDialog(
 }
 
 /**
- * 可选地先执行“立即备份”，成功后再彻底删除；备份失败则不删除。
+ * 可选地先执行“立即备份”，成功后再执行 [action]（彻底删除、合并账户等不可撤销操作）；
+ * 备份失败则不执行，错误文案为 [backupFailedRes]（参数为失败原因）。
  */
-suspend fun purgeAfterOptionalBackup(
+suspend fun <T> runAfterOptionalBackup(
     container: AppContainer,
     backupFirst: Boolean,
-    purge: suspend () -> Result<Unit>,
-): Result<Unit> {
+    @StringRes backupFailedRes: Int,
+    action: suspend () -> Result<T>,
+): Result<T> {
     if (backupFirst) {
         val backup = container.backupRepository.backupNow()
         backup.exceptionOrNull()?.let {
             return Result.failure(
-                UserFacingException(R.string.set_purge_backup_failed, it.toUiText(R.string.set_error_unknown_short)),
+                UserFacingException(backupFailedRes, it.toUiText(R.string.set_error_unknown_short)),
             )
         }
     }
-    return purge()
+    return action()
+}
+
+/** 不可撤销操作确认框的文案（彻底删除 / 合并账户）。 */
+data class IrreversibleActionTexts(
+    @StringRes val backupFirst: Int,
+    @StringRes val working: Int,
+    @StringRes val workingWithBackup: Int,
+    @StringRes val confirm: Int,
+    @StringRes val failed: Int,
+    @StringRes val backupFailed: Int,
+) {
+    companion object {
+        val PURGE = IrreversibleActionTexts(
+            backupFirst = R.string.set_purge_backup_first,
+            working = R.string.set_purge_working,
+            workingWithBackup = R.string.set_purge_working_backup,
+            confirm = R.string.set_purge_confirm,
+            failed = R.string.set_delete_failed,
+            backupFailed = R.string.set_purge_backup_failed,
+        )
+        val MERGE_ACCOUNT = IrreversibleActionTexts(
+            backupFirst = R.string.account_merge_backup_first,
+            working = R.string.account_merge_working,
+            workingWithBackup = R.string.account_merge_working_backup,
+            confirm = R.string.account_merge_confirm,
+            failed = R.string.account_merge_failed,
+            backupFailed = R.string.account_merge_backup_failed,
+        )
+    }
 }
 
 /**
@@ -137,6 +169,33 @@ fun PurgeDialog(
     onDismiss: () -> Unit,
     onPurged: () -> Unit,
     purge: suspend () -> Result<Unit>,
+    confirmEnabled: Boolean = true,
+    extra: @Composable ColumnScope.() -> Unit = {},
+) = IrreversibleActionDialog(
+    container = container,
+    title = title,
+    impact = impact,
+    texts = IrreversibleActionTexts.PURGE,
+    onDismiss = onDismiss,
+    onDone = onPurged,
+    action = purge,
+    confirmEnabled = confirmEnabled,
+    extra = extra,
+)
+
+/**
+ * 不可撤销操作的通用确认框：说明影响范围、强调不可撤销，
+ * 并默认勾选“先立即备份”（备份失败则不执行）。
+ */
+@Composable
+fun IrreversibleActionDialog(
+    container: AppContainer,
+    title: String,
+    impact: String,
+    texts: IrreversibleActionTexts,
+    onDismiss: () -> Unit,
+    onDone: () -> Unit,
+    action: suspend () -> Result<Unit>,
     confirmEnabled: Boolean = true,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
@@ -173,14 +232,14 @@ fun PurgeDialog(
                 ) {
                     Checkbox(checked = backupFirst, onCheckedChange = null, enabled = !working)
                     Text(
-                        stringResource(R.string.set_purge_backup_first),
+                        stringResource(texts.backupFirst),
                         modifier = Modifier.padding(start = LedgerSpacing.xs),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
                 if (working) {
                     Text(
-                        stringResource(if (backupFirst) R.string.set_purge_working_backup else R.string.set_purge_working),
+                        stringResource(if (backupFirst) texts.workingWithBackup else texts.working),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -196,21 +255,21 @@ fun PurgeDialog(
                     working = true
                     error = null
                     scope.launch {
-                        purgeAfterOptionalBackup(container, backupFirst, purge)
+                        runAfterOptionalBackup(container, backupFirst, texts.backupFailed, action)
                             .onSuccess {
                                 working = false
-                                onPurged()
+                                onDone()
                             }
                             .onFailure {
                                 hapticReject()
-                                error = it.userMessage(context, R.string.set_delete_failed)
+                                error = it.userMessage(context, texts.failed)
                                 working = false
                             }
                     }
                 },
             ) {
                 Text(
-                    stringResource(R.string.set_purge_confirm),
+                    stringResource(texts.confirm),
                     color = if (confirmEnabled && !working) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

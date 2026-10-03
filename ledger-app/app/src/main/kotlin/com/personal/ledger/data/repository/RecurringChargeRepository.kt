@@ -179,8 +179,9 @@ class RecurringChargeRepository(
                         if (ledger == null || ledger.isArchived) {
                             throw UserFacingException(R.string.err_recurring_ledger_unavailable)
                         }
+                        // 账户全局共享：任意未归档、币种与账本一致的账户均可用。
                         val account = database.accountDao().getById(rule.accountId)
-                        if (account == null || account.ledgerId != rule.ledgerId || account.isArchived) {
+                        if (account == null || account.currency != ledger.baseCurrency || account.isArchived) {
                             throw UserFacingException(R.string.err_recurring_account_unavailable)
                         }
                         val category = database.categoryDao().getById(rule.categoryId)
@@ -258,7 +259,7 @@ class RecurringChargeRepository(
         if (ledger.isArchived) throw UserFacingException(R.string.err_ledger_archived)
         val account = database.accountDao().getById(draft.accountId)
             ?: throw UserFacingException(R.string.err_account_not_found)
-        if (account.ledgerId != draft.ledgerId) throw UserFacingException(R.string.err_account_not_in_ledger)
+        // 账户全局共享：不要求属于本账本，只要求未归档且币种与账本一致。
         if (account.isArchived) throw UserFacingException(R.string.err_account_archived_unusable)
         if (account.currency != ledger.baseCurrency) throw UserFacingException(R.string.err_account_currency_mismatch)
         val category = database.categoryDao().getById(draft.categoryId)

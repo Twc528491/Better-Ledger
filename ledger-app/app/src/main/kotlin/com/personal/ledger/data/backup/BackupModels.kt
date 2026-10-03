@@ -11,11 +11,14 @@ import com.personal.ledger.data.local.entity.TransactionEntity
 import com.personal.ledger.data.local.entity.TransactionTagEntity
 import com.personal.ledger.data.local.entity.RecurringChargeEntity
 import com.personal.ledger.data.local.entity.RecurringOccurrenceEntity
+import com.personal.ledger.domain.calc.SharedAccountNames
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
 /** 备份格式常量。格式版本用于兼容性判断（ARCHITECTURE.md 第 8 节）。 */
 object BackupConstants {
-    const val FORMAT_VERSION = 4
+    const val FORMAT_VERSION = 5
     const val FILE_PREFIX = "ledger-backup-"
     const val MIME_JSON = "application/json"
     const val MIME_CSV = "text/csv"
@@ -61,10 +64,16 @@ data class LedgerDto(
     val isArchived: Boolean,
 )
 
+/**
+ * v5 起账户为全局实体，不再写出 `ledgerId`；读取 v1–v4 备份时保留旧归属，
+ * 仅用于恢复时按 [com.personal.ledger.domain.calc.SharedAccountNames] 处理跨账本同名。
+ */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class AccountDto(
     val id: String,
-    val ledgerId: String,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val ledgerId: String? = null,
     val name: String,
     val type: String,
     val currency: String,
@@ -178,7 +187,10 @@ data class RecurringOccurrenceDto(
 // ---------- Entity ↔ DTO 映射 ----------
 
 fun LedgerEntity.toDto() = LedgerDto(id, name, baseCurrency, createdAt, updatedAt, isArchived)
-fun AccountEntity.toDto() = AccountDto(id, ledgerId, name, type.name, currency, initialBalance, initialBalanceTime, createdAt, updatedAt, isArchived)
+fun AccountEntity.toDto() = AccountDto(
+    id = id, name = name, type = type.name, currency = currency, initialBalance = initialBalance,
+    initialBalanceTime = initialBalanceTime, createdAt = createdAt, updatedAt = updatedAt, isArchived = isArchived,
+)
 fun CategoryEntity.toDto() = CategoryDto(id, ledgerId, name, type.name, parentId, sortOrder, isArchived, iconKey)
 fun MerchantEntity.toDto() = MerchantDto(id, ledgerId, name, createdAt, isArchived)
 fun MerchantCategoryEntity.toDto() = MerchantCategoryDto(merchantId, categoryId)
@@ -194,7 +206,7 @@ fun RecurringOccurrenceEntity.toDto() = RecurringOccurrenceDto(ruleId, dueAt, tr
 
 fun LedgerDto.toEntity() = LedgerEntity(id, name, baseCurrency, createdAt, updatedAt, isArchived)
 fun AccountDto.toEntity() = AccountEntity(
-    id, ledgerId, name,
+    id, name,
     com.personal.ledger.domain.model.AccountType.valueOf(type),
     currency, initialBalance, initialBalanceTime, createdAt, updatedAt, isArchived,
 )
@@ -238,4 +250,16 @@ internal fun deriveLegacyMerchantCategories(data: BackupData): List<MerchantCate
         ) return@mapNotNull null
         MerchantCategoryDto(merchant.id, root.id)
     }.distinct()
+}
+
+/**
+ * 旧版备份（格式 1–4）中的账户属于各自账本；恢复为全局账户时，
+ * 不同账本中的同名账户按与 Room 迁移 4→5 相同的规则改名为 `名称（账本名）`。
+ */
+internal fun sharedAccountsFromLegacy(data: BackupData): List<AccountDto> {
+    val renames = SharedAccountNames.renames(
+        accounts = data.accounts.map { SharedAccountNames.AccountRef(it.id, it.ledgerId, it.name, it.createdAt) },
+        ledgers = data.ledgers.map { SharedAccountNames.LedgerRef(it.id, it.name, it.createdAt) },
+    )
+    return data.accounts.map { dto -> renames[dto.id]?.let { dto.copy(name = it) } ?: dto }
 }

@@ -133,7 +133,6 @@ class RecurringChargeRepositoryTest {
         val ledger = db.ledgerDao().getAll().single()
         val categoryId = db.categoryDao().getByLedgerAndType(ledger.id, CategoryType.EXPENSE).first().id
         val account = accountRepository.addAccount(
-            ledgerId = ledger.id,
             name = "测试账户",
             type = AccountType.CASH,
             currency = ledger.baseCurrency,

@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.personal.ledger.data.local.Converters
 import com.personal.ledger.data.local.dao.AccountDao
+import com.personal.ledger.data.local.dao.AccountMergeDao
 import com.personal.ledger.data.local.dao.BudgetDao
 import com.personal.ledger.data.local.dao.CategoryDao
 import com.personal.ledger.data.local.dao.LedgerDao
@@ -29,7 +30,7 @@ import com.personal.ledger.data.local.entity.TagEntity
 import com.personal.ledger.data.local.entity.TransactionEntity
 import com.personal.ledger.data.local.entity.TransactionTagEntity
 
-const val DATABASE_VERSION = 4
+const val DATABASE_VERSION = 5
 
 @Database(
     entities = [
@@ -62,6 +63,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun budgetDao(): BudgetDao
     abstract fun recurringChargeDao(): RecurringChargeDao
     abstract fun purgeDao(): PurgeDao
+    abstract fun accountMergeDao(): AccountMergeDao
 
     companion object {
         @Volatile
@@ -73,7 +75,7 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "ledger.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build().also { instance = it }
             }
 
         /** 关闭并释放单例（SQLite 恢复替换文件前调用；随后需重启应用）。 */

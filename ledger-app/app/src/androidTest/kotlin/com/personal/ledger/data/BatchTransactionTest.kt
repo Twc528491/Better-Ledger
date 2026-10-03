@@ -134,7 +134,8 @@ class BatchTransactionTest {
     fun emptyRecycleBinIsScopedToTheLedger() = runTest {
         val f = fixture()
         val other = ledgerRepo.createLedger("第二账本")
-        val otherAccount = db.accountDao().getAll().first { it.ledgerId == other.id }.id
+        // 账户全局共享：第二账本直接使用同一个现金账户
+        val otherAccount = f.accountId
         val otherCategory = db.categoryDao().getByLedgerAndType(other.id, CategoryType.EXPENSE).first().id
         val otherTx = txRepo.add(
             TransactionDraft(
@@ -158,7 +159,6 @@ class BatchTransactionTest {
     fun purgingGeneratedRecurringChargeDropsOccurrenceWithoutRegenerating() = runTest {
         val f = fixture()
         val account = accountRepo.addAccount(
-            ledgerId = f.ledgerId,
             name = "订阅卡",
             type = AccountType.CASH,
             currency = "CNY",

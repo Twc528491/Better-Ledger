@@ -32,11 +32,13 @@ data class CategoryPurgePlan(
     val needsReplacement: Boolean get() = transactionCount + recurringCount > 0
 }
 
-/** 删除账户前的影响评估（均含回收站中的交易）。 */
+/** 删除账户前的影响评估（均跨全部账本、含回收站中的交易）。 */
 data class AccountPurgeImpact(
     val transactionCount: Int,
     val transferCount: Int,
     val recurringCount: Int,
+    /** 这些账单分布的账本数。 */
+    val ledgerCount: Int,
 )
 
 /**
@@ -143,10 +145,11 @@ class PurgeRepository(private val database: AppDatabase) {
         transactionCount = dao.countTransactionsForAccount(accountId),
         transferCount = dao.countTransfersForAccount(accountId),
         recurringCount = dao.countRecurringForAccount(accountId),
+        ledgerCount = dao.countLedgersForAccount(accountId),
     )
 
     /**
-     * 彻底删除已归档账户：同时删除涉及它的全部交易（作为账户或转入账户，含回收站）、
+     * 彻底删除已归档账户：同时删除全部账本中涉及它的交易（作为账户或转入账户，含回收站）、
      * 这些交易的标签关联与定时扣款执行记录，以及使用该账户的定时扣款规则。
      * 转账被删除后，转账另一端账户的余额会随之变化。
      */
@@ -171,6 +174,7 @@ class PurgeRepository(private val database: AppDatabase) {
 
     /**
      * 彻底删除已归档账本及其全部数据，顺序与整库恢复的清空顺序一致（先子表后父表）。
+     * 账户为全局共享，不随账本删除；但该账本的账单被删除后，相关账户的余额会随之变化。
      * 至少保留一个未归档账本。调用方随后应回退失效的当前账本设置。
      */
     suspend fun purgeLedger(ledgerId: String): Result<Unit> = purgeResult {
@@ -191,7 +195,6 @@ class PurgeRepository(private val database: AppDatabase) {
                 dao.deleteMerchantsForLedger(ledgerId)
                 dao.deleteTagsForLedger(ledgerId)
                 dao.deleteCategoriesForLedger(ledgerId)
-                dao.deleteAccountsForLedger(ledgerId)
                 dao.deleteLedger(ledgerId)
             }
         }

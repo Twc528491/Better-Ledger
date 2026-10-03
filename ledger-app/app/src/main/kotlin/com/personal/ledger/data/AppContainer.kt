@@ -3,6 +3,7 @@ package com.personal.ledger.data
 import android.content.Context
 import com.personal.ledger.data.backup.BackupRepository
 import com.personal.ledger.data.local.database.AppDatabase
+import com.personal.ledger.data.repository.AccountMergeRepository
 import com.personal.ledger.data.repository.AccountRepository
 import com.personal.ledger.data.repository.BudgetRepository
 import com.personal.ledger.data.repository.CategoryRepository
@@ -44,6 +45,7 @@ class AppContainer(context: Context) {
         text = textResolver,
     )
     val purgeRepository = PurgeRepository(database)
+    val accountMergeRepository = AccountMergeRepository(database, settings)
     val backupRepository = BackupRepository(
         context = context.applicationContext,
         database = database,

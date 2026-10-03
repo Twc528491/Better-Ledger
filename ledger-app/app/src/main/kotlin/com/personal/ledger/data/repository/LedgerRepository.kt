@@ -139,8 +139,10 @@ class LedgerRepository(
 
     suspend fun setCurrentLedger(id: String) = settings.setCurrentLedgerId(id)
 
+    suspend fun getLedger(id: String): Ledger? = ledgerDao.getById(id)?.toDomain()
+
     /**
-     * 首次启动：无任何账本时创建默认账本（CNY），并预置默认分类和一个现金账户。
+     * 首次启动：无任何账本时创建默认账本（CNY），并预置默认分类；没有可用 CNY 账户时再建一个现金账户。
      * 幂等：已存在账本时不做任何事；进程内防重入。
      */
     suspend fun ensureDefaultLedger() {
@@ -174,12 +176,13 @@ class LedgerRepository(
             isArchived = false,
         )
         ledgerDao.insert(ledger)
-        // 决策 7：新账本预置少量默认分类（全部可编辑、可归档）+ 一个现金账户，保证开箱即记。
+        // 决策 7：新账本预置少量默认分类（全部可编辑、可归档）；账户全局共享，
+        // 仅当没有同币种的可用账户时才补建一个现金账户，保证开箱即记。
         seedLedgerData(ledger)
         return ledger.toDomain()
     }
 
-    /** 为新账本写入默认分类与现金账户。 */
+    /** 为新账本写入默认分类；没有可用的同币种账户时再建一个现金账户（保证开箱即记）。 */
     private suspend fun seedLedgerData(ledger: LedgerEntity) {
         val now = TimeUtils.now()
         DefaultSeed.EXPENSE_CATEGORIES.forEachIndexed { i, key ->
@@ -208,10 +211,11 @@ class LedgerRepository(
                 )
             )
         }
+        // 账户全局共享：已有同币种的未归档账户时直接沿用，不再为每个账本各建一个“现金”。
+        if (accountDao.hasActiveWithCurrency(ledger.baseCurrency)) return
         accountDao.insert(
             AccountEntity(
                 id = UUID.randomUUID().toString(),
-                ledgerId = ledger.id,
                 name = text?.get(R.string.seed_account_cash) ?: DefaultSeed.CASH_ACCOUNT_KEY,
                 type = AccountType.CASH,
                 currency = ledger.baseCurrency,

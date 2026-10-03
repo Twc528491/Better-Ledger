@@ -111,25 +111,30 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
         ) {
             item {
                 // 净资产主卡片：净资产为主数字，资产 / 负债合计为次级信息（内容色 + 显式正负号）。
+                // 账户全局共享：汇总全部账本；只计当前账本本位币的账户（V1 不做汇率）。
                 val assetTotal = state.assets.sumOf { it.balance }
                 val liabilityTotal = state.liabilities.sumOf { it.balance }
                 LedgerHeroCard {
                     HeroFigure(
-                        label = stringResource(R.string.account_net_worth),
-                        value = signedMoney(state.netWorth, explicitPlus = false),
+                        label = if (state.otherCurrencies.isEmpty()) {
+                            stringResource(R.string.account_net_worth)
+                        } else {
+                            stringResource(R.string.account_net_worth_in, state.currency)
+                        },
+                        value = signedMoney(state.netWorth, state.currency, explicitPlus = false),
                         large = true,
                     )
                     Spacer(Modifier.height(LedgerSpacing.md))
                     Row(horizontalArrangement = Arrangement.spacedBy(LedgerSpacing.sm)) {
                         HeroFigure(
                             label = stringResource(R.string.account_assets),
-                            value = signedMoney(assetTotal, explicitPlus = false),
+                            value = signedMoney(assetTotal, state.currency, explicitPlus = false),
                             tone = HeroTone.INCOME,
                             modifier = Modifier.weight(1f),
                         )
                         HeroFigure(
                             label = stringResource(R.string.account_liabilities),
-                            value = signedMoney(liabilityTotal, explicitPlus = false),
+                            value = signedMoney(liabilityTotal, state.currency, explicitPlus = false),
                             tone = HeroTone.NEGATIVE,
                             divider = true,
                             modifier = Modifier.weight(1f),
@@ -184,7 +189,25 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                 }
             }
 
-            // 已归档账户：点击进入详情，可恢复或彻底删除
+            // 其他币种账户：单独列出（显示币种），不计入净资产
+            if (state.otherCurrencies.isNotEmpty()) {
+                item { AccountSectionHeader(stringResource(R.string.account_other_currencies)) }
+                val count = state.otherCurrencies.size
+                itemsIndexed(state.otherCurrencies, key = { _, awb -> "currency_" + awb.account.id }) { index, awb ->
+                    LedgerGroupItem(index = index, count = count) {
+                        AccountRow(
+                            awb,
+                            showCurrency = true,
+                            onClick = {
+                                hapticLight()
+                                navController.navigate(Routes.accountDetail(awb.account.id))
+                            },
+                        )
+                    }
+                }
+            }
+
+            // 已归档账户（全局归档，所有账本都不再提供）：点击进入详情，可恢复或彻底删除
             if (state.archived.isNotEmpty()) {
                 item { AccountSectionHeader(stringResource(R.string.account_archived)) }
                 val count = state.archived.size
@@ -192,6 +215,7 @@ fun AccountsScreen(container: AppContainer, navController: NavHostController) {
                     LedgerGroupItem(index = index, count = count) {
                         AccountRow(
                             awb,
+                            showCurrency = awb.account.currency != state.currency,
                             onClick = {
                                 hapticLight()
                                 navController.navigate(Routes.accountDetail(awb.account.id))
@@ -249,7 +273,7 @@ private fun SectionEmptyCard(title: String, subtitle: String) {
 }
 
 @Composable
-private fun AccountRow(awb: AccountWithBalance, onClick: () -> Unit) {
+private fun AccountRow(awb: AccountWithBalance, onClick: () -> Unit, showCurrency: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -272,13 +296,14 @@ private fun AccountRow(awb: AccountWithBalance, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                accountTypeLabel(awb.account.type),
+                if (showCurrency) "${accountTypeLabel(awb.account.type)} · ${awb.account.currency}"
+                else accountTypeLabel(awb.account.type),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         MoneyText(
-            text = signedMoney(awb.balance, explicitPlus = false),
+            text = signedMoney(awb.balance, awb.account.currency, explicitPlus = false),
             color = balanceColor(awb.balance),
         )
     }

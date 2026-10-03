@@ -114,7 +114,7 @@ class DataLayerTest {
     fun `支出收入与转账的余额计算`() = runTest {
         val ledgerId = seededLedgerId()
         val cashId = db.accountDao().getAll().first().id
-        accountRepo.addAccount(ledgerId, "银行卡", AccountType.BANK, "CNY", 0L, TimeUtils.now())
+        accountRepo.addAccount("银行卡", AccountType.BANK, "CNY", 0L, TimeUtils.now())
         val bankId = db.accountDao().getAll().first { it.name == "银行卡" }.id
         val foodId = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.EXPENSE).first().id
         val salaryId = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.INCOME).first().id
@@ -123,12 +123,12 @@ class DataLayerTest {
         txRepo.add(TransactionDraft(ledgerId, TransactionType.EXPENSE, 2500, "CNY", cashId, categoryId = foodId, transactionTime = TimeUtils.now()))
         txRepo.add(TransactionDraft(ledgerId, TransactionType.INCOME, 300000, "CNY", cashId, categoryId = salaryId, transactionTime = TimeUtils.now()))
 
-        val balances = accountRepo.observeWithBalances(ledgerId).first()
+        val balances = accountRepo.observeWithBalances().first()
         assertEquals(297500L, balances.first { it.account.id == cashId }.balance)
 
         // 转账 100.00 现金 → 银行卡：不影响收支、余额方向正确
         txRepo.add(TransactionDraft(ledgerId, TransactionType.TRANSFER, 10000, "CNY", cashId, targetAccountId = bankId, transactionTime = TimeUtils.now()))
-        val balances2 = accountRepo.observeWithBalances(ledgerId).first()
+        val balances2 = accountRepo.observeWithBalances().first()
         assertEquals(287500L, balances2.first { it.account.id == cashId }.balance)
         assertEquals(10000L, balances2.first { it.account.id == bankId }.balance)
 
@@ -172,7 +172,7 @@ class DataLayerTest {
     fun `交易关联实体必须属于同一账本且失败不留半条交易`() = runTest {
         val ledgerId = seededLedgerId()
         val otherLedger = ledgerRepo.createLedger("其他账本")
-        val cashId = db.accountDao().getByLedger(ledgerId).first().id
+        val cashId = db.accountDao().getAll().first().id
         val foodId = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.EXPENSE).first().id
         val otherTag = tagRepo.addTag(otherLedger.id, "其他账本标签").getOrThrow()
         val otherMerchant = merchantRepo.addMerchant(otherLedger.id, "其他账本商家").getOrThrow()
@@ -211,10 +211,9 @@ class DataLayerTest {
     @Test
     fun `转入账户的初始时间不能越过已有转账`() = runTest {
         val ledgerId = seededLedgerId()
-        val cash = accountRepo.observeByLedger(ledgerId).first().first()
+        val cash = accountRepo.observeAll().first().first()
         val baseTime = cash.initialBalanceTime
         val bank = accountRepo.addAccount(
-            ledgerId,
             "银行卡",
             AccountType.BANK,
             "CNY",
@@ -386,12 +385,12 @@ class DataLayerTest {
         val current = ledgerRepo.currentLedger.first()
         assertNotNull(current)
         assertEquals(second.id, current!!.id)
-        // 新账本同样有种子分类与账户
+        // 新账本同样有种子分类；账户全局共享，已有 CNY 账户时不再新建现金账户
         assertEquals(
             DefaultSeed.EXPENSE_CATEGORIES.size + DefaultSeed.INCOME_CATEGORIES.size,
             db.categoryDao().getByLedger(second.id).size,
         )
-        assertEquals(1, db.accountDao().getByLedger(second.id).size)
+        assertEquals(1, db.accountDao().getAll().size)
     }
 
     @Test

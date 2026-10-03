@@ -28,7 +28,6 @@ fun LedgerEntity.toDomain() = Ledger(
 
 fun AccountEntity.toDomain() = Account(
     id = id,
-    ledgerId = ledgerId,
     name = name,
     type = type,
     currency = currency,

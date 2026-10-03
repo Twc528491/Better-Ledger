@@ -22,6 +22,7 @@ import com.personal.ledger.domain.model.CategoryType
 import com.personal.ledger.domain.model.RecurrenceFrequency
 import com.personal.ledger.domain.model.TransactionType
 import com.personal.ledger.util.TimeUtils
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -78,7 +79,8 @@ class PurgeRepositoryTest {
         return db.ledgerDao().getAll().first().id
     }
 
-    private suspend fun cashOf(ledgerId: String) = db.accountDao().getByLedger(ledgerId).first().id
+    /** 账户全局共享：种子“现金”账户只在没有同币种账户时创建，所有 CNY 账本共用。 */
+    private suspend fun sharedCash() = db.accountDao().getAll().first().id
 
     private suspend fun expenseCategory(ledgerId: String, index: Int = 0) =
         db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.EXPENSE)
@@ -114,7 +116,7 @@ class PurgeRepositoryTest {
         assertTrue(purgeRepo.purgeTag(tag.id).isFailure)
         assertTrue(purgeRepo.purgeMerchant(merchant.id).isFailure)
         assertTrue(purgeRepo.purgeCategory(categoryId, null).isFailure)
-        assertTrue(purgeRepo.purgeAccount(cashOf(ledgerId)).isFailure)
+        assertTrue(purgeRepo.purgeAccount(sharedCash()).isFailure)
         assertTrue(purgeRepo.purgeLedger(ledgerId).isFailure)
         assertEquals(1, db.tagDao().getAll().size)
         assertEquals(1, db.merchantDao().getAll().size)
@@ -124,7 +126,7 @@ class PurgeRepositoryTest {
     @Test
     fun `彻底删除标签只移除关联不删除账单`() = runTest {
         val ledgerId = seededLedgerId()
-        val cash = cashOf(ledgerId)
+        val cash = sharedCash()
         val food = expenseCategory(ledgerId)
         val tag = tagRepo.addTag(ledgerId, "旅行").getOrThrow()
         val keep = tagRepo.addTag(ledgerId, "日常").getOrThrow()
@@ -145,7 +147,7 @@ class PurgeRepositoryTest {
     @Test
     fun `彻底删除商家时账单含回收站改为无商家`() = runTest {
         val ledgerId = seededLedgerId()
-        val cash = cashOf(ledgerId)
+        val cash = sharedCash()
         val food = expenseCategory(ledgerId)
         val merchant = merchantRepo.addMerchant(ledgerId, "超市", setOf(food)).getOrThrow()
         val txId = addExpense(ledgerId, cash, food, merchantId = merchant.id)
@@ -165,7 +167,7 @@ class PurgeRepositoryTest {
     @Test
     fun `彻底删除被引用的分类必须迁移到同类型替代分类`() = runTest {
         val ledgerId = seededLedgerId()
-        val cash = cashOf(ledgerId)
+        val cash = sharedCash()
         val root = expenseCategory(ledgerId, 0)
         val replacement = expenseCategory(ledgerId, 1)
         val income = db.categoryDao().getByLedgerAndType(ledgerId, CategoryType.INCOME).first().id
@@ -176,7 +178,7 @@ class PurgeRepositoryTest {
         txRepo.softDelete(txChild).getOrThrow()
         val month = TimeUtils.currentMonthKey()
         budgetRepo.setBudget(ledgerId, month, root, 50000, "CNY").getOrThrow()
-        val account = accountRepo.addAccount(ledgerId, "订阅卡", AccountType.BANK, "CNY", 0, 0).getOrThrow()
+        val account = accountRepo.addAccount("订阅卡", AccountType.BANK, "CNY", 0, 0).getOrThrow()
         val charge = recurringRepo.save(
             null,
             RecurringChargeDraft(
@@ -246,11 +248,12 @@ class PurgeRepositoryTest {
     }
 
     @Test
-    fun `彻底删除账户连同其账单转账和定时扣款`() = runTest {
+    fun `彻底删除账户连同所有账本中的账单转账和定时扣款`() = runTest {
         val ledgerId = seededLedgerId()
-        val cash = cashOf(ledgerId)
+        val cash = sharedCash()
         val food = expenseCategory(ledgerId)
-        val card = accountRepo.addAccount(ledgerId, "旧卡", AccountType.BANK, "CNY", 0, 0).getOrThrow()
+        val other = ledgerRepo.createLedger("旅行")
+        val card = accountRepo.addAccount("旧卡", AccountType.BANK, "CNY", 0, 0).getOrThrow()
         val tag = tagRepo.addTag(ledgerId, "旧卡消费").getOrThrow()
         addExpense(ledgerId, card.id, food, tagIds = listOf(tag.id))
         val cashExpense = addExpense(ledgerId, cash, food)
@@ -276,12 +279,16 @@ class PurgeRepositoryTest {
             ),
         ).getOrThrow()
         recurringRepo.processDue(charge.nextDueAt)
+        // 另一个账本中使用同一账户的账单（含回收站）也会被删除
+        val otherTx = addExpense(other.id, card.id, expenseCategory(other.id))
+        txRepo.softDelete(otherTx).getOrThrow()
         accountRepo.setArchived(card.id, true).getOrThrow()
 
         val impact = purgeRepo.accountImpact(card.id)
         assertEquals(1, impact.transferCount)
         assertEquals(1, impact.recurringCount)
-        assertEquals(3, impact.transactionCount)
+        assertEquals(4, impact.transactionCount)
+        assertEquals(2, impact.ledgerCount)
 
         purgeRepo.purgeAccount(card.id).getOrThrow()
 
@@ -294,12 +301,15 @@ class PurgeRepositoryTest {
     }
 
     @Test
-    fun `彻底删除归档账本删除其全部数据且不影响其他账本`() = runTest {
+    fun `彻底删除归档账本删除其全部数据但保留共享账户`() = runTest {
         val keepId = seededLedgerId()
         val keepFood = expenseCategory(keepId)
-        val keepTx = addExpense(keepId, cashOf(keepId), keepFood)
+        val keepTx = addExpense(keepId, sharedCash(), keepFood)
         val old = ledgerRepo.createLedger("旧账本")
-        val oldCash = cashOf(old.id)
+        // 已有 CNY 账户，新账本不再自建现金账户，直接使用共享账户
+        assertEquals(1, db.accountDao().getAll().size)
+        val oldCash = sharedCash()
+        val unused = accountRepo.addAccount("未使用", AccountType.BANK, "CNY", 0, 0).getOrThrow()
         val oldFood = expenseCategory(old.id)
         val oldTag = tagRepo.addTag(old.id, "旧标签").getOrThrow()
         val oldMerchant = merchantRepo.addMerchant(old.id, "旧商家", setOf(oldFood)).getOrThrow()
@@ -325,6 +335,7 @@ class PurgeRepositoryTest {
 
         val counts = purgeRepo.ledgerCounts(old.id)
         assertTrue(counts.transactions >= 1)
+        assertEquals(1, counts.affectedAccounts) // 只有共享现金账户的余额会变化
         assertEquals(1, counts.tags)
         assertEquals(1, counts.merchants)
         assertEquals(1, counts.budgets)
@@ -332,7 +343,9 @@ class PurgeRepositoryTest {
         purgeRepo.purgeLedger(old.id).getOrThrow()
 
         assertNull(db.ledgerDao().getById(old.id))
-        assertTrue(db.accountDao().getAll().none { it.ledgerId == old.id })
+        // 账户全局共享，不随账本删除；余额只剩保留账本中的账单
+        assertEquals(setOf(oldCash, unused.id), db.accountDao().getAll().map { it.id }.toSet())
+        assertEquals(-1000L, accountRepo.observeWithBalances().first().first { it.account.id == oldCash }.balance)
         assertTrue(db.categoryDao().getAll().none { it.ledgerId == old.id })
         assertTrue(db.transactionDao().getAll().none { it.ledgerId == old.id })
         assertTrue(db.tagDao().getAll().isEmpty())

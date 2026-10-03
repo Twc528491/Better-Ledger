@@ -168,12 +168,16 @@
     <string name="account_restore">Restore account</string>
     <string name="account_restore_hint">Counts toward assets / liabilities again once restored</string>
     <string name="account_purge">Delete account permanently</string>
-    <string name="account_purge_hint">Also deletes all transactions and recurring charges involving this account</string>
+    <string name="account_purge_hint">Also deletes transactions and recurring charges involving this account in all ledgers</string>
     <string name="account_transactions">Transactions</string>
     <string name="account_no_transactions">No transactions in this account yet</string>
     <string name="account_no_transactions_hint">Transactions and transfers will show up here</string>
     <string name="account_purge_calculating">Calculating what will be deleted…</string>
-    <string name="account_purge_impact">This permanently deletes the account “%1$s”, %2$s involving it, and %3$s.</string>
+    <string name="account_purge_impact">This permanently deletes the account “%1$s”, %2$s involving it in all ledgers, and %3$s.</string>
+    <plurals name="account_purge_ledgers_note">
+        <item quantity="one">These transactions are in %1$d ledger.</item>
+        <item quantity="other">These transactions span %1$d ledgers.</item>
+    </plurals>
     <plurals name="account_purge_tx_count">
         <item quantity="one">%1$d transaction (including the Recycle bin; transfers: %2$d)</item>
         <item quantity="other">%1$d transactions (including the Recycle bin; transfers: %2$d)</item>
@@ -191,6 +195,35 @@
     <string name="account_opening_date">Opening date</string>
     <string name="account_archive">Archive account</string>
     <string name="account_name_required">Name can\'t be empty</string>
+    <string name="account_net_worth_in">Net worth (%1$s)</string>
+    <string name="account_other_currencies">Other currencies (not in net worth)</string>
+    <string name="account_filter_all_ledgers">All ledgers</string>
+    <string name="account_filter_current_ledger">Only this ledger</string>
+    <string name="account_no_transactions_in_ledger">No transactions for this account in this ledger</string>
+    <string name="account_no_transactions_in_ledger_hint">Switch to “All ledgers” to see other ledgers</string>
+    <string name="account_merge">Merge into…</string>
+    <string name="account_merge_pick_subtitle">All transactions and recurring charges of “%1$s” move to the account you pick, then “%1$s” is deleted</string>
+    <string name="account_merge_no_candidates">No other account with the same currency</string>
+    <string name="account_merge_title">Merge accounts</string>
+    <string name="account_merge_impact">“%1$s” will be merged into “%2$s”: %3$s and %4$s in all ledgers will use “%2$s”. Afterwards “%2$s” has an opening balance of %5$s and an opening date of %6$s, and “%1$s” is deleted.</string>
+    <plurals name="account_merge_tx_count">
+        <item quantity="one">%1$d transaction (incl. Recycle bin)</item>
+        <item quantity="other">%1$d transactions (incl. Recycle bin)</item>
+    </plurals>
+    <plurals name="account_merge_recurring_count">
+        <item quantity="one">%1$d recurring charge</item>
+        <item quantity="other">%1$d recurring charges</item>
+    </plurals>
+    <plurals name="account_merge_self_transfers">
+        <item quantity="one">%1$d transfer between them (incl. Recycle bin) would become a transfer to itself and will be deleted; it has no effect on the merged balance.</item>
+        <item quantity="other">%1$d transfers between them (incl. Recycle bin) would become transfers to itself and will be deleted; they have no effect on the merged balance.</item>
+    </plurals>
+    <string name="account_merge_backup_first">Back up before merging</string>
+    <string name="account_merge_working_backup">Backing up and merging…</string>
+    <string name="account_merge_working">Merging…</string>
+    <string name="account_merge_confirm">Merge</string>
+    <string name="account_merge_failed">Couldn\'t merge</string>
+    <string name="account_merge_backup_failed">Backup failed, nothing was merged: %1$s</string>
 
     <string name="stats_title">Statistics</string>
     <string name="stats_month_expense">Spent in %1$s</string>

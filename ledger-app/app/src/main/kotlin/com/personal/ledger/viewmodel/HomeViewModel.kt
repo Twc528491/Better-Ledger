@@ -76,7 +76,8 @@ class HomeViewModel(
                     combine(
                         categoryRepository.observeByLedger(ledger.id),
                         merchantRepository.observeByLedger(ledger.id),
-                        accountRepository.observeByLedger(ledger.id),
+                        // 账户全局共享：名称查表用全部账户。
+                        accountRepository.observeAll(),
                     ) { categories, merchants, accounts -> Triple(categories, merchants, accounts) },
                 ) { t3a, t3b ->
                     val monthTx = t3a.first
