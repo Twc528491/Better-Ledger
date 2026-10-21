@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.personal.ledger"
+    namespace = "io.github.twc528491.betterledger"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.personal.ledger"
+        applicationId = "io.github.twc528491.betterledger"
         minSdk = 26
         targetSdk = 36
         versionCode = 15
@@ -20,6 +20,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 与正式版并存：跑仪器测试不会覆盖或卸载日常使用的 App。
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -27,7 +32,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // 个人自用：release 包使用 debug 签名，便于直接安装。
+            // release 包暂用 debug 签名，便于直接安装。
             // 正式分发前应替换为独立 keystore。
             signingConfig = signingConfigs.getByName("debug")
         }

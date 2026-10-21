@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">个人账本</string>
+    <string name="app_name" translatable="false">Better Ledger</string>
     <string name="error_unknown">操作失败，请重试</string>
 
     <!-- 语言设置 -->
